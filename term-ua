@@ -26,11 +26,12 @@ use LWP::MainLoop qw(empty one_event readable);
     require LWP::Request;
     use base 'LWP::Request';
 
-    sub XXX_get_uname_passwd
+    sub login
     {
 	my($self, $realm, $url, $proxy) = @_;
-	print "Please enter authentication info for $realm @ $url\n";
+	print "Please enter authentication info for $realm at $url\n";
 	my $uname =  main::prompt("Username: ");
+	return unless length $uname;
 	my $passwd = main::prompt("Passwd:   ");
 	return ($uname, $passwd);
     }

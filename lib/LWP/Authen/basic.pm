@@ -8,10 +8,8 @@ sub authenticate
     my($class, $req, $res, $proxy, $auth_param) = @_;
 
     my($user, $pass);
-    eval {
-	($user, $pass) = $req->get_uname_passwd($auth_param->{realm},
-						$req->url, $proxy);
-    };
+    ($user, $pass) = $req->login($auth_param->{realm},
+				 $req->url, $proxy);
     if ($@) {
 	chomp($@);
 	$res->push_header("Client-Warning", $@);

@@ -27,14 +27,14 @@ require URI::URL;
 #   (previous)
 #
 
-sub new2
+sub new2  # alternative ctor that sets up some handlers
 {
     my $class = shift;
     my $self = $class->SUPER::new(@_);
     require LWP::Redirect;
     $self->add_hook("response_handler", \&LWP::Redirect::redirect_handler);
-    require LWP::Auth;
-    $self->add_hook("response_handler", \&LWP::Auth::auth_handler);
+    require LWP::Authen;
+    $self->add_hook("response_handler", \&LWP::Authen::auth_handler);
     $self;
 }
 
@@ -119,9 +119,9 @@ sub redirect_ok
     0;
 }
 
-sub get_uname_passwd
+sub login
 {
-    ("gisle", "hemmelig");
+    return;
 }
 
 
