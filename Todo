@@ -2,11 +2,11 @@
  * More testing
  * Write test scripts
  * Chunked request content
- * Prototect more connection callbacks with eval {}
- * Validate requests (always generate responses)
+ * Prototect more connection callbacks with eval {} ??
  * Complete LWP5 compatibility
  * Response hooks
  * Other LWP::Conn implementations: FILE, FTP, NNTP, Gopher, MAILTO
+ * Non-blocking gethostbyname
  * Documentation
 
  * Cookie hook
