@@ -4,12 +4,11 @@
 
  * Chunked request content
  * Complete LWP5 compatibility
- * Clone hooks in LWP::Request
  * Finish the authentication hooks
  * LWP::Conn::FILE could support PUT and Content-Ranges
  * Other LWP::Conn implementations: FTP, NNTP, Gopher, MAILTO
  * Support HTTPS, TLS
- * gzip/compress/qp sinks
+ * gzip/compress sinks
  * Always pass response data through sinks?
  * Support HTTP/1.0 Keep-Alive?
  * Non-blocking gethostbyname
@@ -21,6 +20,7 @@
  * RobotUA
  * Caching
  * Some applications
+ * one_event(timeout)
 
  * Move to same eventloop as Tk uses.  There appears to be a problem
    because the Tk fileevent does not allow a socket to be both readable
