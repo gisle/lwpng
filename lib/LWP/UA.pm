@@ -20,6 +20,7 @@ sub new
 	       max_conn_per_server => 2,
 
 	       uattr   => URI::Attr->new,
+	       cookie_jar => undef,
 	       servers => {},
 	      }, $class;
 
@@ -183,9 +184,8 @@ sub cookie_jar
     my $self = shift;
     my $old = $self->{'cookie_jar'};
     if (@_) {
-	my $c = $self->{'cookie_jar'} = shift;
-	if ($c) {
-	    $self->add_hook("request", \&setup_cookie);
+	if ($self->{'cookie_jar'} = shift) {
+	    $self->add_hook("request", \&setup_cookie) unless $old;
 	} else {
 	    $self->remove_hook("request", \&setup_cookie);
 	}
