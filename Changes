@@ -1,0 +1,54 @@
+1998-03-18   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.07
+
+   Introduced LWP::StdSched, LWP::Request, URI::Attr classes.
+
+   Implement file:/... access.  (LWP::Conn::FILE)
+
+   Started to write some documentation (the 'News' file).
+
+   Made $ua->spool more robust in case of bad request.  Ensure that
+   all requests get a response_done() callback.
+
+   Introduced 'term-ua'
+
+   LWP::EventLoop will protect timer callbacks with eval { ... }
+
+   Various tweaks and additions to LWP::UA/LWP::Server
+
+   LWP::Conn::HTTP:
+       - died when gethostbyname() failed
+       - did not set $idle_timeout on startup in Idle mode
+       - would call pushback with 0 request on error.
+       - changed error code (now use 591)
+       - zap requests queue if the Connect state result in error
+       - callbacks to Mgr when going active/idle
+       - introduce Closed state
+
+
+
+1998-03-13   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.03
+
+   After a long period of ignoring it I once again started to work
+   on LWP-ng.  Made the LWP::UA and LWP::Server class working again.
+
+
+
+1997-12-11   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.03
+
+   Minor changes since 0.01.  Some testing scripts.  Renaming
+   of connection class to LWP::Conn::HTTP.
+
+
+
+1997-11-26   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.01
+
+   The start of this project.  Basic implementation of LWP::EventLoop
+   and LWP::HConn finished.
