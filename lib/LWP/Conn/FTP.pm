@@ -2,8 +2,8 @@
 
 Non-blocking connect (common base class for both HTTP and FTP)
 
-Base class like Net::Cmd make some of this code reusable for SMTP
-and NNTP.
+Base class like Net::Cmd make some of the response parsing code
+reusable for SMTP and NNTP.
 
 Access files relative to current directory after login.  This is how
 RFC 1738 says that ftp: URLs should be interpreted.  This is now how
@@ -11,7 +11,8 @@ popular browsers do it.  They interpret the first "/" of the URL-path
 literally.  Option for enabling this behaviour??
 
 Is there a better way to implement HEAD???  Currently we do RETR and
-then send ABOR on the first 1xx reponse.
+then send ABOR on the first 1xx reponse.  If only SIZE/MDTM did return
+a different response for not-found and directories :-(
 
 Set IdleTimeout when we go Idle.
 
