@@ -62,6 +62,8 @@ sub cmd
 	    $req->{'auto_redirect'}++;
 	    $req->{'auto_auth'}++;
 	    $ua->spool($req);
+	} elsif ($cmd eq "sched") {
+	    $ua->reschedule;
 	} elsif ($cmd =~ /^c\s+(\S+)/) {
 	    $ua->server($1)->create_connection;
 	} elsif ($cmd =~ /^cp\s+(.*)/) {
