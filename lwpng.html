@@ -1,0 +1,1933 @@
+<HTML> 
+<HEAD> 
+  <TITLE>Gisle Aas: LWPng - Adding HTTP/1.1 support to libwww-perl</TITLE> 
+</HEAD>
+
+<BODY bgcolor="#FFFFFF"
+text="#000000" link="#000055" vlink="#550000" alink="#000000"
+topmargin=0>
+
+<!-- INDEX BEGIN -->
+<!--
+
+<UL>
+
+	<LI><A HREF="#Abstract">Abstract</A>
+	<LI><A HREF="#Introduction">Introduction</A>
+	<LI><A HREF="#A_short_history_of_HTTP">A short history of HTTP</A>
+	<LI><A HREF="#History_of_libwww_perl">History of libwww-perl</A>
+	<LI><A HREF="#A_short_introduction_to_libwww_p">A short introduction to libwww-perl-5</A>
+	<LI><A HREF="#LWPng_design">LWPng design</A>
+	<LI><A HREF="#Event_driven_programming">Event-driven programming</A>
+	<LI><A HREF="#Major_classes">Major classes</A>
+	<UL>
+
+		<LI><A HREF="#LWP_UA">LWP::UA</A>
+		<LI><A HREF="#URI_Attr">URI::Attr</A>
+		<LI><A HREF="#LWP_Request">LWP::Request</A>
+		<LI><A HREF="#LWP_Conn_">LWP::Conn::*</A>
+		<LI><A HREF="#LWP_Conn_HTTP">LWP::Conn::HTTP</A>
+		<LI><A HREF="#LWP_Conn_FTP">LWP::Conn::FTP</A>
+	</UL>
+
+	<LI><A HREF="#Some_benchmarks">Some benchmarks</A>
+	<LI><A HREF="#Conclusions">Conclusions</A>
+	<LI><A HREF="#References">References</A>
+</UL>
+-->
+<!-- INDEX END -->
+
+<center>
+<h1>LWPng - Adding HTTP/1.1 support to libwww-perl
+<br><small>Gisle Aas &lt;gisle@aas.no&gt;</small>
+</h2>
+</center>
+
+<P>
+
+
+<blockquote>
+
+<H2><hr>
+<A NAME="Abstract">Abstract
+
+</A></H2>
+
+<small>
+The <EM>libwww-perl</EM> library (often abbreviated LWP) is a collection of Perl modules which
+provides a programming interface to the World-Wide Web. The library is
+currently in use for a wide range of Web applications.
+
+
+<P>
+
+This article describes a redesign of the libwww-perl library in order to
+provide support for HTTP/1.1 clients. The new library allows client
+applications to utilize multiple persistent connections to the servers it
+communicates with. The redesign is based on the adoption of an event-driven
+framework. Requests are registered with the library and will receive
+callback events as the responses come back from the servers. The library
+tries to match the registered requests with the persistent connections it
+has available or creates new connections when necessary.
+
+
+<P>
+
+Not all details of the programming interface have been settled. More
+experience with non-trivial applications built on top of the new library is
+still needed.
+</small>
+
+<hr>
+</blockquote>
+
+
+
+<H1><A NAME="Introduction">Introduction
+
+</A></H1>
+Libwww-perl is a collection of Perl modules which provide a simple and
+consistent programming interface (API) to the World-Wide Web [1]. The main
+focus of the library is to provide classes and functions that allow you to
+write WWW clients, thus libwww-perl is said to be a WWW client library. The
+library also contains modules that are of more general use, and even
+classes that help you implement simple HTTP servers.
+
+
+<P>
+
+The libwww-perl package has been quite successful at implementing a wide
+range of web client applications and as a support tool for server-side
+programs and programmers. One important feature that has been lacking is
+support for the new version of the HTTP protocol, HTTP/1.1. This article
+describes the redesign that has taken place in order to add such support to
+libwww-perl.
+
+
+<P>
+
+<P>
+
+
+<H1><A NAME="A_short_history_of_HTTP">A short history of HTTP
+
+</A></H1>
+HTTP is a simple network protocol based on the request/response paradigm. A
+client establishes a connection with a server and sends a request message
+to the server. The server then returns a response message.
+
+
+<P>
+
+HTTP started out as an extremely simple protocol where the client connected
+to a server, sent a line saying ``GET &lt;name&gt;'' and the server
+returned the resource identified by &lt;name&gt; and closed the connection.
+This version of the protocol has since been dubbed HTTP/0.9.
+
+
+<P>
+
+The next revision gave us HTTP/1.0, which is still deployed in most servers
+and clients today [2]. It adds a protocol version number and MIME-like
+messages for both the request from the client and the response from the
+server [3]. This makes it possible to attach extra information about
+requests/responses and to carry meta-information describing the content of
+these messages. Responses now also start with a status line that encodes
+the overall outcome of the request. These enhancements make the protocol
+extensible.
+
+
+<P>
+
+The next step was/is HTTP/1.1 which tries to fix some of the shortcomings
+of the HTTP/1.0 protocol [4,5]. One simple but important change is that the
+Host header is now mandatory. This makes it possible to serve multiple
+domains from a single server without allocating a new IP-address to each
+domain. Another change is support for partial content messages. The support
+for caching and proxies has also been greatly clarified and improved upon.
+For special applications there is a standard mechanism of switching away
+from HTTP/1.1 to some other (hopefully more suitable) protocol on the
+established connection.
+
+
+<P>
+
+The most important change with HTTP/1.1 is the introduction of persistent
+connections. This means that more than one request/response exchange can
+take place on a single TCP connection between a client and a server. This
+improves performance and generally interacts much better with how TCP works
+underneath. In order to be able to do this, the communicating peers must
+have some way to tell the extent of the messages on the wire. For HTTP/1.0,
+the only way to do this was by either using the Content-Length header or by
+closing the connection (which was only an option for the server). Use of
+the Content-Length header is not appropriate when the length of the message
+can not be determined in advance. HTTP/1.1 introduces two new ways to
+delimit messages; the chunked transfer encoding and the self delimiting
+multipart content types. The chunked transfer encoding means that the
+message is broken into chunks, each of arbitrary size and each preceded by
+a line specifying the number of bytes in the chunk. The multipart types use
+a special boundary byte pattern as a delimiter for the messages.
+
+
+<P>
+
+With persistent connections one can improve performance even more by the
+use of a technique called <EM>pipelining</EM>. This means that the client sends multiple requests down the connections
+without waiting for the response of the first request before sending the
+second and so on. This can have a dramatic effect on the throughput for
+high latency links [6].
+
+
+<P>
+
+Some of the HTTP/1.1 features are available in deployed HTTP/1.0 clients
+and servers. Persistent connections can sometimes be used with HTTP/1.0 if
+the clients send a ``Connection: Keep-Alive'' header. Most of today's
+HTTP/1.0 clients send the Host header.
+
+
+<P>
+
+Beyond HTTP/1.1 we have HTTP/NG, which is a project still in the research
+phase [7]. HTTP/NG is an attempt to take a more radical approach. The main
+``features'' are making the protocol binary in order not to waste bytes on
+long human readable headers and direct support for multiplexing over a
+single network connection. It is not clear that this will be a big enough
+win to make the world move away from the HTTP/1.X protocols.
+
+
+<P>
+
+<P>
+
+
+<H1><A NAME="History_of_libwww_perl">History of libwww-perl
+
+</A></H1>
+The libwww-perl project started at the first WWW conference in 1994
+(Geneva) where Martijn Koster discussed MOMspider with Roy Fielding.
+Martijn suggested that it would be a good thing if the reusable components
+of this program were broken out into a library. The result was the
+libwww-perl library for perl4 that Roy maintained [8,9].
+
+
+<P>
+
+At one point, both Martijn and Gisle Aas (this article's author) had made
+their own separate modulifications of Roy's library to better suit the
+possibilities that perl5 provided. We joined forces and made several alpha
+releases together. Unfortunately, Martijn had a little disagreement with
+his employer about the intellectual property rights of work done outside
+hours. To safeguard LWP's continued availability to the Perl community, he
+asked me to take over maintenance of the package.
+
+
+<P>
+
+The LWP:: module name was introduced by Martijn in one of the alpha releases. It was
+early on pointed out that this name could be confused with what some
+implementations of threads called themselves, but no better name
+alternatives emerged. The last mailing list messages on this matter was
+&lt;``6362 Tue Jul 18 09:59:46 1995''@mhs-relay.ac.uk&gt; where Martijn
+concluded that ``OK, so we all agree LWP stinks :-)''. The name stuck.
+
+
+<P>
+
+On 1996-05-26 we made the first non-beta release of libwww-perl. It was
+called release 5.00 because it was for perl5 and to make some room for Roy
+to maintain libwww-perl for perl4 which at that time was (and still is)
+called libwww-perl-0.40.
+
+
+<P>
+
+In the two years that have passed since, lots of bugs have been fixed and
+some features added, but nothing radical has happened. We have not been
+eager to try to adopt HTTP/1.1 features, because it seemed clear that
+decent support could not be achieved without a larger restructuring of how
+the basic protocol services were implemented.
+
+
+<P>
+
+One important work that inspired the rewrite described here was Marc
+Langheinrich's ParallelUserAgent implementation. It extended libwww-perl
+with the possibility to access multiple servers (or have multiple
+connections to the same server) at the same time [10].
+
+
+<P>
+
+In November 1997 I started on a rewrite of the basic services provided by
+libwww-perl. The goal was to provide full HTTP/1.1 client support and at
+the same time make the library both more flexible and (optionally) more
+lightweight. Little happened until March 1998, but then I finally got the
+opportunity and tuits enough to start working on this project almost full
+time. The software is, at the time of writing, quite usable. It is
+distributed under the name <EM>LWPng</EM> and is available on CPAN [11]. It is expected to be renamed as
+libwww-perl-6.00 when its beta phase is over.
+
+
+<P>
+
+<P>
+
+
+<H1><A NAME="A_short_introduction_to_libwww_p">A short introduction to libwww-perl-5
+
+</A></H1>
+The libwww-perl library is based on HTTP-style communication. The main
+model is that all requests through any protocol module are forced into an
+HTTP straight-jacket. This makes things very easy, consistent, and nice.
+This model is also what libwww-perl has inherited from, and has in common
+with, w3c-libwww [12].
+
+
+<P>
+
+LWP provides an object oriented model of HTTP-style messages that are
+passed between servers and clients. The <EM>HTTP::Request</EM> class models the message sent from a client to a server. The <EM>HTTP::Response</EM>
+class models the message sent back from a server to a client. On their way
+between the client and the corresponding server, these messages are
+converted to the actual protocol on the wire which in turn will depend on
+what kind of server we are accessing (i.e. does not have to be HTTP).
+
+
+<P>
+
+Instances of the <EM>LWP::UserAgent</EM> class are created by client applications and serve as the interface between
+the application and a network of accessible servers (see figure below). The
+<EM>LWP::UserAgent</EM> provides the <CODE>request()</CODE> method that accepts an
+<EM>HTTP::Request</EM> object as an argument and will (eventually) return an
+<EM>HTTP::Response</EM> object when the corresponding server returns an answer.
+
+
+<P>
+
+<center><img src="fig1.gif" alt="[[fig1.ps]]"></center>
+
+
+<P>
+
+The canonical example of LWP client usage looks like this:
+
+
+<P>
+
+<PRE>  use LWP::UserAgent;
+  my $ua = LWP::UserAgent-&gt;new;
+</PRE>
+
+<P>
+
+<PRE>  my $req = HTTP::Request-&gt;new(GET =&gt; 'http://www.linpro.no/lwp/');
+  $req-&gt;header(Accept =&gt; 'text/html');
+</PRE>
+
+<P>
+
+<PRE>  # send request to server and get response back
+  my $res = $ua-&gt;request($req);
+</PRE>
+
+<P>
+
+<PRE>  # check the outcome
+  if ($res-&gt;is_success) {
+     print $res-&gt;content;  # for instance
+  } else {
+     print &quot;Error: &quot; . $res-&gt;status_line . &quot;\n&quot;;
+  }
+</PRE>
+
+<P>
+
+The <EM>HTTP::Daemon</EM> class provides the corresponding interface for LWP-based server
+applications. Through instances of this class a server application will get
+hold of a connection initiated by a client and will be able receive <EM>HTTP::Request</EM> objects from this connection and send back <EM>HTTP::Response</EM> objects. Since the client and server interface use the same message
+objects, it is trivial to write a simple proxy server [13].
+
+
+<P>
+
+Features of libwww-perl include:
+
+
+<P>
+
+<UL>
+<LI><STRONG></STRONG>
+Support for accessing resources identified by http, https, gopher, ftp,
+file, data, mailto and news URLs within the HTTP framework.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Basic and Digest authorization
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Automatic redirect handling
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Communication through HTTP proxies
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Handling of URLs (both absolute and relative)
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Cookie handling
+
+
+<P>
+
+<LI><STRONG></STRONG>
+RobotRules (/robots.txt)
+
+
+<P>
+
+<LI><STRONG></STRONG>
+A few command line clients
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Coexistence with the Tk modules
+
+
+<P>
+
+</UL>
+<P>
+
+
+<H1><A NAME="LWPng_design">LWPng design
+
+</A></H1>
+It became evident that a redesign of the underlying protocol modules and
+the main interfaces was needed in order to support HTTP/1.1 clients
+properly. The major shift was that we now wanted to be able to
+transparently support multiple persistent connections to the servers, and
+that we wanted these connections to be used efficiently (i.e. we should be
+able to support pipelining too).
+
+
+<P>
+
+As for LWP5, the programming interface still ought to hide the details of
+connection set up and tear down, but in order to allow the library to
+utilize its connections efficiently it would need to have more than a
+single request to work with at a time. This meant that the application
+would have to feed the library with all requests to be carried out as early
+as possible and then it would be the library's task to try to use its
+connections as optimally as possible. The optimization would be guided by
+various parameters that usually can be set by the application (throughput,
+latency, limit number of connections, limit on number of outstanding
+requests per connection, etc.).
+
+
+<P>
+
+Some other design goals and guidelines included:
+
+
+<P>
+
+<UL>
+<LI><STRONG></STRONG>
+The abstractions provided should be fairly high level. The HTTP::Request
+and HTTP::Response object interfaces of LWP5 have shown themselves to work
+well and be valuable. We still wanted a design based on passing these
+objects around.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+The redesigned library should be no more difficult than the old LWP5 to
+use. The application programmer should not have to work harder.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+The redesigned library should be backwards compatible with LWP5. Old
+applications should continue to run. It would, in general, be acceptable if
+they do not run as efficiently as applications that have been rewritten to
+the new interface.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+The library implementation should be efficient. The main issues are startup
+time for applications (i.e. not too much unused source code for perl to
+compile), and efficient use of network connections and operating system
+(i.e. not many small read/write requests and no polling.)
+
+
+<P>
+
+<LI><STRONG></STRONG>
+We wanted to use this opportunity to generalize some parts of the
+interface. For instance, the old $ua-&gt;from and $ua-&gt;agent methods
+could be generalized to something that is able to set up any default
+headers to be added to requests before they are sent out. Having this would
+also solve much of the problem of setting up authorization headers in
+requests.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Optional features of the library should add minimal penalty to applications
+that don't use them.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Most features of the library should be made optional.
+
+
+<P>
+
+This hopefully interacts well with the preceding point and should allow a
+wider range of HTTP client applications to be built. The library can be
+comprehensive and feature-rich and still usable by small/simple
+applications that mainly care about speed. They should not have to shy away
+from LWP because it is too big and too slow to start.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+``Easy things should be easy, hard things possible.'' This Perl slogan
+hopefully applies to this design too.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+There should be minimal binding between the modules and classes within the
+library. One should be able to use only selected parts of the library and
+individual modules should be usable in other contexts than LWP.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+There should be no need for signal handling and no use of the
+<CODE>alarm()</CODE> to implement timeouts.
+
+
+<P>
+
+One of the things that created many problems for LWP5 was that it initially
+used alarms to implement timeouts. This was problematic both because alarms
+are not available everywhere and because the perl signal handling is not as
+reliable as it ought to be.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+Happy coexistence with the Tk module. One should be able to write client
+applications that have graphical user interfaces.
+
+
+<P>
+
+</UL>
+The last item in the list above was one of the reasons why we concluded
+early on that the redesign should be based on an event-driven framework.
+
+
+<P>
+
+<P>
+
+
+<H1><A NAME="Event_driven_programming">Event-driven programming
+
+</A></H1>
+A prerequisite for supporting the persistent connections that HTTP/1.1
+requires, is to be able to handle both reading and writing from multiple
+network connections at the same time. One would also like to manage idle
+connections with some timeout and to notice if the server decides to close
+the connections before we do. These requirements basically mean the
+adoption of an event-driven model or a model based on separate threads of
+control. We have chosen to go for the event-driven model. Thread support is
+still new to Perl and will not work everywhere when available. An
+event-driven framework will continue to work with threaded Perls. A
+threaded framework would require a thread enabled Perl to run. Ousterhout
+mentions several other reasons why an event-oriented solution is to be
+preferred over a thread based one [14].
+
+
+<P>
+
+Event-oriented programming is not always easy. One of the main difficulties
+is that the event handlers must be written to return quickly and one must
+explicitly store away the state between invocations of the handlers instead
+of letting the state be implicit by the natural flow of the program. At
+times it might be useful to allow the event loop to be nested (for instance
+to allow prompting) and this imposes the burden of creating event handler
+routines that are reentrant.
+
+
+<P>
+
+Let us start by investigating the impact of the event-driven framework on
+the overall LWPng programming model. The basic model for sending requests
+and receiving responses in LWP5 used to be:
+
+
+<P>
+
+<PRE>  $res = $ua-&gt;request($req);   # return when response is available
+  if ($res-&gt;is_success) {
+      #...
+  }
+</PRE>
+
+<P>
+
+With the new event-driven framework it becomes:
+
+
+<P>
+
+<PRE>  $ua-&gt;spool($req1);   # returns immediately
+  $ua-&gt;spool($req2);   # can send multiple request in parallel
+  #...
+</PRE>
+
+<P>
+
+<PRE>  mainloop-&gt;run;       # return when all connections are gone
+</PRE>
+
+<P>
+
+Request objects are created and then handed off to the $ua, which will
+queue them up for processing. As you can see, there is no longer any
+natural place to test the outcome of the requests, since the
+<CODE>spool()</CODE> method returns before the response is available. What
+happens is that the requests in a way live their own lives. The request
+objects will be notified (though a callback method) when the corresponding
+responses or response data become available. The application programmer
+will have to set up handlers (in the requests) that react to these events.
+
+
+<P>
+
+This does not mean that all old programs must be rewritten. The following
+sample code shows one way to emulate something very similar to the old
+behaviour:
+
+
+<P>
+
+<PRE>  my $req = LWP::Request-&gt;new(GET =&gt; $url);
+</PRE>
+
+<P>
+
+<PRE>  my $res;
+  # set up a handler to be invoked when the response is available
+  $req-&gt;{done_cb} = sub { $res = shift; };
+</PRE>
+
+<P>
+
+<PRE>  $ua-&gt;spool($req);
+  mainloop-&gt;one_event until $res;  # runs until response is available
+</PRE>
+
+<P>
+
+<PRE>  if ($res-&gt;is_success) {
+      #...
+  }
+</PRE>
+
+<P>
+
+The main clue here is that we run a nested event loop that emulates the
+blocking that $ua-&gt;request would otherwise do. This technique will be
+used to emulate the old $ua-&gt;request() and $ua-&gt;simple_request()
+interfaces for compatibility purposes.
+
+
+<P>
+
+The same technique with nested event loops can be used to implement an
+interface that basically gives us:
+
+
+<P>
+
+<PRE>   open(FH, &quot;http://www.perl.com&quot;) or die;
+   while (&lt;FH&gt;) {
+       print;
+   }
+</PRE>
+
+<P>
+
+The current LWPng implementation and the examples above are based on the
+event loop implementation provided by the LWP::EventLoop class. This class
+is fairly small and quite simple. It supports exactly what LWPng needs and
+not much more. The main problem is the introduction of yet another event
+loop and that it will create problems if the application wants to use LWPng
+together with modules based on some other event loop implementation.
+
+
+<P>
+
+The reason LWP::EventLoop was made in the first place was that none of the
+other event loops that existed on CPAN satisfied the needs of LWPng. The Tk
+event loop would not allow a socket to be both readable and writable at the
+same time, and requiring Tk for every LWP application did not seem very
+attractive. Graham Barr's <EM>Event</EM> looked promising, but was still too alpha and required upgrading the IO
+modules. The EventServer module was too big and relied too much on
+<CODE>alarm()</CODE> to be something I would trust.
+
+
+<P>
+
+Since the happy coexistence with Tk was one of the requirements for the new
+library, we will have to move away from LWP::EventLoop in the future. The
+hope is that Perl itself will adopt some event loop mechanism (possibly
+based on Graham's Event) and that both Tk and LWP will be based on it
+instead of each providing their own.
+
+
+<P>
+
+<P>
+
+
+<H1><A NAME="Major_classes">Major classes
+
+</A></H1>
+LWPng continues in the object-oriented tradition of LWP5 and it introduce
+some new classes. Some of these replace the corresponding classes in LWP5.
+Some add features not present before.
+
+
+<P>
+
+One important design criteria was backwards compatibility. It means that
+the old interfaces must be kept, and if we want to clean up an interface we
+basically have to start afresh with a new class name. This allows old code
+to continue to work because it still uses the old names. Often it is a good
+idea to re-implement the old interfaces on top of the new interface. This
+allows us to keep backwards compatibility and at the same time get one
+place to fix bugs and add enhancements. It also allows the new library to
+remain lean and not suffer from too much compatibility bloat, and it might
+even be used as a validation test of the generality of the new interfaces.
+
+
+<P>
+
+The classes that have changed name and interfaces are:
+
+
+<P>
+
+<UL>
+<LI><STRONG></STRONG>
+The old LWP::UserAgent has become LWP::UA. The name was changed because we
+wanted to make a general cleanup of the interface. The name change also
+makes the transition period easier as the old LWP5 library can be installed
+together with the new library without conflict.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+The old LWP::Protocol::* modules have been replaced with LWP::Conn::*
+modules. The event-oriented framework requires a completely different
+interface towards and from the low-level protocol modules. Both versions
+must be able to work side by side for some time.
+
+
+<P>
+
+<LI><STRONG></STRONG>
+The LWP::Authen modules have changed interface and therefore name. We have
+kept the prefix, but will now use all lower case for the scheme name part,
+e.g. LWP::Authen::digest
+
+
+<P>
+
+</UL>
+Completely new classes include:
+
+
+<P>
+
+<DL>
+<DT><STRONG><A NAME="item_LWP">LWP::Request
+
+</A></STRONG><DD>
+This is a subclass of HTTP::Request that allows us to attach response
+handlers and callbacks to these objects. Basically all the parameters given
+(and returned) by the old $ua-&gt;request method must now be represented as
+attributes of the request object.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_URI">URI::Attr
+
+</A></STRONG><DD>
+This class makes it possible to attach attributes based on hierarchical
+levels of the URI name space. It is used for various configurations and for
+remembering facts about places in this space. The main benefit is that it
+allows more generalizations of the interface and the configuration of the
+library.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_LWP">LWP::Hooks
+
+</A></STRONG><DD>
+LWP::Hooks is a mix-in class that allows handlers to be dynamically
+registered on the object and executed. LWP::UA and LWP::Request inherit its
+methods.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_LWP">LWP::StdSched
+
+</A></STRONG><DD>
+Policy decisions about how many and which connections to set up or tear
+down at given points are delegated to a special scheduler object by the
+LWP::UA. This arrangement allow this behaviour to be easily replaced or
+updated at any time. The LWP::StdSched is the default scheduler that the
+library will instantiate if the application does not set up some other
+scheduler before requests are spooled. The LWP::StdSched is a very
+simple-minded scheduler that tries to adhere to various limits on the
+number of connections to create.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_LWP">LWP::Sink
+
+</A></STRONG><DD>
+HTTP concepts like chained Transfer-Encoding or Content-Encoding suggest
+that we need a way to transform the message content back to its original
+form. Since we want to be able to handle arbitrary sized content and we
+want to be able to make the content available to the application as early
+as possible, a stream-based organization of transformation modules is
+useful. LWP::Sinks that can accept data, do something with it, and then
+send it off to some other sink can be used as transformers. The library
+contains prebuilt transformer sinks that, for instance, deal with <CODE>deflate</CODE> or <CODE>base64</CODE> encoded data. Transformers can be linked together to form stream pipelines.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_LWP">LWP::EventLoop
+
+</A></STRONG><DD>
+The event loop class has been mentioned before. It is basically just a
+wrapper around the <CODE>select()</CODE> system call. File handlers can be registered and the event loop will make
+appropriate callbacks when a handle becomes readable or writable. Timer
+events can also be registered. One handy feature for LWPng is that you can
+set timeouts on the individual file handlers to get an <CODE>inactive</CODE> callback if no other data transfer callbacks have been invoked for some
+specified time.
+
+
+<P>
+
+</DL>
+We will now investigate the major interfaces of some of these classes in
+some more detail.
+
+
+<P>
+
+<P>
+
+
+<H2><A NAME="LWP_UA">LWP::UA
+
+</A></H2>
+The LWP::UA represents the main interface of the client library. The main
+entry point is the <CODE>spool()</CODE> method. All requests to be
+processed by the library enter through this ``gate.'' Before a request is
+handed over to some protocol module, the LWP::UA will invoke any
+<EM>spool_handlers</EM> registered. The handlers are simply a list of subroutines and can be
+registered dynamically by the application.
+
+
+<P>
+
+These handlers provide the main strategy of implementing optional features
+and achieving zero overhead for applications that don't use the features.
+The bare LWP::UA is only capable of doing the following basic things:
+
+
+<P>
+
+<OL>
+<LI><STRONG><A NAME="item_">
+
+</A></STRONG>
+It provides the <CODE>spool()</CODE> method, and when it is invoked...
+
+
+<P>
+
+<LI><STRONG><A NAME="item_">
+
+</A></STRONG>
+it knows how to run any handlers registered.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_">
+
+</A></STRONG>
+If no handler signaled that the request has been handled, then it knows how
+to dynamically load a protocol module by looking at the scheme part of the
+URL and to pass the requests to the module.
+
+
+<P>
+
+<LI><STRONG><A NAME="item_">
+
+</A></STRONG>
+It tells the scheduler object to take a look at the situation in order to
+figure out if any new connections ought to be set up
+($sched-&gt;reschedule).
+
+
+<P>
+
+</OL>
+The handlers are invoked with a reference to the UA and a reference to the
+request as arguments. If a handler returns a TRUE value, then it signals
+that the request has been handled and that no further handlers are to be
+invoked for it. Handlers are also used to modify the request on its way,
+for instance to add various headers. They can register response callbacks
+or response handlers to be triggered when the response is available. In the
+last two cases the handler must return a FALSE value so that the request is
+processed further.
+
+
+<P>
+
+One problem with the current handler interface is that there is really no
+way to control the order that handlers are applied to the requests. This
+probably ought to be fixed. Another idea would be to attach the handlers to
+the URI::Attr tree. That would allow the set of handlers to be applied to
+depend on the request URL.
+
+
+<P>
+
+The following handlers are currently provided by the library. Handlers
+which are not used do not have to be loaded either, which means that perl
+does not waste time compiling their source.
+
+
+<P>
+
+<DL>
+<DT><STRONG><A NAME="item_default_headers">default_headers
+
+</A></STRONG><DD>
+This handler adds static headers to a request where these headers are not
+already present. It is, for instance, used to add headers like
+<CODE>User-Agent</CODE> and <CODE>From</CODE>. The headers to be merged with the request are looked up in the URI::Attr
+tree.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_date">date
+
+</A></STRONG><DD>
+This handler adds a <CODE>Date</CODE> header to the request if applicable. Not really very useful, but it shows
+how to write trivial handlers to cope with dynamic headers that the <EM>default_headers</EM> handler can't do.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_authentication">authentication
+
+</A></STRONG><DD>
+This handler tries to add an <CODE>Authorization</CODE> header to the request that we somehow know might need it. It looks up the
+realm for the URL and maps this to some Authen object that can add the
+corresponding header. This works together with the Authenticate response
+handler (described below).
+
+
+<P>
+
+<DT><STRONG><A NAME="item_proxy">proxy
+
+</A></STRONG><DD>
+This handler tries to set the proxy attribute of a request. The proxy
+configuration is looked up in the URI::Attr and might indicate that some
+URLs are to be passed through a proxy. It can also add a
+<CODE>Proxy-Authorization</CODE> header to the request, for proxies that insist on that.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_head_parser">head_parser
+
+</A></STRONG><DD>
+This handler registers a response data handler with the request. The
+registered handler will create an HTML::Parser object, if the response
+contains an HTML document and pass the first few chunks of document data
+through it. The main reason to do that is to extract any &lt;BASE&gt;
+element that will influence how relative URLs are to be interpreted.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_cookies">cookies
+
+</A></STRONG><DD>
+This handler will let an HTTP::Cookies object add one or more
+<CODE>Cookie</CODE> headers to the request, and will also register a response callback that
+will let the HTTP::Cookies object extract any
+<CODE>Set-Cookie</CODE> headers.
+
+
+<P>
+
+</DL>
+The handlers currently implemented only modify the request on its way to
+the server. Some other uses of spool handlers might include:
+
+
+<P>
+
+<DL>
+<DT><STRONG><A NAME="item_Local">Local cache
+
+</A></STRONG><DD>
+Check if we have a local copy of the response, and return it instead. If no
+valid local copy exists, register a response handler to update or validate
+the local cache. Might also add <CODE>If-None-Match</CODE> or
+<CODE>If-Modified-Since</CODE> headers to the request when we have a stale local copy.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_Specific">Specific scheme handling
+
+</A></STRONG><DD>
+An application might, for instance, want to handle &lt;about:&gt; URLs
+similar to what Netscape does by registering a handler.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_URL">URL rewriting
+
+</A></STRONG><DD>
+Implement automatic fast redirection inside the client
+
+
+<P>
+
+<DT><STRONG><A NAME="item_Netnanny">Netnanny
+
+</A></STRONG><DD>
+Block indecent parts of the URI space
+
+
+<P>
+
+</DL>
+As we have seen, many of the handlers use the common URI::Attr object
+member of the UA to obtain their configuration information.
+
+
+<P>
+
+<P>
+
+
+<H2><A NAME="URI_Attr">URI::Attr
+
+</A></H2>
+For many situations, we have found a need to set up configuration
+parameters and other attributes related to the hierarchical URI name space.
+Many of the handlers should work differently depending on scheme, domain,
+server, or path. For example, the authentication handler might want to
+remember ``realms'' per server and remember which path prefixes are
+protected within the different realms.
+
+
+<P>
+
+The URI::Attr class instances are trees of hashes. A specific absolute URI
+defines a path in the URI::Attr tree, and the main operation of URI::Attr
+is to return all hashes found on this path. This allow us to efficiently
+look up all attributes that are relevant to a specific URI. Since order
+along the path is preserved, we are able to override specific attributes at
+lower hierarchical levels of the URI name space.
+
+
+<P>
+
+The LWP::UA object has a URI::Attr instance as a member. It provides direct
+access to this member through the methods $ua-&gt;uri_attr_plain,
+$ua-&gt;uri_attr_update. Configuration for all the handlers and the
+protocol machinery are placed within this tree.
+
+
+<P>
+
+Let's show a simple proxy configuration as an example. We might want all
+HTTP requests to go through our caching proxy, but not for request to
+servers within our local domain. This can be expressed like this (assuming
+our local domain is <EM>.perl.com</EM>):
+
+
+<P>
+
+<PRE>  $ua-&gt;uri_attr_update(SCHEME=&gt;"")-&gt;{proxy} = &quot;http://proxy.perl.com&quot;;
+  $ua-&gt;uri_attr_update(DOMAIN=&gt;&quot;http://dummy.perl.com/&quot;)-&gt;{proxy} = undef;
+</PRE>
+
+<P>
+
+The proxy handler can then simply find out if a request needs to go through
+a proxy, with a call like this:
+
+
+<P>
+
+<PRE>  $proxy = $ua-&gt;uri_attr_plain($url, &quot;proxy&quot;);
+</PRE>
+
+<P>
+
+This will return the name of the proxy server ``http://proxy.perl.com'' if
+applied to an URL like ``http://www.yahoo.com'', and will return
+<CODE>undef</CODE> if the URL is ``http://mox.perl.com''.
+
+
+<P>
+
+<P>
+
+
+<H2><A NAME="LWP_Request">LWP::Request
+
+</A></H2>
+The <CODE>spool()</CODE> method of LWP::UA accepts one or more LWP::Request
+object references as arguments. The LWP::Request class is derived from the
+HTTP::Request class and inherits all its attributes. We use a subclass
+because it needs to support some callback methods that are invoked during
+reception of the response from the server. There are two such methods:
+
+
+<P>
+
+<PRE>   $req-&gt;response_data($data, $res);
+   $req-&gt;response_done($res);
+</PRE>
+
+<P>
+
+The <CODE>response_data()</CODE> callback method is invoked repeatedly as
+parts of the content of the response becomes available. The first time it
+is invoked is right after the headers in the response message have been
+parsed. At this point, <CODE>$res</CODE> will be a reference to an
+HTTP::Response object with response code and headers initialized, but the
+message content will be empty. There is no guarantee that this method will
+be called at all for a given request.
+
+
+<P>
+
+The default implementation of <CODE>response_data()</CODE> will run any
+<EM>response_data</EM> hooks and will call the registered data callback function if it exists. If
+no data callback function is defined, then data is simply appended to the
+content of the response message.
+
+
+<P>
+
+The <CODE>response_done()</CODE> callback method is invoked when the whole
+response has been received. It is guaranteed that it will be invoked
+exactly once for each request spooled (even for requests that fail.)
+
+
+<P>
+
+The default implementation of <CODE>response_done()</CODE> will run any
+<EM>response_done</EM> hooks. Then it will try to run any
+<EM>response_handlers</EM>. If none of the handlers signaled that the response has been handled (for
+instance by sending a followup request), then we either call the done
+callback function or we ``deliver'' the response by calling the
+$ua-&gt;response_received($res) method.
+
+
+<P>
+
+Applications can either subclass LWP::Request, to provide their own
+versions of <CODE>response_data()</CODE> and <CODE>response_done(),</CODE>
+or they can just register handlers and callback functions. The last option
+is probably to be preferred.
+
+
+<P>
+
+There are two other attributes in LWP::Request worth mentioning here; the
+$req-&gt;proxy field is simply the name of the proxy to send the request
+to, and the $req-&gt;priority field can be used to make some requests more
+important than others.
+
+
+<P>
+
+Again, the handlers allow more features to be optional and ensure minimal
+overhead for applications that don't use them. Currently, the following
+handlers are provided:
+
+
+<P>
+
+<DL>
+<DT><STRONG><A NAME="item_redirect">redirect handler (response_handler)
+
+</A></STRONG><DD>
+This is a handler that makes sure that the library automatically and
+transparently follows any redirect responses. If it kicks in, it will
+create a follow-up request as a copy of the current request, modify the URL
+or proxy setting and then respool it with the UA.
+
+
+<P>
+
+<DT><STRONG>authentication handler (response_handler)
+
+</A></STRONG><DD>
+This is a handler that deals with ``401 Unauthorized'' or ``407 Proxy
+authentication required'' responses. It tries to dynamically load the
+LWP::Authen module that corresponds to the authentication scheme (only
+<EM>Basic</EM> and <EM>Digest</EM> are currently provided), and then lets the loaded module deal with asking
+the user for a user name and a password and with setting up the <CODE>Authorization</CODE> or <CODE>Proxy-Authorization</CODE> header in a copy of the request. If all works well the new request is
+respooled with the UA.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_head">head parser (data hook)
+
+</A></STRONG><DD>
+The head parser looks at the &lt;HEAD&gt; section of HTML documents to extract header fields like <CODE>Content-Base</CODE> and <CODE>Title</CODE>.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_extract_cookies">extract_cookies (done hook)
+
+</A></STRONG><DD>
+If the <EM>cookies</EM> spool handler is enabled, then it will register a response_done hook in
+order to look at the <CODE>Set-Cookie</CODE> headers of all responses.
+
+
+<P>
+
+</DL>
+<P>
+
+
+<H2><A NAME="LWP_Conn_">LWP::Conn::*
+
+</A></H2>
+The guts of the library are in the LWP::Conn classes. This is where all the
+low level protocol handling takes place. Each protocol is implemented by
+its own LWP::Conn class. For instance, the HTTP protocol is implemented by
+the LWP::Conn::HTTP class. Instances of these classes represent a single
+(logical) network connection to a corresponding kind of server. The
+scheduler within the UA is responsible for deciding how many connections to
+set up for each of the servers with which we are going to communicate.
+
+
+<P>
+
+It is really these connection objects that drive the activity within the
+library. As network and timer events happen, we get callbacks into the
+connection objects, and these will make further (higher level and fewer)
+callbacks to the rest of the library.
+
+
+<P>
+
+The other source of activity within the library is the application itself.
+It can either spool further requests, or it can kill running requests (and
+connections). The application must also have an interface to the the event
+loop. In simplest case, it only passes control to the event loop after
+starting things off (using
+<CODE>mainloop-&gt;run</CODE> as shown in examples above).
+
+
+<P>
+
+The following figure shows how the application relates to the library and
+the major call paths involved.
+
+
+<P>
+
+<center><img src="fig2.gif" alt="[[fig2.ps]]"></center>
+
+
+<P>
+
+An LWP::Conn object looks after itself based on the socket and timer
+callbacks that it registers with the event loop. It obtain its workload and
+reports progress to some object that it denotes as its manager. A single
+manager can be shared between multiple connection objects. A reference to
+the manager is passed to the LWP::Conn object constructor, together with a
+specification of where to connect:
+
+
+<P>
+
+<PRE>  $conn = LWP::Conn::HTTP-&gt;new(MangagedBy =&gt; $mgr,
+                               Host =&gt; $host,
+                               Port =&gt; $port,
+                               ...);
+</PRE>
+
+<P>
+
+The following are the methods that a connection will invoke on a manager
+during its life:
+
+
+<P>
+
+<PRE>  $mgr-&gt;get_request($conn);
+  $mgr-&gt;pushback_request($conn, @requests);
+</PRE>
+
+<P>
+
+<PRE>  $mgr-&gt;connection_active($conn);
+  $mgr-&gt;connection_idle($conn);
+  $mgr-&gt;connection_closed($conn);
+</PRE>
+
+<P>
+
+During processing of requests obtained with <CODE>get_request()</CODE> the
+connection object will create LWP::Response objects and will invoke the
+<CODE>response_data()</CODE> and <CODE>response_done()</CODE> callback
+methods described above.
+
+
+<P>
+
+The following are the two methods which can be invoked on a live connection
+by the manager.
+
+
+<P>
+
+<PRE>  $conn-&gt;activate;  # reactivate an idle connection
+  $conn-&gt;stop;      # kill it early
+</PRE>
+
+<P>
+
+As you can see, the interface between a connection object and its manager
+is really quite simple. This makes it easy for applications with special
+needs to use any of the LWP::Conn implementations in isolation without the
+rest of the library. All the application has to do is to provide an object
+that implements the 5 methods that make up the manager interface. For
+normal use we send requests through the LWP::UA, and the library will
+internally use LWP::Server objects as connection managers.
+
+
+<P>
+
+<P>
+
+
+<H2><A NAME="LWP_Conn_HTTP">LWP::Conn::HTTP
+
+</A></H2>
+The LWP::Conn::HTTP module implements the HTTP protocol for LWPng. A single
+LWP::Conn::HTTP instance represents a single network connection to an HTTP
+server. Several request/response exchanges can take place over this single
+connection. Pipelining of requests is supported too.
+
+
+<P>
+
+The design of this module was much inspired by the ``State'' pattern
+described in Design Patterns [15]. The main intent of this pattern is
+described like this:
+
+
+<P>
+
+<PRE>  Allow an object to alter its behaviour when
+  its internal state changes.  The object will
+  appear to change its class.
+</PRE>
+
+<P>
+
+This is usually achieved by having the main object (the connection)
+maintain a reference to an object that represents the current state. All
+state-specific methods are then delegated to this state object, and state
+changes involve updating this reference to point to some other state
+object.
+
+
+<P>
+
+For libwww-perl, Perl's dynamic approach to object orientation came handy.
+With Perl we can actually (and efficiently) change the class of an existing
+object at run-time. This means that a Perl implementation can simplify the
+``State'' pattern a lot.
+
+
+<P>
+
+Each state, that the HTTP connection object can be in, is represented by
+its own LWP::Conn::HTTP subclass, and state transitions are simply a calls
+to the <CODE>bless</CODE> builtin. The use of classes makes it easy to express sub-states (as
+subclasses) that behaves mostly like its base state, but modify some of its
+behaviour.
+
+
+<P>
+
+The states used by LWP::Conn::HTTP are:
+
+
+<P>
+
+<DL>
+<DT><STRONG><A NAME="item_Connecting">Connecting
+
+</A></STRONG><DD>
+In this state, we have called the non-blocking <CODE>connect(2)</CODE> and
+got
+<CODE>EINPROGRESS</CODE> back. We wait until the socket becomes writable, which usually means that
+the connection attempt was successful. On success, we switch to the Idle
+state and call $self-&gt;activate().
+
+
+<P>
+
+<DT><STRONG><A NAME="item_Idle">Idle
+
+</A></STRONG><DD>
+In this state, we have nothing to do. We wait until <CODE>timeout()</CODE>
+or somebody calls the <CODE>activate()</CODE> method. We must also monitor
+the network connection so that we notice if the server decides to close it
+before we do.
+
+
+<P>
+
+If the <CODE>activate()</CODE> method is invoked, then we try to obtain a
+new request to send ($mgr-&gt;get_request). If this succeeds, then we
+switch to the Active state.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_Active">Active
+
+</A></STRONG><DD>
+In this state, we are sending one or more requests, and are prepared to
+read any response that comes back. When the headers of a response have been
+received, they are parsed, and we switch to one of the following
+sub-states, depending on the how the message content are to be delimited.
+When the whole message content has been received, we try to obtain another
+request to send; and, depending on the outcome of this we switch back to
+either the Active or the Idle state.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_ContLen">ContLen
+
+</A></STRONG><DD>
+This is an Active subclass. We maintain a counter of the number of bytes to
+still expect for the message content, and we read data until this counter
+reach zero.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_Chunked">Chunked
+
+</A></STRONG><DD>
+This is an Active subclass. We must read and parse chunk headers, then read
+the corresponding number of chunk bytes. This repeats until a 0-chunk is
+received. Finally, we must be prepared to parse trailer headers for the
+response.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_Multipart">Multipart
+
+</A></STRONG><DD>
+This is an Active subclass. We read content data until the specified
+boundary byte pattern is found.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_UntilEOF">UntilEOF
+
+</A></STRONG><DD>
+This is an Active subclass. We read content data until the server closes
+the connection. This is also the HTTP/1.0 behaviour.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_Closed">Closed
+
+</A></STRONG><DD>
+This is the state that the connection enters when it dies and the socket is
+closed. No method calls are allowed any more.
+
+
+<P>
+
+</DL>
+The following picture illustrates the state transitions that take place:
+
+
+<P>
+
+<center><img src="fig3.gif" alt="[[fig3.ps]]"></center>
+
+
+<P>
+
+The LWP::Conn::HTTP constructor takes the name of the server host and the
+port to connect to as arguments. It creates a non-blocking socket and tries
+to connect to the specified server, and will then either enter the
+Connecting or Idle state, depending on what <CODE>connect(2)</CODE>
+returns. We also register timeout callbacks, which makes sure that this
+connection instance looks after itself.
+
+
+<P>
+
+<P>
+
+
+<H2><A NAME="LWP_Conn_FTP">LWP::Conn::FTP
+
+</A></H2>
+The LWP::Conn::FTP module implements the FTP protocol for LWPng. A single
+LWP::Conn::FTP instance represents a single command connection to an FTP
+server. The creation of the data connections used to transfer the content
+of the files is not visible outside a LWP::Conn::FTP object.
+
+
+<P>
+
+The LWP::Conn::FTP module uses a similar approach to LWP::Conn::HTTP, but
+it has many more states to represent the conversation that has to take
+place on the command connection. The concept of representing persistent
+connections within the library has turned out to be a big win for the FTP
+support. It is now straightforward to provide persistent FTP connections
+that do not tear down the command socket after each request.
+
+
+<P>
+
+<P>
+
+
+<H1><A NAME="Some_benchmarks">Some benchmarks
+
+</A></H1>
+LWPng is still alpha software, so it might be a bit premature to do serious
+benchmarking of it. No work on trying to optimize the library for speed has
+yet been done, as we are still focusing on getting the programming
+interface defined.
+
+
+<P>
+
+The test below is based on simple scripts that fetch a single HTML page,
+parse it and then fetch all images referenced. This is similar to what a
+graphical browser would have to do to load a page. We measure the complete
+downloading time using the Unix 'time' command which reports elapsed real
+time, as well as how much CPU time is used. We don't go into deeper detail
+such as looking at the number of TCP packets generated or the number of
+system calls invoked.
+
+
+<P>
+
+These tests results have been made on a 90Mhz i586 PC running RedHat Linux
+4.0. We have used perl5.004_04, libwww-perl-5.32 and lwpng-alpha-0.20
+during the test. The tests performed were:
+
+
+<P>
+
+<DL>
+<DT><STRONG><A NAME="item_LWP5">LWP5
+
+</A></STRONG><DD>
+The page-fetcher script using the old libwww-perl-5 library. The script
+will fetch the HTML page and the images in sequence and create a new
+connection for each resource fetched.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_LWPng">LWPng
+
+</A></STRONG><DD>
+The page-fetcher script using the new LWPng interface. The script will
+start fetching the images as soon as the corresponding part of the HTML
+document has been received.
+
+
+<P>
+
+The LWPng library behaviour depend on various parameters.  <CODE>MaxConn</CODE>
+is the number of parallel connections we allow it to have to a single
+server.  <CODE>ReqLimit</CODE> sets a limit on the number of requests it will send over a single
+connection. Setting this value to 1 effectively disables persistent
+connections.  <CODE>ReqPend</CODE> sets a limit on the number of requests we can have outstanding on a
+connection before we must wait for a response. Setting this value to 1
+effectively disables pipelining.
+
+
+<P>
+
+The LWPng script has been tested with the following combinations of the
+parameters:
+
+
+<P>
+
+<PRE>           MaxConn   ReqLimit   ReqPend
+         +---------+----------+----------
+ LWPng-A |    1          1         1
+ LWPng-B |    2          1         1
+ LWPng-C |    1        100         1
+ LWPng-D |    1        100         3
+ LWPng-E |    2        100         3
+</PRE>
+
+<P>
+
+The LWP5 and LWPng-A tests should be comparable as the libraries would have
+to set up the same number of network connections.
+
+
+<P>
+
+<DT><STRONG><A NAME="item_SOCK">SOCK
+
+</A></STRONG><DD>
+A simplified version of the page-fetcher script that just hard-codes
+downloading of the URLs over a single persistent IO::Socket::INET
+connection (bypassing any LWP code). All requests are sent to the server
+using a single print, and then we read the responses until the server close
+the connection. The numbers reported for this test should indicate an upper
+limit on the downloading speed we can hope to achieve with Perl.
+
+
+<P>
+
+The LWPng-D and SOCK tests should be comparable. Both download all
+documents over a single connection with pipelining.
+
+
+<P>
+
+</DL>
+I used <EM>www.microsoft.com</EM> as the server to run this test against. The reason was simply that this was
+the first faraway site I found that implemented HTTP/1.1 persistent
+connections and at the same time used a lot of image icons. At the time of
+the test run, there were 17 referenced images to fetch. The average image
+size was 1761 bytes. Of the images 8 had a size less than 256 bytes. I
+believe that the bottleneck on the connection was the 64 kbit ISDN line to
+my ISP.
+
+
+<P>
+
+The results were:
+
+
+<P>
+
+<PRE> LWP5)    3.69user 0.31system 0:20.29elapsed 19%CPU
+ LWPng-A) 5.40user 0.34system 0:20.97elapsed 27%CPU
+ LWPng-B) 5.46user 0.33system 0:21.61elapsed 26%CPU
+ LWPng-C) 4.79user 0.26system 0:14.86elapsed 33%CPU
+ LWPng-D) 5.12user 0.25system 0:12.40elapsed 43%CPU
+ LWPng-E) 4.99user 0.31system 0:10.76elapsed 49%CPU
+ SOCK)    0.78user 0.08system 0:11.28elapsed 7%CPU
+</PRE>
+
+<P>
+
+The first observation to make is that currently LWPng is not more
+lightweight than LWP5. It uses about 50% more CPU to process the requests.
+We observe that we save a lot of CPU time by not using LWP at all.
+
+
+<P>
+
+We see that the use of persistent connections really did help. The time
+used to download the page decreased from 21s to 15s (30%); and after adding
+pipelining, it went down to 12.5s (additional 12%). Using multiple
+connections to the server (B,E) did not do much to decrease download time.
+We also observe that LWPng-D download time is fairly close to the SOCK
+time.
+
+
+<P>
+
+For the next test, we downloaded the <EM>www.microsoft.com</EM> front page locally and then accessed it from a Apache server over the local
+Ethernet. The results were:
+
+
+<P>
+
+<PRE> LWP5)    4.01user 0.25system 0:04.32elapsed 98%CPU
+ LWPng-A) 5.20user 0.34system 0:05.61elapsed 98%CPU
+ LWPng-B) 5.20user 0.31system 0:05.63elapsed 97%CPU
+ LWPng-C) 4.75user 0.30system 0:05.12elapsed 98%CPU
+ LWPng-D) 4.74user 0.31system 0:05.09elapsed 99%CPU
+ LWPng-E) 4.93user 0.17system 0:05.11elapsed 99%CPU
+ SOCK)    0.78user 0.24system 0:01.15elapsed 88%CPU
+</PRE>
+
+<P>
+
+What happened here was that CPU became the bottleneck. Again we see that
+LWPng uses more CPU than LWP5 to achieve the same thing. Persistent or
+parallel connections did nothing to help. It would be interesting to redo
+this test after LWPng has been through a round of profiling and
+optimizations.
+
+
+<P>
+
+A faster perl (or faster hardware) would help LWP too.
+
+
+<P>
+
+<P>
+
+
+<H1><A NAME="Conclusions">Conclusions
+
+</A></H1>
+This article discussed the design of HTTP/1.1 support for the next
+generation of the LWP modules. The new modules allow you to write client
+applications that manage multiple persistent connections to its peer
+servers.
+
+
+<P>
+
+The new design looks promising but the performance must improve in order to
+fulfill the design goals. Still there are spots in the programming
+interface that need more thought. We also need more testing and feedback
+from application writers before we can say that the interface has
+stabilized and we go to the beta phase of bug-fixing and further
+optimizations.
+
+
+<P>
+
+<P>
+<hr>
+<H1><A NAME="References">References
+
+</A></H1>
+
+<DL compact>
+<DT><STRONG><A NAME="item__1_">[1]
+
+</A></STRONG><DD>
+The LWP home page - &lt;URL:http://www.linpro.no/lwp/&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__2_">[2]
+
+</A></STRONG><DD>
+RFC 1945 - ``Hypertext Transfer Protocol -- HTTP/1.0.'', Berners-Lee, T.,
+Fielding, R. and H. Frystyk., MIT/LCS, UC Irvine, May 1996.
+
+
+<P>
+
+<DT><STRONG><A NAME="item__3_">[3]
+
+</A></STRONG><DD>
+RFC2047 - ``MIME (Multipurpose Internet Mail Extensions) Part Three:
+Message Header Extensions for Non-ASCII Text'', Moore, K., University of
+Tennessee, November 1996.
+
+
+<P>
+
+<DT><STRONG><A NAME="item__4_">[4]
+
+</A></STRONG><DD>
+RFC 2068 - ``Hypertext Transfer Protocol -- HTTP/1.1'', Fielding, R.,
+Gettys, J., Mogul, J., Frystyk, H., Berners-Lee, T., UC Irvine, Digital
+Equipment Corporation, M.I.T., January, 1997.
+
+
+<P>
+
+<DT><STRONG><A NAME="item__5_">[5]
+
+</A></STRONG><DD>
+draft-ietf-http-v11-spec-rev-03.txt - ``Hypertext Transfer Protocol --
+HTTP/1.1'', Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter L.,
+Leach P., Berners-Lee, T., HTTP Working Group, March, 1998.
+
+
+<P>
+
+<DT><STRONG><A NAME="item__6_">[6]
+
+</A></STRONG><DD>
+``Network Performance Effects of HTTP/1.1, CSS1, and PNG'', Frystyk
+Nielsen, Gettys, Baird-Smith, Prud'hommeaux, Lie, Lilley. W3C, 1997.
+&lt;URL:http://www.w3c.org/Protocols/HTTP/Performance/Pipeline.html&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__7_">[7]
+
+</A></STRONG><DD>
+&lt;URL:http://www.w3c.org/Protocols/HTTP-NG/&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__8_">[8]
+
+</A></STRONG><DD>
+MOMspider - Roy Fielding
+&lt;URL:http://www.ics.uci.edu/pub/websoft/MOMspider/&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__9_">[9]
+
+</A></STRONG><DD>
+libwww-perl-0.40 - Roy Fielding
+&lt;URL:http://www.ics.uci.edu/pub/websoft/libwww-perl/&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__10_">[10]
+
+</A></STRONG><DD>
+Parallel LWP User Agent - Marc Langheinrich
+&lt;URL:http://www.cs.washington.edu/homes/marclang/ParallelUA/&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__11_">[11]
+
+</A></STRONG><DD>
+CPAN - Comprehensive Perl Archive Network -
+&lt;URL:http://www.perl.com/CPAN/&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__12_">[12]
+
+</A></STRONG><DD>
+w3c-libwww - H. Frystyk &lt;URL:http://www.w3.org/Library/&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__13_">[13]
+
+</A></STRONG><DD>
+``Anynoumus Proxy Server'', Randal L. Schwartz, Web Techniques, February
+1997 &lt;URL:http://www.stonehenge.com/merlyn/WebTechniques/col11.html&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__14_">[14]
+
+</A></STRONG><DD>
+``Why Threads Are A Bad Idea (for most purposes)'', John K. Ousterhout,
+1996 USENIX Technical Conference
+&lt;URL:http://www.scriptics.com/people/john.ousterhout/&gt;
+
+
+<P>
+
+<DT><STRONG><A NAME="item__15_">[15]
+
+</A></STRONG><DD>
+``Design Patterns - Elements of Reusable Object-Oriented Software'', E.
+Gamma, R. Helm, R. Johnson, J. Vlissides. 1995 Addison Wesley.
+
+
+<P>
+
+</DL>
+</DL>
+
+</BODY>
+
+</HTML>
