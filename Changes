@@ -1,3 +1,30 @@
+1998-03-19   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.08
+
+   Updated documentation ('News')
+
+   LWP::Request::clone also copies flags now
+
+   Renamed LWP::Request::done() to LWP::Request::response_done()
+
+   LWP::Server maintains 'created', 'request_count', 'last_request_time'
+   attributes.
+
+   LWP::Conn::FILE support the ETag header and corresponding If-headers.
+
+   LWP::Conn::HTTP did not stop after the first successful connect to
+   a multihomed site.
+
+   LWP::Conn::HTTP will not honor the protocol version if specified in
+   the LWP::Request.  We also add a 'Connection: close' header for the
+   last request sent on a connection.
+
+   Allow LWP::Request response_data() to die in order to signal that the
+   connection should be broken.
+
+
+
 1998-03-18   Gisle Aas <aas@sn.no>
 
    Release alpha-0.07
