@@ -30,16 +30,16 @@ print "ok 1\n";
 print "not " unless attr_str($a) eq "PATH-1";
 print "ok 2\n";
 
-print "not " unless $db->p_attr("file:/gisle/aas", "a") eq "1";
+print "not " unless $db->attr_plain("file:/gisle/aas", "a") eq "1";
 print "ok 3\n";
 
-print "not " unless join(",", $db->p_attr("file:/gisle/aas", "a")) eq "1,2";
+print "not " unless join(",", $db->attr_plain("file:/gisle/aas", "a")) eq "1,2";
 print "ok 4\n";
 
-print "not " unless $db->p_attr("file:/gisle/", "a") eq "2";
+print "not " unless $db->attr_plain("file:/gisle/", "a") eq "2";
 print "ok 5\n";
 
-print "not " if defined($db->p_attr("file:/gisle", "a"));
+print "not " if defined($db->attr_plain("file:/gisle", "a"));
 print "ok 6\n";
 
 #-----------------------------------------------------------------
