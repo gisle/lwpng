@@ -53,6 +53,13 @@ sub set_authorization
     $req->header("Authorization" => $$self);
 }
 
+sub set_proxy_authorization
+{
+    my($self, $req) = @_;
+    return unless defined($$self);
+    $req->header("Proxy-Authorization" => $$self);
+}
+
 sub login
 {
     my $self = shift;
