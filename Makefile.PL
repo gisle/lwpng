@@ -1,3 +1,4 @@
+require 5.004_04;
 use ExtUtils::MakeMaker;
 WriteMakefile(
               NAME => "LWPng-alpha",
