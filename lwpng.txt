@@ -1242,19 +1242,19 @@ Nielsen, Gettys, Baird-Smith, Prud'hommeaux, Lie, Lilley. W3C, 1997.
 
 =item [7]
 
-MOMspider - Roy Fielding <URL:>
+MOMspider - Roy Fielding <URL:http://www.ics.uci.edu/pub/websoft/MOMspider/>
 
 =item [8]
 
-libwww-perl-0.40 - Roy Fielding <URL>
+libwww-perl-0.40 - Roy Fielding <URL:http://www.ics.uci.edu/pub/websoft/libwww-perl/>
 
 =item [9]
 
-ParallelUserAgent - Marc Langheinrich <URL>
+Parallel LWP User Agent - Marc Langheinrich <URL:http://www.cs.washington.edu/homes/marclang/ParallelUA/>
 
 =item [10]
 
-w3c-libwww - H. Frystyk <URL>
+w3c-libwww - H. Frystyk <URL:http://www.w3.org/Library/>
 
 =item [12]
 
