@@ -1,20 +1,8 @@
 #!/local/bin/perl 
 
-# This is a simple command line UA that can run several requests
-# in parallell.  The commands are:
-#
-#     get <url>      : spool request
-#     s              : stop all requests
-#     s <url>        : stop requests for this server
-#     p              : print state of UA
-#     c <url>        : set up connection to this host
-#     cp <key> <val> : set connection parameters
-#     q              : quit
-#
-#     de             : toggle event loop debugging
-#     dc             : toggle connection debugging
-#
-
+# This is a simple command line UA that can run several requests in
+# parallel.  You can control degree of pipelining and set debugging
+# flags too.
 
 use strict;
 use LWP::UA;
