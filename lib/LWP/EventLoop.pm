@@ -29,6 +29,8 @@ use vars qw(@EXPORT_OK);
 my $mainloop = LWP::EventLoop->new;
 sub mainloop { $mainloop }
 
+my $atid = 0;  # incremented in order to generate unique after/at identifiers
+
 
 sub new
 {
@@ -40,13 +42,14 @@ sub new
        _w => undef,
        _e => undef,
        fh => {},
+       at => [],
       }, $class;
 
     # The LWP::EventLoop structure is as follows:
     #
     # _r, _w, _e are just the cached select(2) bitstring arguments.
     #
-    # fh is a hash indexed by (the stringified) filehandles monitored
+    # 'fh' is a hash indexed by (the stringified) filehandles monitored
     # by this loop.  The hash value is a array with the following
     # six values:
     #
@@ -65,6 +68,13 @@ sub new
     # The first element of the array must be a CODE reference or a method
     # name.  The rest is taken to be additional arguments passed during
     # callback invocation.
+    #
+    # 'at' is an array of timer events.  Each event is represented by an
+    # array of three elements:
+    #
+    #   [$id, $at_time, $callback]
+    #
+    # The 'at' array is kept sorted on the $at_time field.
 
     $self;
 
@@ -104,18 +114,45 @@ sub timeout
     $self->_fh($fh);
 }
 
+sub after
+{
+    my($self, $sec, $cb) = @_;
+    $self->at($sec + time, $cb);
+}
+
+sub at
+{
+    my($self, $time, $cb) = @_;
+    return unless $cb;
+    my $id = ++$atid;
+    # insert into the 'at' array but keep is sorted by time
+    @{$self->{'at'}} = sort { $a->[1] <=> $b->[1] }
+                            @{$self->{'at'}}, [$id, $time, $cb];
+    $id;
+}
+
 sub forget
 {
     my $self = shift;
     return unless @_;
-    my $fh;
-    for $fh (@_) {
-	next unless $fh;
-	delete $self->{fh}{int($fh)};
+    my $fh_change;
+    my $id;
+    for $id (@_) {
+	next unless $id;
+	if (ref $id) {
+	    # assume a file handle
+	    delete $self->{fh}{int($id)};
+	    $fh_change++;
+	} else {
+	    # assume a timer id
+	    @{$self->{'at'}} = grep { $_->[0] != $id } @{$self->{'at'}};
+	}
     }
-    $self->_vec("_r", 1);
-    $self->_vec("_w", 2);
-    $self->_vec("_e", 3);
+    if ($fh_change) {
+	$self->_vec("_r", 1);
+	$self->_vec("_w", 2);
+	$self->_vec("_e", 3);
+    }
 }
 
 sub forget_all
@@ -125,6 +162,7 @@ sub forget_all
     for ("_r", "_w", "_e") {
 	$self->{$_} = undef;
     }
+    $self->{'at'} = [];
 }
 
 sub _vec
@@ -210,22 +248,41 @@ sub dump
 sub empty
 {
     my $self = shift;
-    my $e = scalar(%{$self->{fh}});
-    !$e;
+    !%{$self->{fh}} && !@{$self->{'at'}};
 }
 
 sub one_event   # or none
 {
     my $self = shift;
+
     my $now = time;
-    my $timeout = 10;
+    my $timeout = 60;
+    my $at = $self->{'at'};
+    if (@$at) {
+	$timeout = $at->[0][1] - $now;
+	if ($timeout <= 0) {
+	    # the first timer has expired
+	    my($id, $time, $cb) = @{shift @$at};
+	    if ($DEBUG) {
+		print STDERR "timer callback $id";
+		if ($timeout < -0.01) {
+		    printf STDERR " (%.2fs late)\n", -$timeout;
+		} else {
+		    print STDERR "\n";
+		}
+	    }
+	    &$cb();
+	    return;
+	}
+    }
+
     for (values %{$self->{fh}}) {
 	my $timeout_spec = $_->[4];
 	my $pending = $_->[5];
 
 	if ($pending && @$pending) {
 	    my $cb = shift @$pending;
-	    $self->_callback($_->[0], $cb);
+	    $self->_fh_callback($_->[0], $cb);
 	    $timeout_spec->[2] = $now if $timeout_spec;
 	    return;
 	}
@@ -234,7 +291,7 @@ sub one_event   # or none
 	my $timeout_sec = $timeout_spec->[0] - ($now - $timeout_spec->[2]);
 	if ($timeout_sec <= 0) {
 	    # timeout time is now, just do it
-	    $self->_callback($_->[0], $timeout_spec->[1]);
+	    $self->_fh_callback($_->[0], $timeout_spec->[1]);
 	    $timeout_spec->[2] = $now;  # record activity
 	    return;
 	}
@@ -295,10 +352,10 @@ sub one_event   # or none
     }
 }
 
-sub _callback
+sub _fh_callback
 {
     my($self, $fh, $cb) = @_;
-    print STDERR "_callback($fh, $cb)\n" if $DEBUG;
+    print STDERR "_fh_callback($fh, $cb)\n" if $DEBUG;
     my @args;
     if (ref($cb) eq "ARRAY") {
 	@args = @$cb;
