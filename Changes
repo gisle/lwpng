@@ -1,3 +1,29 @@
+1998-04-23   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.17
+
+   Splitting LWP::UA => LWP::UA::Cookies, LWP::UA::Proxy, LWP::Authen
+
+   LWP::UA interface update
+      - $ua->conn_param gone
+      - $ua->response_received only collects now
+      - $ua->request method
+
+   Collecting debugging as_string() methods in LWP::Dump
+
+   LWP::Request callback when sending of the request starts
+
+   LWP::Server deregister itself when the last connection is gone.
+
+   All persistent parameters in URI::Attr.  LWP::UA now have methods
+   to access it.
+
+   URI::Attr->p_attr method changed name to 'attr_plain'.
+
+   bot/* application
+
+
+
 1998-04-20   Gisle Aas <aas@sn.no>
 
    Release alpha-0.16
