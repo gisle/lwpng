@@ -72,64 +72,64 @@ sub new_request
 
     my $mgr = *$self->{'lwp_mgr'};
     my $req = $mgr->get_request($self);
-    if ($req) {
-	print STDERR "$self: New-Request $req\n" if $DEBUG;
-	my @rlines;
-	my $method = $req->method || "GET";
-	my $uri = $req->proxy ? $req->url->as_string : $req->url->full_path;
-	my $proto = $req->protocol || "HTTP/1.1";
-	push(@rlines, "$method $uri $proto");
-	$req->header("Host" => $req->url->netloc);  # always override
+    return unless $req;
 
-	my @conn_header;
-	*$self->{'lwp_req_count'}++;
-	if ($proto eq "HTTP/1.0") {
-	    # can't send any more request, server will close connection
-	    *$self->{'lwp_req_limit'} = 1;
-	} else {
-	    if (my $conn = $req->header("Connection")) {
-		if (grep lc($_) eq "close", split(/\s*,\s*/, $conn)) {
-		    *$self->{'lwp_req_limit'} = 1;
-		}
-	    }
-	    push(@conn_header, "close")
-		if *$self->{'lwp_req_count'} >= *$self->{'lwp_req_limit'};
-	    if (@TE) {
-		push(@conn_header, "TE");
-		$req->header(TE => join(",", @TE));
+    print STDERR "$self: New-Request $req\n" if $DEBUG;
+    my @rlines;
+    my $method = $req->method || "GET";
+    my $uri = $req->proxy ? $req->url->as_string : $req->url->full_path;
+    my $proto = $req->protocol || "HTTP/1.1";
+    push(@rlines, "$method $uri $proto");
+    $req->header("Host" => $req->url->netloc);  # always override
+
+    my @conn_header;
+    *$self->{'lwp_req_count'}++;
+    if ($proto eq "HTTP/1.0") {
+	# can't send any more request, server will close connection
+	*$self->{'lwp_req_limit'} = 1;
+    } else {
+	if (my $conn = $req->header("Connection")) {
+	    if (grep lc($_) eq "close", split(/\s*,\s*/, $conn)) {
+		*$self->{'lwp_req_limit'} = 1;
 	    }
 	}
-	if (@conn_header) {
-	    $req->header("Connection" => join(",", @conn_header));
-	} else {
-	    $req->remove_header("Connection");
+	push(@conn_header, "close")
+	    if *$self->{'lwp_req_count'} >= *$self->{'lwp_req_limit'};
+	if (@TE) {
+	    push(@conn_header, "TE");
+	    $req->header(TE => join(",", @TE));
 	}
-
-	my $cont_ref = $req->content_ref;
-	$cont_ref = $$cont_ref if ref($$cont_ref);
-	if (ref($cont_ref) eq "CODE") {
-	    if (my $len = $req->header("Content-Length")) {
-		*$self->{'lwp_wlen'} = $len + 0;
-	    } else {
-		# must use chunked encoding for the request content
-		$req->push_header("Transfer-Encoding", "chunked");
-		*$self->{'lwp_wlen'}  = 0;
-	    }
-	    *$self->{'lwp_wdyn'} = $cont_ref;  # dynamic content
-	    $cont_ref = \"";   #"; make sure a complete header is sent first.
-	} else {
-	    my $len = length($$cont_ref);
-	    $req->header("Content-Length" => $len) if $len;
-	}
-
-	$req->scan(sub { push(@rlines, "$_[0]: $_[1]") });
-	push(@rlines, "", $$cont_ref);
-	push(@{ *$self->{'lwp_req'} }, $req);
-	*$self->{'lwp_wbuf'} = join("\015\012", @rlines);
-	mainloop->writable($self);
-	return $req;
     }
-    return;
+    if (@conn_header) {
+	$req->header("Connection" => join(",", @conn_header));
+    } else {
+	$req->remove_header("Connection");
+    }
+
+    my $cont_ref = $req->content_ref;
+    $cont_ref = $$cont_ref if ref($$cont_ref);
+    if (ref($cont_ref) eq "CODE") {
+	if (my $len = $req->header("Content-Length")) {
+	    *$self->{'lwp_wlen'} = $len + 0;
+	} else {
+	    # must use chunked encoding for the request content
+	    $req->push_header("Transfer-Encoding", "chunked");
+	    *$self->{'lwp_wlen'}  = 0;
+	}
+	*$self->{'lwp_wdyn'} = $cont_ref;  # dynamic content
+	$cont_ref = \"";   #"; make sure a complete header is sent first.
+    } else {
+	my $len = length($$cont_ref);
+	$req->header("Content-Length" => $len) if $len;
+    }
+
+    $req->scan(sub { push(@rlines, "$_[0]: $_[1]") });
+    push(@rlines, "", $$cont_ref);
+    push(@{ *$self->{'lwp_req'} }, $req);
+    *$self->{'lwp_wbuf'} = join("\015\012", @rlines);
+    mainloop->writable($self);
+
+    return $req;
 }
 
 
