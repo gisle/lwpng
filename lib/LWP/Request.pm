@@ -9,32 +9,14 @@ require LWP::Hooks;
 
 require URI::URL;
 
-# HTTP::Request attributes:
-#
-#    method
-#    url
-#    header
-#    content
-#
-# Added stuff are:
-#
-#    hooks
-#    priority
-#    proxy
-#    data_cb
-#    done_cb
-#    mgr
-#   (previous)
-#
-
 sub new2  # alternative ctor that sets up some handlers
 {
     my $class = shift;
     my $self = $class->SUPER::new(@_);
     require LWP::Redirect;
-    $self->add_hook("response_handler", \&LWP::Redirect::redirect_handler);
+    $self->add_hook("response_handler", \&LWP::Redirect::response_handler);
     require LWP::Authen;
-    $self->add_hook("response_handler", \&LWP::Authen::auth_handler);
+    $self->add_hook("response_handler", \&LWP::Authen::response_handler);
     $self;
 }
 
@@ -51,6 +33,11 @@ sub clone
     $clone;
 }
 
+
+sub sending_start
+{
+    my $self = shift;
+}
 
 sub response_data
 {
