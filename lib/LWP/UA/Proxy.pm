@@ -1,25 +1,25 @@
-package LWP::UA;
+package LWP::UA::Proxy;
 
 # Setup methods that deal with proxies
 
-sub setup_proxy
+sub spool_handler
 {
-    my($self, $req) = @_;
+    my($ua, $req) = @_;
     my $proxy = $req->proxy;
     unless ($proxy) {
-	$proxy = $self->uri_attr_plain($req->url, "proxy");
+	$proxy = $ua->uri_attr_plain($req->url, "proxy");
 	return unless $proxy;
 	$req->proxy($proxy);
     }
 
     # Set up Proxy-Authorization perhaps
-    my $realms = $self->uri_attr_plain($proxy, "proxy_realms");
+    my $realms = $ua->uri_attr_plain($proxy, "proxy_realms");
     return unless $realms && %$realms;
 
     if (keys %$realms > 1) {
 	# there is multiple realms to choose from.  Select the
 	# right one, if there is such a thing.
-	my $realm = $self->uri_attr_plain($req->url, "proxy_realm");
+	my $realm = $ua->uri_attr_plain($req->url, "proxy_realm");
 	if (my $auth = $realms->{$realm}) {
 	    $auth->set_proxy_authorization($req);
 	}
@@ -30,6 +30,11 @@ sub setup_proxy
 	$auth->set_proxy_authorization($req);
     }
 }
+
+# We also add some convenience methods to the LWP::UA class.
+# XXX should we really do this?  Perhaps this should only be part ot
+# the LWP5 compatibility stuff
+package LWP::UA;
 
 sub no_proxy
 {

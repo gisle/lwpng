@@ -1,21 +1,21 @@
-package LWP::UA;
+package LWP::UA::Cookies;
 
-sub cookie_jar
+sub LWP::UA::cookie_jar
 {
     my $self = shift;
     my $old = $self->{'ua_cookie_jar'};
     if (@_) {
 	if ($self->{'ua_cookie_jar'} = shift) {
-	    $self->add_hook("spool_request", \&setup_cookie) unless $old;
+	    $self->add_hook("spool_request", \&spool_handler) unless $old;
 	} else {
-	    $self->remove_hook("spool_request", \&setup_cookie);
+	    $self->remove_hook("spool_request", \&spool_handler);
 	}
     }
     $old;
 }
 
 
-sub setup_cookie
+sub spool_handler
 {
     my($self, $req) = @_;
     my $jar = $self->{'ua_cookie_jar'} || return 0;
