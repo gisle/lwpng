@@ -200,19 +200,21 @@ sub _error
     mainloop->forget($self);
     $self->close;
     
-    my $res = *$self->{'lwp_res'};
-    if ($res) {
-	$res->header("Client-Orig-Status" => $res->status_line);
-	$res->code(600); # XXX
-	$res->message($msg);
-	$res->request->done($res);
-    }
-
     my $mgr = delete *$self->{'lwp_mgr'};
     my $req = *$self->{'lwp_req'};
     if ($req && @$req > 1) {
-	shift @$req;  # currect request never retried
+	my $cur_req = shift @$req;  # currect request never retried
 	$mgr->pushback_request($self, @$req);
+	my $res = *$self->{'lwp_res'};
+	if ($res) {
+	    # partial result
+	    $res->header("Client-Orig-Status" => $res->status_line);
+	    $res->code(600); # XXX
+	    $res->message($msg);
+	    $cur_req->done($res);
+	} else {
+	    $cur_req->done(HTTP::Response->new(601, "No response"));
+	}
     }
     $mgr->connection_closed($self);
 }
