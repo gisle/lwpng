@@ -120,7 +120,7 @@ sub state
 {
     my $self = shift;
     my $old = ref($self);
-    $old =~ s/^LWP::Conn::HTTP:*//;
+    $old =~ s/^LWP::Conn::HTTP:://;
     if (@_) {
 	print STDERR "State trans: $old --> $_[0]\n" if $DEBUG;
 	bless $self, "LWP::Conn::HTTP::$_[0]";
@@ -144,12 +144,13 @@ sub new_request
 	my $uri = $req->proxy ? $req->url->as_string : $req->url->full_path;
 	push(@rlines, $req->method . " $uri HTTP/1.1");
 	$req->header("Host" => $req->url->netloc);
-	#$req->header("Connection" => "close");
+	if (++(*$self->{'lwp_req_count'}) == *$self->{'lwp_req_limit'}) {
+	    $req->header("Connection" => "close");
+	}
 	$req->scan(sub { push(@rlines, "$_[0]: $_[1]") });
 	push(@rlines, "", $req->content);
 	push(@{ *$self->{'lwp_req'} }, $req);
 	*$self->{'lwp_wbuf'} = join("\015\012", @rlines);
-	*$self->{'lwp_req_count'}++;  # XXX: should mark last request somehow
 	mainloop->writable($self);
 	return $req;
     }
@@ -215,7 +216,7 @@ sub _error
 	    $res->header("Client-Orig-Status" => $res->status_line);
 	    $res->code(591); # XXX
 	    $res->message($msg);
-	    $cur_req->done($res);
+	    $cur_req->response_done($res);
 	} else {
 	    $cur_req->gen_response(590, "No response");
 	}
@@ -405,6 +406,7 @@ sub check_rbuf
     *$self->{'lwp_res'} = $res;
     my $req = $self->current_request;
     $res->request($req);
+    $req->response_data("", $res);
     #print $res->as_string if $LWP::Conn::HTTP::DEBUG;
 
     # Determine how to find the end of message
@@ -469,7 +471,7 @@ sub end_of_response
     my $self = shift;
     print STDERR "$self: End-Of-Response\n" if $LWP::Conn::HTTP::DEBUG;
     my $req = shift @{*$self->{'lwp_req'}};  # get rid of current request
-    $req->done(*$self->{'lwp_res'});
+    $req->response_done(*$self->{'lwp_res'});
     *$self->{'lwp_res'} = undef;
     if ($self->last_request_sent && !$self->current_request) {
 	mainloop->forget($self);
