@@ -1,0 +1,42 @@
+#!/usr/bin/perl -w
+
+use strict;
+my $URL_FILE = "URL-auth";
+
+use HTTP::Daemon;
+my $d = new HTTP::Daemon;
+$SIG{PIPE} = 'IGNORE';  # if syswrite() on the socket fails
+
+open(URL, ">$URL_FILE") || die "Can't open $URL_FILE: $!";
+print URL $d->url, "\n";
+close(URL);
+
+print "<URL:", $d->url, ">\n";
+
+my $req_no = 1;
+while (my $c = $d->accept) {
+    if (my $r = $c->get_request) {
+	print $req_no++, ": ";
+	print $r->as_string;
+	my $auth = $r->authorization_basic;
+	
+	if ($auth && $auth eq "lwall:xyzzy") {
+	    $c->print("HTTP/1.1 200 OK\nConnection: close\n");
+	    $c->print("Content-Type: text/plain\n\n");
+	    $c->print(<<'EOT');
+In general, if you think something isn't in Perl, try it out, because it
+usually is.  :-)
+             -- Larry Wall in <1991Jul31.174523.9447@netlabs.com>
+EOT
+        } else {
+	    $c->print("HTTP/1.1 401 UNAUTHORIZED\n");
+	    $c->print(qq(WWW-Authenticate: Foo realm="WallyWorld", foo="bar", Bar realm="realm="WallyWorld"\n));
+	    $c->print(qq(WWW-Authenticate: Basic realm="WallyWorld"\n));
+	    $c->print("\n");
+	    $c->print("You should not see this!\n");
+        }
+    }
+    $c->close;
+    $c = undef;
+}
+ 
