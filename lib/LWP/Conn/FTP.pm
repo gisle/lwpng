@@ -352,7 +352,7 @@ sub response
 	$self->send_cmd("USER " . *$self->{'lwp_user'} => "User");
     } else {
 	if (my $req = delete *$self->{'lwp_req'}) {
-	    *$self->{'lwp_mgr'}->pushback_request($req);
+	    *$self->{'lwp_mgr'}->pushback_request($self, $req);
 	}
 	$self->error("Can't reinitialize");
     }
@@ -638,6 +638,7 @@ sub response
 	    $res->content_length($1);
 	}
 	*$self->{'lwp_req'}->response_data("", $res);
+	# XXX catch except
     } elsif ($r eq "2") {
 	# we are done.  Must sync with data_done callback
 	$self->state("Inlogged");
@@ -651,7 +652,9 @@ sub response
 	    # It might still be a directory, try to list it
 	    my $file = *$self->{'lwp_file'};
 	    $self->send_cmd("LIST $file" => "List");
-	    # XXX: Override any content type selected
+	    my $res = *$self->{'lwp_res'};
+	    $res->content_type("text/ftp-dir-listing");
+	    $res->remove_header("Content-Encoding");
 	}
     } else {
 	$self->error("RETR");
@@ -665,7 +668,9 @@ sub response
 {
     my($self, $r, $code) = @_;
     if ($r eq "1") {
-	# info message, ignore (might extract content-length from it)
+	# info message, ignore
+	*$self->{'lwp_req'}->response_data("", *$self->{'lwp_res'});
+	# XXX catch except
     } elsif ($r eq "2") {
 	# we are done.  XXX: Must sync with data_done callback
 	$self->state("Inlogged");
