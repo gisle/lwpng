@@ -1,0 +1,98 @@
+%!PS-Adobe-2.0 EPSF-1.2
+%%BoundingBox: 40 30 400 140
+%%Creator: Gisle Aas (Copyright 1998)
+
+/rrect {             % <dx> <dy> rrect -
+   2 dict begin
+      /dy exch def  /dx exch def
+      dx 0 rlineto 0 dy rlineto dx neg 0 rlineto closepath
+   end
+} def
+
+% Some handy aliases
+/M  /moveto       load def
+/L  /lineto       load def
+/RM /rmoveto      load def
+/RL /rlineto      load def
+/F  /fill         load def
+/S  /stroke       load def
+/CP /closepath    load def
+/LW /setlinewidth load def
+/SG /setgray      load def
+
+/SF    { exch findfont exch scalefont setfont         } def
+/cshow { dup stringwidth pop 2 div neg 0 rmoveto show } def
+/rshow { dup stringwidth pop       neg 0 rmoveto show } def
+
+% Some colors used
+/yellow    { 1 1 0.8 setrgbcolor } def
+/red       { 0.7 0 0 setrgbcolor } def
+/palered   { 1.0 0.8 0.8 setrgbcolor } def
+/palegreen { 0.8 1.0 0.8 setrgbcolor } def
+/paleblue  { 0.8 0.8 1.0 setrgbcolor } def
+
+/ptrn { % <x1> <y1> <x2> <y2> ... <xn> <yn> ptrn -
+   count 0 gt {  % is there more than one point?
+      % then a line for all but the last
+      count 2 idiv 1 sub {
+         count dup 2 sub roll L
+      } repeat
+
+      % only the last one left, where the arrow-head must be
+      7 dict begin
+         /y exch def
+         /x exch def
+         currentpoint y sub neg /dy exch def
+         x sub neg /dx exch def
+
+         /al dx dx mul dy dy mul add sqrt def
+         /angle dy dx atan def
+         /b al 10 sub def
+
+         gsave
+            currentpoint translate
+            angle rotate
+            b 0 L S
+            b -4 M b 4 L al 0 L CP F  % arrow head
+         grestore
+      end
+   } if
+} def
+
+/elipse {
+/savematrix matrix currentmatrix def
+translate
+50 30 scale
+newpath
+0 0 1 0 360 arc
+savematrix setmatrix
+} def
+
+
+/Helvetica-Bold 16 SF
+
+2 setlinewidth
+
+100 100 elipse gsave 0.9 setgray fill grestore stroke
+340 100 elipse gsave 0.9 setgray fill grestore stroke
+
+220 100 elipse
+gsave
+  clip
+  paleblue fill
+  newpath 100 100 M 300 100 rrect
+  0 setgray gsave 1 setgray fill grestore 1 setlinewidth stroke
+grestore
+stroke
+
+100 94 M (Server 1) cshow
+340 94 M (Server 2) cshow
+
+220 105 M (Client) cshow
+220 80  M (LWP) cshow
+
+newpath
+4 setlinewidth
+210 70 M 210 40 110 40 110 70 ptrn
+230 70 M 230 40 350 40 350 70 ptrn
+240 72 M 240 50 330 50 330 70 ptrn
