@@ -42,7 +42,9 @@ sub auth_handler
 	    push(@auth, [$_, $auth]);
 	}
     }
-    # try the rest too, in case we know how to handle it
+    # try the rest too, in case we know how to handle it.
+    # XXX should really keep the order specified by the server, so
+    # filtering it through a hash is probably not such a good idea.
     for (keys %auth) {
 	push(@auth, [$_, $auth{$_}]);
     }
