@@ -92,7 +92,7 @@ sub write
     my $sock = $self->{'sock'};
     my $no   = $self->{'conn_no'};
     my $write_buf = \$self->{'write_buf'};
-    my $n = syswrite($sock, $$write_buf, 12);
+    my $n = syswrite($sock, $$write_buf, 16);
     print "C$no: Wrote $n bytes\n";
     if (!defined($n) || !$n) {
 	# could not write
@@ -121,31 +121,57 @@ sub read
     my $no   = $self->{'conn_no'};
     my $buf;
     my $n = sysread($sock, $buf, 128);
+    my $response_finished;
     print "C$no: Read $n bytes\n";
     if (!$n) {
 	$self->readable(0);
+	my $req = pop(@{$self->{requests}});
+	if (@{$self->{requests}}) {
+	    # these failed on this connection
+	    $self->{'server'}->add_request(@{$self->{requests}});
+	}
+	$self->close;
 	return;
+    } elsif ($response_finished) {
+	$self->readable(0);
+	if ($self->keepalive && !$self->pipeline) {
+	    $self->send_one_request;  # a new on the same connection
+	} else {
+	    $self->close;
+	}
     }
     $buf =~ s/\n/\\n/g; $buf =~ s/\r/\\r/g;  # nicer for printing
     print "C$no: [$buf]\n";
 }
 
-sub pipeline
+sub keepalive
 {
     1;
+}
+
+sub pipeline
+{
+    0;
 }
 
 sub close
 {
     my $self = shift;
-    close($self->{'socket'});
+    close($self->{'sock'});
+    my $no = $self->{conn_no};
+    print "C$no: close\n";
+
+    my $serv = $self->{'server'};
+    delete $self->{'server'};
+    $serv->{num_connections}--;
+    $serv->{'ua'}->reschedule;
 }
 
 sub DESTROY
 {
     my $self = shift;
     my $server = $self->{server};
-    $server->{num_connections}--;
+    $server->{num_connections}-- if $server;
     my $no = $self->{conn_no};
     print "C$no: destroyed\n";
 }

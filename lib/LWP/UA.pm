@@ -39,7 +39,7 @@ sub spool
 	return;
     }
     $server->add_request($req);
-    $self->reshedule;
+    $self->reschedule;
 }
 
 sub max_server_connections
@@ -48,7 +48,7 @@ sub max_server_connections
     $self->{def_maxconn};
 }
 
-sub reshedule
+sub reschedule
 {
     my($self) = @_;
 
