@@ -53,7 +53,7 @@ sub new
 	    $res->server("libwww-perl");
 	    $res->content_type("message/http");
 	    $res->content($req->as_string);
-	    $req->done($res);
+	    $req->response_done($res);
 
 	} else {
 	    $req->gen_response(405, "Bad method '$method'");
@@ -113,7 +113,7 @@ sub get
 		$res->code(412); # PRECONDITION_FAILED
 		$res->message("Resouce modified");
 		close(FILE);
-		$req->done($res);
+		$req->response_done($res);
 		return;
 	    }
 	}
@@ -139,7 +139,7 @@ sub get
 		    $res->code(412); # PRECONDITION_FAILED
 		    $res->message("No match for ETag $orig_im");
 		    close(FILE);
-		    $req->done($res);
+		    $req->response_done($res);
 		    return;
 		}
 	    }
@@ -164,7 +164,7 @@ sub get
 		$res->code(304); # NOT_MODIFIED
 		$res->message("ETag match for $match");
 		close(FILE);
-		$req->done($res);
+		$req->response_done($res);
 		return;
 	    }
 	    $skip_if_modified++;
@@ -177,7 +177,7 @@ sub get
 		$res->code(304);
 		$res->message("Not modified");
 		close(FILE);
-		$req->done($res);
+		$req->response_done($res);
 		return;
 	    }
 	}
@@ -191,7 +191,7 @@ sub get
 	    }
 	}
 	close(FILE);
-	$req->done($res)
+	$req->response_done($res)
 
     } else {
 	$req->gen_response(errno_status(), "$!");
