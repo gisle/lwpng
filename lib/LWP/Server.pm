@@ -19,7 +19,6 @@ sub new
             ua            => $ua,
 
 	    proto         => $proto,
-#	    proto_ver     => undef,
 	    conn_class    => $conn_class,
 
 	    created       => time(),
@@ -72,7 +71,9 @@ sub add_request
 {
     my($self, $req) = @_;
     my $pri = $req->priority;
-    # should really keep sorted by 'pri' field
+    # XXX should really keep sorted by 'pri' field.  Wouldn't it be nice
+    # if Perl had a library similar to Python's bisect.py
+    # (perhaps it already has?)
     if ($pri && $pri > 50) {
 	push(@{$self->{req_queue}}, $req);
     } else {
@@ -87,10 +88,12 @@ sub stop
     my $self = shift;
     # stop all connections
     my @conns = @{$self->{conns}};  # iterate over a copy
+    $self->{stopping}++;
     for (@conns) {
 	$_->stop;
     }
     $self->kill_queued_requests;
+    delete $self->{stopping};
 }
 
 sub stop_idle
@@ -167,13 +170,17 @@ sub create_connection
 	print STDERR $@ if $DEBUG;
 	chomp($@);
 	$self->kill_queued_requests(590, $@);
+	$self->done;
 	return;
     }
     if ($conn) {
 	push(@{$self->{conns}}, $conn);
-    } elsif (@{$self->{req_queue}}) {
-	my $msg = "Can't connect to " . $self->id;
-	$self->kill_queued_requests(590, $msg, $!);
+    } else {
+	if (@{$self->{req_queue}}) {
+	    my $msg = "Can't connect to " . $self->id;
+	    $self->kill_queued_requests(590, $msg, $!);
+	}
+	$self->done;
     }
 }
 
@@ -262,9 +269,22 @@ sub connection_closed
     $self->remove_from_refarray($self->{idle_conns}, $conn);
     $self->remove_from_refarray($self->{conns}, $conn) or
 	warn "$conn was not registered";
-    $self->create_connection
-	if !@{$self->{conns}} && @{$self->{req_queue}};
+
+    unless (@{$self->{conns}}) {
+	# This was the last connection
+	if (@{$self->{req_queue}} && !$self->{stoppping}) {
+	    $self->create_connection
+	} else {
+	    $self->done;
+	}
+    }
 }
 
+sub done  # this really deallocate this LWP::Server entry
+{
+    my $self = shift;
+    my $ua = delete $self->{'ua'};
+    $ua->forget_server($self->id);
+}
 
 1;
