@@ -64,7 +64,7 @@ sub _set_authorization
     my $uri = $req->url->full_path;
     my $nonce = $self->{nonce};  $nonce = "" unless defined $nonce;
     my $nc = sprintf "%08x", ++$self->{nonce_count};
-    my $cnonce = sprintf "%x", rand(0x1000000);
+    my $cnonce = sprintf "%x", rand(0xFFFFFF)+1;  # +1 ensures always TRUE
 
     my $a1;
     if ($algorithm eq "md5") {
