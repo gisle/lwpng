@@ -25,10 +25,11 @@ sub new
 	      }, $class;
 
     $ua->add_hook("spool_request", \&setup_default_headers);
+    $ua->add_hook("spool_request", \&setup_date);
     $ua->add_hook("spool_request", \&setup_auth);
     $ua->add_hook("spool_request", \&setup_proxy);
-    $ua->agent("libwww-perl/ng");
 
+    $ua->agent("libwww-perl/ng-alpha ($^O)");
     $ua;
 }
 
@@ -176,6 +177,16 @@ sub setup_default_headers
 	}
     }
     0; # continue
+}
+
+sub setup_date
+{
+    my($self, $req) = @_;
+    $req->date(time);
+    # Clients SHOULD only send a Date header field in messages that
+    # include an entity-body, as in the case of the PUT and POST
+    # requests, and even then it is optional.
+    0;
 }
 
 
