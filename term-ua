@@ -16,10 +16,26 @@ $ua->conn_param(ReqLimit    => 10,
 
 $ua->env_proxy;
 
-require LWP::Request;
 require LWP::Conn::HTTP;
+require LWP::Auth;
 
 use LWP::MainLoop qw(empty one_event readable);
+
+{
+    package MyRequest;
+    require LWP::Request;
+    use base 'LWP::Request';
+
+    sub XXX_get_uname_passwd
+    {
+	my($self, $realm, $url, $proxy) = @_;
+	print "Please enter authentication info for $realm @ $url\n";
+	my $uname =  main::prompt("Username: ");
+	my $passwd = main::prompt("Passwd:   ");
+	return ($uname, $passwd);
+    }
+}
+
 
 $| = 1;
 print "ua> ";
@@ -36,8 +52,11 @@ sub cmd
     my $n = sysread(STDIN, $cmd, 512);
     chomp($cmd);
     eval {
-	if ($cmd eq "q") {
+	if ($cmd eq "Q") {
 	    exit;
+	} elsif ($cmd eq "q") {
+	    my $ans = lc(prompt("really quit? "));
+	    exit if $ans eq "y" or $ans eq "yes";
 	} elsif ($cmd eq "p") {
 	    print $ua->as_string;
 	} elsif ($cmd eq "dc") {
@@ -62,7 +81,7 @@ sub cmd
 	    my $count = $1 || 1;
 	    my $method = uc($2);
 	    my $url = $3;
-	    $ua->spool(map LWP::Request->new2($method, $url), 1..$count);
+	    $ua->spool(map MyRequest->new2($method, $url), 1..$count);
         } elsif ($cmd =~ /^\s*!\s*(.*)/) {
 	    my $ret = eval $1;
 	    if ($@) {
@@ -70,8 +89,10 @@ sub cmd
 	    } else {
 		eval {
 		    require Data::Dumper;
-		    local $Data::Dumper::Terse = 1;
-		    local $Data::Dumper::Indent = 0;
+		    local $Data::Dumper::Terse;
+		    local $Data::Dumper::Indent;
+		    $Data::Dumper::Terse = 1;
+		    $Data::Dumper::Indent = 0;
 		    print Data::Dumper::Dumper($ret), "\n";
 		};
 		print $@ if $@;
@@ -98,4 +119,24 @@ EOT
     };
     print STDERR $@ if $@;
     print "ua> ";
+}
+
+
+sub prompt
+{
+    my $p = shift;
+    print $p;
+    my $buf;
+    my $done;
+    readable(\*STDIN,
+	     sub {
+		 my $n = sysread(STDIN, $buf, 512);
+		 chomp($buf);
+		 $done++;
+	     });
+    while (!empty && !$done) {
+	one_event;
+    }
+    readable(\*STDIN, \&cmd);
+    $buf;
 }
