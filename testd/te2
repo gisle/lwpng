@@ -1,0 +1,16 @@
+HTTP/1.1 200 OK
+Connection: close
+Server: none
+Content-Type: text/plain
+Transfer-Encoding: Rot13;
+Transfer-Encoding: identity; foo=bar, rot13; q=33
+Transfer-Encoding: CHUNKED
+
+05
+Gisle
+01
+ 
+3
+Aas
+00
+

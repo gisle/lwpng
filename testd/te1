@@ -1,0 +1,16 @@
+HTTP/1.1 200 OK
+Connection: close
+Server: none
+Content-Type: text/plain
+Transfer-Encoding: chunked
+
+05
+Gisle
+01
+ 
+03; content="family name"
+Aas
+00
+Trailer-Field1: foo
+Trailer-Field2: bar
+
