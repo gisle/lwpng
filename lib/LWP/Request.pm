@@ -22,11 +22,13 @@ require URI::URL;
 #    data_cb
 #    done_cb
 #    mgr
+#   (previous)
 #
-# Flags are:
+# Added flags are:
 #
 #    want_progress_report
 #    auto_redirect
+#    auto_auth
 #
 
 
@@ -112,10 +114,11 @@ sub done
 	    return;
 	}
 	
-    } elsif ($self->{auth_cb} &&
+    } elsif ($self->{auto_auth} &&
 	     ($self->code == &HTTP::Status::RC_UNAUTHORIZED ||
 	      $self->code == &HTTP::Status::RC_PROXY_AUTHENTICATION_REQUIRED))
     {
+	#XXX NYI
 
     }
 
