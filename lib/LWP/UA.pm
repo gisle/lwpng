@@ -19,17 +19,23 @@ sub new
 sub conn_param
 {
     my $self = shift;
-    %{ $self->{conn_param} };
+    return %{ $self->{conn_param} } unless @_;
+    return $self->{conn_param}{$_[0]} if @_ == 1;
+    while (@_) {
+	my $k = shift;
+	my $v = shift;
+	$self->{conn_param}{$k} = $v;
+    }
 }
 
 sub server
 {
     my($self, $url) = @_;
     $url = URI::URL->new($url) unless ref($url);
-    my $proto = $url->scheme;
+    my $proto = $url->scheme || die "Missing scheme";
     $proto = "nntp" if $proto eq "news";  # hack
-    my $host = $url->host;
-    my $port = $url->port;
+    my $host = $url->host || die "Missing host";
+    my $port = $url->port || die "No port";
     my $netloc = "$proto://$host:$port";
 
     my $server = $self->{servers}{$netloc};
@@ -42,39 +48,26 @@ sub server
 sub spool
 {
     my($self, $req, $pri) = @_;
-    my $server = $self->server($req->url);
-    $server->add_request($req, $pri);
-    #$self->reschedule;
+    eval {
+	my $server = $self->server($req->url);
+	$server->add_request($req, $pri);
+	#$self->reschedule;
+    };
+    if ($@) {
+	print $@;
+	return;
+    }
     print "$req spooled\n";
 }
 
-sub as_string
+sub stop
 {
     my $self = shift;
-    my @str;
-    push(@str, "$self\n");
-    require Data::Dumper;
-    for (sort keys %$self) {
-	my $str;
-	if ($_ eq "servers") {
-	    my @s;
-	    for (sort keys %{$self->{servers}}) {
-		push(@s, "  $_ =>\n");
-		my $s = $self->{servers}{$_}->as_string;
-		$s =~ s/^/    /mg; # indent
-		push(@s, $s);
-	    }
-	    $str = join("", "\$servers = {\n", @s, "};\n");
-	} else {
-	    $str = Data::Dumper->Dump([$self->{$_}], [$_]);
-	}
-	$str =~ s/^/  /mg;  # indent
-	push(@str, $str);
+    foreach (values %{$self->{servers}}) {
+	$_->stop;
     }
-
-
-    join("", @str, "");
 }
+
 
 
 #----------------------------------------
@@ -120,6 +113,34 @@ sub max
 	$max = $_ if $_ < $max;
     }
     $max;
+}
+
+sub as_string
+{
+    my $self = shift;
+    my @str;
+    push(@str, "$self\n");
+    require Data::Dumper;
+    for (sort keys %$self) {
+	my $str;
+	if ($_ eq "servers") {
+	    my @s;
+	    for (sort keys %{$self->{servers}}) {
+		push(@s, "  $_ =>\n");
+		my $s = $self->{servers}{$_}->as_string;
+		$s =~ s/^/    /mg; # indent
+		push(@s, $s);
+	    }
+	    $str = join("", "\$servers = {\n", @s, "};\n");
+	} else {
+	    $str = Data::Dumper->Dump([$self->{$_}], [$_]);
+	}
+	$str =~ s/^/  /mg;  # indent
+	push(@str, $str);
+    }
+
+
+    join("", @str, "");
 }
 
 1;
