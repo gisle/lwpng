@@ -6,7 +6,7 @@ lib/LWP/HConn.pm
 lib/LWP/MainLoop.pm
 lib/LWP/Server.pm
 lib/LWP/UA.pm
-after.t
 hconn.pl
 t2.pl
 t3.pl
+t/after.t
