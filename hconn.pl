@@ -47,7 +47,14 @@ sub get_request
 {
     my($self, $conn) = @_;
     my $path = shift(@req) || return;
-    my $req = LWP::Request->new(GET => "http://furu$path");
+    # ml
+    warn "Woa there, [$path] is not a string!\n" if ref($path);
+    my $req = (ref($path)?
+        $path :
+        LWP::Request->new(GET => "http://localhost$path") );
+    # lm
+    print STDERR "Giving out new request: [$req] => ".
+ $req->url->as_string . "\n"; # ml
     $req->header("User-Agent" => "foo/0.01");
     $req;
 }
@@ -79,14 +86,14 @@ package main;
 
 $mgr = new MGR;
 
-#$LWP::Conn::HTTP::DEBUG++;
-#$LWP::EventLoop::DEBUG++;
+$LWP::Conn::HTTP::DEBUG++;
+$LWP::EventLoop::DEBUG++;
 
 for (1..1) {
 
     LWP::Conn::HTTP->new(
 			 ManagedBy   => $mgr,
-			 PeerAddr    => "127.0.0.1:12467",
+			 PeerAddr    => "127.0.0.1:80",
 			 ReqPending  => 2,
 			 ReqLimit    => 100,
 			 Timeout     => 20,
@@ -98,4 +105,10 @@ for (1..1) {
 use LWP::MainLoop qw(empty one_event);
 while (!empty) {
     one_event();
+}
+print "Unfinished Requests:\n" if (scalar @MGR::req);
+foreach $r (@MGR::req) {
+    print "\t[$r] ".$r->url->as_string."\n";
+#    print "\t\t". $r->response->code. " ". $r->response->message. "\n"
+# if $r->response;
 }
