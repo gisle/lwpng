@@ -20,7 +20,8 @@ sub put
     my $self = shift;
     my $parser = $self->{'html_parser'};
     die "No HTML parser to put data into" unless $parser;
-    $parser->parse(@_);
+    die "Can't put to closed sink" if $self->{'closed'};
+    $parser->parse(@_);  # XXX should we propagate return value somehow
     $self;
 }
 
