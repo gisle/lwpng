@@ -397,8 +397,16 @@ sub check_rbuf
 	my $ct = $res->header("Content-Type") || "";
 	if ($ct =~ /^multipart\//) {
 	    if ($ct =~ /\bboundary\s*=\s*(.*)/) {
+		my $boundary = $1;
+		if ($boundary =~ /^\"([^\"]*)\"/) {  # quoted
+		    $boundary = $1;
+		} else {
+		    $boundary =~ s/[\s;].*//;
+		}
 		$self->state("Multipart");
-		*$self->{'lwp_boundary'} = "\015\012--$1--\015\012"
+		print STDERR "Read until <CR><LF>--$boundary--<CR><LF>\n"
+		  if $LWP::HConn::DEBUG;
+		*$self->{'lwp_boundary'} = "\015\012--$boundary--\015\012"
 	    } else {
 		return $self->_error("Multipart without boundary");
 	    }
@@ -580,14 +588,35 @@ sub check_rbuf
 
     my $i = index($$buf, $boundary);
     if ($i < 0) {
-	# boundary string not found
-	# XXX but we should try to return some of the data
+	# boundary string not found, can it start somewhere at the
+	# end of the $$buf?
+	my $buflen = length($$buf);
+	while (length $boundary) {
+	    chop($boundary);
+	    my $blen = length($boundary);
+	    last if substr($$buf, $buflen-$blen, $blen) eq $boundary;
+	}
+	if (length $boundary) {
+	    if ($LWP::HConn::DEBUG) {
+		my $tmp = $boundary;
+		$tmp =~ s/\r/<CR>/g;
+		$tmp =~ s/\n/<LF>/g;
+		print STDERR "Boundary prefix '$tmp' match end of buffer\n"
+	    }
+	    my $data = substr($$buf, 0, $buflen - length($boundary));
+	    substr($$buf, 0, length($data)) = '';
+	    $res->request->response_data($data, $res) if length($data);
+	} else {
+	    $res->request->response_data($$buf, $res);
+	    $$buf = '';
+	}
 	return;
     }
     # boundary is found in data
     my $data = substr($$buf, 0, $i + length($boundary));
     substr($$buf, 0, length($data)) = '';
     $res->request->response_data($data, $res);
+    $self->end_of_response;
 }
 
 
