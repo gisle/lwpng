@@ -58,11 +58,24 @@ sub cmd
 	    $ua->stop;
 	} elsif ($cmd =~ /^s\s+(\S+)/) {
 	    $ua->find_server($1)->stop;
-	} elsif ($cmd =~ /^(\w+)\s+(\S+)/i) {
+	} elsif ($cmd =~ /^\s*(\w+)\s+(\S+)/i) {
 	    my $req = LWP::Request->new2(uc($1) => $2);
 	    #$req->{'auto_redirect'}++;
 	    #$req->{'auto_auth'}++;
 	    $ua->spool($req);
+        } elsif ($cmd =~ /^\s*!\s*(.*)/) {
+	    my $ret = eval $1;
+	    if ($@) {
+		print $@;
+	    } else {
+		eval {
+		    require Data::Dumper;
+		    local $Data::Dumper::Terse = 1;
+		    local $Data::Dumper::Indent = 0;
+		    print Data::Dumper::Dumper($ret), "\n";
+		};
+		print $@ if $@;
+	    }
         } elsif ($cmd eq "?" || $cmd eq "help") {
             print <<EOT;
 
@@ -76,6 +89,7 @@ q              : quit
 
 de             : toggle event loop debugging
 dc             : toggle connection debugging
+! <perl-code>  : evaluate some perl code (and print result)
 
 EOT
 	} else {
