@@ -14,7 +14,8 @@ Author: Gisle Aas <aas@sn.no>
 
 This article describe a redesign of the libwww-perl library in order
 to provide support for writing HTTP/1.1 clients that can manage
-multiple persistent connections to the servers it communicate with.
+multiple persistent connections to the servers it communicate with.  The
+redesign is based on the adoption of an event loop framework.
 
 =head1 Introduction
 
@@ -168,7 +169,7 @@ answer.
 The canonical example of LWP client usage looks like this:
 
   use LWP::UserAgent;
-  my $ua = new LWP::UserAgent;
+  my $ua = LWP::UserAgent->new;
 
   my $req = HTTP::Request->new(GET => 'http://www.linpro.no/lwp/');
   $req->header(Accept => 'text/html');
@@ -208,7 +209,7 @@ As for LWP5, the programming interface still ought to hide the details
 of connection creation and destruction, but in order to make the
 library able to efficiently utilize the multiple persistent
 connections it had to have more than a single request to work with at
-any time.  The main idea would be that the application fed the library
+time.  The main idea would be that the application fed the library
 with all the request objects to be carried out and that the library
 would try to use its connections to the servers as optimally as
 possible.  The optimization would be guided by various parameters
@@ -264,7 +265,7 @@ applications that don't use them.
 Most features of the library should be made optional.
 
 This hopefully interacts well with the preceding point and should
-allow a much wider range of HTTP client applications to be built.  The
+allow a wider range of HTTP client applications to be built.  The
 library can be comprehensive and featureful and still useable by
 small/simple applications that mainly care about speed.  They should
 not shy away from LWP because it is too big and too slow to start.
@@ -277,8 +278,8 @@ design.
 
 =item *
 
-There should be minimal bindings between modules and classes.  One
-should be able to use just the classes you want and individual modules
+There should be minimal bindings between modules and classes.  One should be
+able to use only the wanted part of the library and individual modules
 should be usable in other context than LWP.
 
 =item *
@@ -301,14 +302,14 @@ client applications that have GUIs.
 
 =head1 Event driven programming
 
-A prerequisite for supporting the HTTP persistent connections that
+A prerequisite for supporting the persistent connections that
 HTTP/1.1 requires, is to be able to handle both reading and writing
 from multiple network connections at the same time.  One would also
 like to manage idle connections with some timeout and to notice
 when/if the server decide to close the connections.  These
 requirements basically means the adoption of an event driven model or
 a model based on separate threads of control.  We have chosen to go
-for the event driven model.  The thread support is still new to Perl
+for the event driven model.  Thread support is still new to Perl
 and will not work everywhere when available.  An event-driven
 framework will continue to work with threaded Perls.  A threaded
 framework would require a thread enabled Perl to run.
@@ -478,34 +479,122 @@ more detail.
 
 =head2 LWP::UA
 
-The LWP::UA represents the main interface of the client library.  The
-main entry point is the spool() method.  All requests to be processed
-by the library enter through this "gate".  Before a request is handed
-over to some protocol module the LWP::UA will invoke any
-I<spool_handlers> registered.  These handlers can be registered
+The LWP::UA represents the main interface of the client library.  The main
+entry point is the spool() method.  All requests to be processed by the
+library enter through this "gate".  Before a request is handed over to some
+protocol module the LWP::UA will invoke any I<spool_handlers> registered.
+The handlers are simply a list of subroutines and can be registered
 dynamically by the application.
 
-register handlers that will be triggered early as part of the spool
-process.  Handler can modify the requests on their way.  The handlers
-can abort the request or spool other requests.  They can also register
-response handlers to be triggered when the response is available (use
-cookies as example!).
+These handlers is the main stategy of how we implement optional features and
+how we achieve zero overhead for applications that don't use the features.
+The bare LWP::UA is only capable of doing the following basic things:
 
-   - default headers
-   - date
-   - authentication
-   - proxy
-   - head_parser
-   - cookies
+=over 3
+
+=item 1.
+
+It provide the spool() method.
+
+=item 2.
+
+It know how to run any handlers registered.
+
+=item 3.
+
+If no handler signaled that the request has been handeled, then
+it knows how to dynamically load a protocol module by looking at the scheme
+of the URL and to pass the requests too them.
+
+=item 4.
+
+It tells the scheduler object to take some action ($sched->reschedule).
+
+=back
+
+[One might argue that 3. and 4. could also be replaced by one or more
+handlers.]
+
+The handlers are invoked with a reference to the UA and a reference to the
+request as arguments.  If a handler return a TRUE value, then it signals
+that the request has been handeled and no further handlers are to be invoked
+for it.  Handlers are also used to modify the request on its way (for
+instance adding headers).  They can register response callbacks or response
+handlers to be triggered when the response is available.
+
+[One can contrast this with handlers within the Apache web server for
+instace.]
+
+The following handlers are currently provided by the library.  Handlers which
+are not used does not have to be loaded either (i.e. Perl does not waste
+time compiling their code).  Many of the handlers use the URI::Attr object
+member of the UA to obtain the configuration information.
+
+=over 4
+
+=item default_headers
+
+This handler add static headers to a request where these headers are not
+already present.  It it used to add headers like C<User-Agent> and C<From>.
+
+=item date
+
+This handler add a U<Date> header to the request if applicable.  Not really
+very useful, but shows how to write small handlers to cope with headers
+that the I<default_headers> handler can't do.
+
+=item authentication
+
+This handler try to add Authorization headers to the request that we know
+might need it.  It looks up realm for the URL and map this to some Authen
+object that can add the corresponding header.  This works together with the
+Authenticate response handler.
+
+=item proxy
+
+This handler try to add the proxy attribute of a request.  The proxy
+configuation might indicate that some URLs are to be passed through a proxy.
+
+=item head_parser
+
+This handler register a response data handler with the request.  The
+registered handler will create a HTML::Parser object if the response
+contains an HTML document and pass the first few chunks of document data
+through it.
+
+=item cookies
+
+This handler will let an HTTP::Cookies object add C<Cookie> headers to the
+request and will also register a response callback that will let the
+HTTP::Cookies object extract any C<Set-Cookie> headers.
+
+=back
    
-Some ideas for the future
-   
-   - local cache
-   - specific scheme handling: <about:lwp>
-   - nanny - block parts of the URI space
-   
-Connection parameters.  conn_param() are parameters given to an individual
-connection instance and controls timeouts, persistence, pipelining, etc.
+Some other ideas for response handlers might include:
+
+=over 4
+
+=item local cache
+
+check if we have a local copy of the response and return it instead.  If no
+valid local copy exists register a response handler to update or validate
+the local cache.  Might also add If-None-Match or If-Modified-Since headers
+to the request when we have a stale local copy.
+
+=item specific scheme handling
+
+an application might for instance want to handle <about:> URLs similar to
+what Netscape does by registering a handler.
+
+=item url rewriting
+
+implement automatic fast redirection inside the client
+
+=item netnanny
+
+block indecent parts of the URI space
+
+=back
 
 Scheduler parameters.  max_conn/max_conn_per_server.  Mention
 scheduler again.
@@ -517,6 +606,15 @@ not use the URI::Attr for this?)
 The stop method will when invoked (prematuterly) terminate all
 on-going requests, i.e. all requests return immediately with an error
 response and all network connections are killed.
+
+
+=head2 URI::Attr
+
+For many situations we have found a need to set up configuration parameters
+and other attributes related to the URI name space.  Many of the handlers
+should work differently depending on scheme, host or path.  For example the
+authentication handler might want to remeber "realms" per server and
+remember which path prefixes that is protected within the different realms.
 
 =head2 LWP::Request
 
@@ -535,14 +633,6 @@ managed_by attribute (ua).  Mainly used to be able to spool followup
 requests.
 
 priority/proxy attributes.
-
-=head2 URI::Attr
-
-For many situations we have found a need to set up configuration parameters
-and other attributes related to the URI name space.  Many of the handlers
-should work differently depending on scheme, host or path.  For example the
-authentication handler might want to remeber "realms" per server and
-remember which path prefixes that is protected within the different realms.
 
 =head2 LWP::Conn object interface.
 
