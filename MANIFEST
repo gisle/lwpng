@@ -7,6 +7,7 @@ Todo
 http11-bnf.txt
 lib/LWP/Authen.pm
 lib/LWP/Authen/basic.pm
+lib/LWP/Authen/digest.pm
 lib/LWP/Conn/FILE.pm
 lib/LWP/Conn/HTTP.pm
 lib/LWP/EventLoop.pm
@@ -45,6 +46,7 @@ term-serv
 term-ua
 testd/README
 testd/httpd
+testd/empty_ct
 testd/p1
 testd/p2
 testd/p2nc
@@ -58,6 +60,7 @@ testd/p5
 testd/te1
 testd/te2
 testd/te3
+testd/101
 testd/300
 testd/301
 testd/301-1
