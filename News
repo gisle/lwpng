@@ -8,7 +8,7 @@ prerequisite for supporting HTTP/1.1 features like persistent
 connections and pipelining.
 
 This note assume that you are familiar with the concepts and programming
-interface of the previous versions of the libwww-perl modules (refered to as
+interface of the previous versions of the libwww-perl modules (referred to as
 "LWP5" below).  LWPng will probably become LWP6 when it is ready for general
 use.
 
@@ -54,7 +54,7 @@ With persistent connections one can improve performance even more by
 the use of a technique called "pipelining".  This means that the
 client sends multiple requests down the connections without waiting
 for the response of the first request before sending the second.  This
-can have a dramatic effect on the thoughput for high latency
+can have a dramatic effect on the throughput for high latency
 links. [NOTE-pipelining-970624]
 
 
@@ -70,8 +70,8 @@ free and that it is supposed to integrate much easier with GUI toolkits like
 Tk.
 
 Let's investigate what impact the event driven framework has on the
-programming model.  The basic model for sending requests and receving
-respones in LWP5 used to be:
+programming model.  The basic model for sending requests and receiving
+responses in LWP5 used to be:
 
   $res = $ua->request($req);   # return when response is available
   if ($res->is_success) {
@@ -96,7 +96,7 @@ You, the application programmer, will have to set up event handlers
 
 Luckily, this does not mean that all old programs must be rewritten.
 The following show one way to emulate something very close to the old
-behaviour:
+behavior:
 
   my $res;
   my $req = LWP::Request->new(GET => $url);
@@ -150,7 +150,7 @@ if defined, but only for the last response in case of redirect chains.
 As an application programmer you can either subclass LWP::Request, to
 provide your own versions of response_data() and response_done(), or
 you can just register callback functions.  The last option is probably to be
-prefered.
+preferred.
 
 The LWP::Request object also provide a few more attributes that might
 be of interest.  The $req->priority is a number that can be used to
@@ -209,7 +209,7 @@ commands from the terminal.
   }
 
 Currently LWPng use its own private event loop implementation.  The plan is
-to adopt the event loop implementation used by the Tk extention, or more
+to adopt the event loop implementation used by the Tk extension, or more
 precisely Perl will hopefully get a standard event loop that both Tk and
 LWPng can use. This should allow applications that happily mix the Tk and
 LWPng modules.
@@ -220,7 +220,7 @@ LWPng modules.
 The LWP::UA represent the main programmer interface towards the network. (We
 currently use a different name for this object than LWP5 because we are not
 providing a backwards compatible interface yet.  Besides, you would probably
-like to be able to have both LWP5 and LWPng insta lled side by side for some
+like to be able to have both LWP5 and LWPng installed side by side for some
 time still.)
 
 The main interface to the LWP::UA object is the following methods.
@@ -234,9 +234,9 @@ argument and arrange for these request to be sent to the servers specified
 by the URL attribute of the requests.
 
 The $ua->reschedule is usually called automatically as requests are spooled.
-It will invoke the scheduler whose task is to determinte when and how many
+It will invoke the scheduler whose task is to determine when and how many
 connections are set up to the different servers we want to communicate with.
-The scheduler can also deside to kill idle connections.  The scheduler is a
+The scheduler can also decide to kill idle connections.  The scheduler is a
 separate entity because you should be able to replace when you want a
 different scheduling policy.
 
@@ -283,7 +283,7 @@ Same as "realms" by only applies when the server is accessed as a proxy.
 =item proxy_realm
 
 You can assign parts of the URL space to different proxy "realms".  This
-only make sence when the proxy attribute is used.
+only make sense when the proxy attribute is used.
 
 =back
 
@@ -364,7 +364,7 @@ LWP::Conn objects conform to the following interfaces when interacting
 with their manager object (passed in as parameter during creation).
 For the normal setup, then manager will be a LWP::Server object.
 
-A LWP::Conn object is contructed with the new() method.  It takes
+A LWP::Conn object is constructed with the new() method.  It takes
 hash-style arguments and the 'ManagedBy' parameter is really the only
 mandatory one.  It should be an reference to the manager object that
 will get method callbacks when various events happen.
@@ -398,7 +398,7 @@ or undef if there are no more requests to process.  It is passed a
 reference to the connection object as argument.  If the connection
 objects discover that it has been too greedy (calling get_request()
 too much), then it might want to return unprocessed request back to
-the mangager.  It does so by calling the pushback_request() method
+the manager.  It does so by calling the pushback_request() method
 with a reference to itself and one or more request objects as
 arguments.  The first request obtained by get_request() should never
 be pushed back.
@@ -457,7 +457,7 @@ nothing to write.
 If the socket becomes writable we send more request
 data until we are done.  If the socket becomes
 readable we read data until we have seen a whole
-HTTP header and then swith to a (sub-state) depending
+HTTP header and then switch to a (sub-state) depending
 on the kind of response we are reading. When a
 response has been completely received we go back to
 idle if there is not more requests to send.
@@ -502,7 +502,7 @@ et.al).  The description of the "State" pattern in this book says:
 
 =item Intent
 
-Allow an object to alter its behaviour when its internal state
+Allow an object to alter its behavior when its internal state
 changes.  The object will appear to change its class.
 
 =item Motivation
@@ -513,9 +513,9 @@ different states: Established, Listening, Closed. When a
 TCPConnection object receives request from other objects, it
 responds differently depending on its current state.  For
 example, the effect of an Open request depends on whether the
-connection is in its Colsed state or its Establised state.  The
+connection is in its Closed state or its Established state.  The
 state pattern describes how TCPConnection can exhibit different
-behaviour in each state.
+behavior in each state.
 
 =back
 
@@ -525,7 +525,7 @@ a living object.  That became handy in this situation.
 
 Using classes to describe states also allows a natural description
 (and implementation) of substates that behaves like it's base-state
-for some events but modify the behaviour for others.
+for some events but modify the behavior for others.
 
 
 =head1 AUTHOR
