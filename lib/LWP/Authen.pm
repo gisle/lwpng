@@ -46,8 +46,8 @@ sub auth_handler
     for (keys %auth) {
 	push(@auth, [$_, $auth{$_}]);
     }
-
     undef(%auth);
+
     for (@auth) {
 	my($scheme, $param) = @$_;
 	unless ($scheme =~ /^([a-z]+(?:-[a-z]+)*)$/) {
@@ -75,33 +75,49 @@ sub auth_handler
 		next;
 	    }
 	}
-	eval {
-	    my $followup = $class->authenticate($req, $res, $proxy, $param);
-	    if ($followup) {
-		if (ref($followup)) {
-		    my $new;
-		    if (ref($followup) eq "HASH") {
-			$new = $req->clone;
-			$new->{'previous'} = $res;
-			$new->priority(10) if $new->priority > 10;
-			while (my($k,$v) = each %$followup) {
-			    $new->header($k => $v);
-			}
-		    } else {
-			$new = $followup;
-		    }
-		    $req->{'mgr'}->spool($new);
-		    return "FOLLOWUP SPOOLED";
-		} else {
-		    return $followup;
+
+	my $auth = $class->authenticate($req, $res, $proxy, $param);
+	next unless $auth;
+	return $auth unless ref($auth);
+
+	# Try to make a new request which we add authorizaton to
+	# using the returned auth-object.
+	my $new = $req->clone;
+	$new->{'previous'} = $res;
+	$new->priority(10) if $new->priority > 10;
+
+	if ($proxy) {
+	    $auth->set_proxy_authorization($new);
+	    # XXX: Check for repeated fail
+
+	} else {
+	    $auth->set_authorization($new);
+
+	    # Check for repeated fail
+	    my $digest1 = join("|",
+			       $new->method,
+			       $new->url,
+			       $new->header("Authorization"));
+	    for (my $r = $res; $r; $r = $r->previous) {
+		my $req = $r->request;
+		my $digest2 = join("|",
+				   $req->method,
+				   $req->url,
+				   $req->header("Authorization"));
+		if ($digest1 eq $digest2) {
+		    $res->push_header("Client-Warning" =>
+				      "Same credentials failed before");
+		    return "ABORT";
 		}
 	    }
-	};
-	if ($@) {
-	    chomp($@);
-	    $res->push_header("Client-Warning" => $@);
-	    return;
+
+	    my $realm = $param->{"realm"} || "";
+	    $req->{'mgr'}{'uattr'}->attr_update("DIR", $new->url)->{realm} = $realm;
+	    $req->{'mgr'}{'uattr'}->attr_update("SERVER", $new->url)->{realms}{$realm} = $auth;
 	}
+
+	$req->{'mgr'}->spool($new);
+	return "FOLLOWUP MADE";
     }
     return;  # not handled
 }
