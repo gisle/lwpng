@@ -1,0 +1,108 @@
+%!PS-Adobe-2.0 EPSF-1.2
+%%BoundingBox: 45 -10 230 210
+%%Creator: Gisle Aas (Copyright 1998)
+
+/rrect {             % <dx> <dy> rrect -
+   2 dict begin
+      /dy exch def  /dx exch def
+      dx 0 rlineto 0 dy rlineto dx neg 0 rlineto closepath
+   end
+} def
+
+% Some handy aliases
+/M  /moveto       load def
+/L  /lineto       load def
+/RM /rmoveto      load def
+/RL /rlineto      load def
+/F  /fill         load def
+/S  /stroke       load def
+/CP /closepath    load def
+/LW /setlinewidth load def
+/SG /setgray      load def
+
+/SF    { exch findfont exch scalefont setfont         } def
+/cshow { dup stringwidth pop 2 div neg 0 rmoveto show } def
+/rshow { dup stringwidth pop       neg 0 rmoveto show } def
+
+% Some colors used
+/yellow    { 1 1 0.8 setrgbcolor } def
+/red       { 0.7 0 0 setrgbcolor } def
+/palered   { 1.0 0.8 0.8 setrgbcolor } def
+/palegreen { 0.8 1.0 0.8 setrgbcolor } def
+/paleblue  { 0.8 0.8 1.0 setrgbcolor } def
+
+/ptrn { % <x1> <y1> <x2> <y2> ... <xn> <yn> ptrn -
+   count 0 gt {  % is there more than one point?
+      % then a line for all but the last
+      count 2 idiv 1 sub {
+         count dup 2 sub roll L
+      } repeat
+
+      % only the last one left, where the arrow-head must be
+      7 dict begin
+         /y exch def
+         /x exch def
+         currentpoint y sub neg /dy exch def
+         x sub neg /dx exch def
+
+         /al dx dx mul dy dy mul add sqrt def
+         /angle dy dx atan def
+         /b al 10 sub def
+
+         gsave
+            currentpoint translate
+            angle rotate
+            b 0 L S
+            b -4 M b 4 L al 0 L CP F  % arrow head
+         grestore
+      end
+   } if
+} def
+
+
+/Helvetica-Bold 12 SF
+
+ 97 190 M (CLIENT) rshow
+173 190 M (SERVER) show
+
+gsave
+0.3 setlinewidth
+[2 3] 2 setdash
+100 0 M 100 200 L stroke
+170 0 M 170 200 L stroke
+grestore
+
+1.5 setlinewidth
+%XXX these should be arrows
+100 180 M 170 140 ptrn
+100 160 M 170 120 ptrn
+100 140 M 170 100 ptrn
+
+170 138 M 100  98 ptrn
+170  95 M 100  55 ptrn
+170  52 M 100  12 ptrn
+
+/Helvetica-Bold 10 SF
+
+ 97 178 M (request) rshow
+ 97 158 M (request) rshow
+ 97 138 M (request) rshow
+
+ 97  96 M (response) rshow
+ 97  53 M (response) rshow
+ 97  10 M (response) rshow
+
+gsave
+/Helvetica 8 SF
+175 30 translate
+-90 rotate
+0 3 M
+(time)rshow
+
+0.4 setlinewidth
+
+5 5 M 30 5 ptrn
+
+
+grestore
+
