@@ -5,12 +5,12 @@
 # flags too.
 
 use strict;
+use LWP::UA;
 use LWP::Dump;
 use LWP::MainLoop qw(empty one_event readable);
 
-require LWP::UA;
-require LWP::Request;
-require LWP::Conn::HTTP;
+use LWP::Request;
+use LWP::Conn::HTTP;
 
 $LWP::UA::DEBUG++;
 $LWP::Server::DEBUG++;
