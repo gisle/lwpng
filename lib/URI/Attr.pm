@@ -1,14 +1,11 @@
-package URI::Attr;
-
-# $Id$
-
-# Copyright 1998 Gisle Aas.
-#
-# This library is free software; you can redistribute it and/or
-# modify it under the same terms as Perl itself.
+package URI::Attr; # $Id$
 
 use URI::URL ();
 use strict;
+
+use vars qw($VERSION);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+
 
 # The URI::Attr is a tree.  The nodes are arrays with 2 hash elements.
 # The first hash define the next level of the tree and the values in
@@ -134,6 +131,7 @@ sub _make_hash
     $_[0];
 }
 
+
 sub as_string
 {
     my $self = shift;
@@ -176,9 +174,9 @@ URI::Attr - associate attributes with the URI name space
 =head1 DESCRIPTION
 
 Instances of the I<URI::Attr> class is able to associate attributes
-with places in the URI name space.  The main idea is to be able to
-quickly look up all attributes that are relevant to a specific
-absolute URI and to be able to override attributes at different
+with "places" in the URI name space.  The main idea is to be able to
+look up all attributes that are relevant to a specific
+absolute URI efficiently and to be able to override attributes at different
 hierarchal levels of the URI namespace.
 
 The levels of the URI namespace is given the following names:
@@ -259,11 +257,14 @@ debugging.
 =head1 BUGS
 
 There ought to be a way to associate attributes with domains/hosts
-without regard to scheme (or for several schemes).  Think, think,...
+without regard to scheme (and for several schemes and several
+domain/hosts).  Think, think,...
 
-Perhaps there should be implicit relationships between schemes, so
-that for instace everything that is valid for http is also valid for
-http.
+Perhaps there should be defined relationships between schemes, so that
+for instace everything that is valid for I<http> is also valid for
+I<https>, but not the other way around.  Same goes for I<nntp> and
+I<news> which should be treated as the same thing and their relation
+to I<snews>.
 
 A similar concept is present in w3c-libwww under the name I<URL Tree>.
 The scheme is simply ignored here and the root of the tree is the
