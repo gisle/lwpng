@@ -1,14 +1,14 @@
 #!/usr/bin/perl
 
 # A server that binds to some port and then prints everything
-# received on STDOUT and vica versa.
+# received on STDOUT and forwards STDIN to the net.
 
 use LWP::MainLoop qw(mainloop);
 use IO::Socket;
 
-$listen = IO::Socket::INET->new(Listen => 5) || die;
-
 $| = 1;
+
+$listen = IO::Socket::INET->new(Listen => 5) || die "Can't bind: $!";
 
 my $port = $listen->sockport;
 while (1) {
@@ -19,6 +19,7 @@ while (1) {
     mainloop->readable(\*STDIN, sub {
 			   my $buf;
 			   sysread(STDIN, $buf, 100);
+			   $buf =~ s,\\\n$,,;
 			   if ($buf eq ".\n") {
 			       close($conn);
 			       mainloop->forget_all;
@@ -34,6 +35,8 @@ while (1) {
 			       mainloop->forget_all;
 			       return;
 			   };
+			   $buf =~ s,\r,CR,g;
+			   $buf =~ s,\n,LF\n,g;
 			   print $buf;
 		       });
     mainloop->run;
