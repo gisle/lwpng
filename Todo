@@ -2,26 +2,45 @@
  * More testing
  * Write test scripts
 
- * Chunked request content
  * Complete LWP5 compatibility
- * Finish the authentication hooks
+ * Finish the authentication hooks (digest)
+ * Authentication which sets default_headers
+ * LWP::Conn::HTTP improvements
+     - chunked request content (when content is CODE ref)
+     - bundling of multiple request in a single syswrite() when
+       pipelining.
+     - minimize headers is second and following requests
+     - look for Connection: close in request.  If so,
+       make it the last one on this connection.
+     - retry request if used connection closes.
+     - know about idempotent methods
+     - monitor connection for error status messages
+       (only meaningful when we start supporting
+        chunked request content.)
+     - handle 101 switching protocol.  should perhaps
+       return a handle to the socket with the response
+       message somehow.
+     - always pass response data through sinks?
+     - support HTTP/1.0 Keep-Alive?
+     - Non-blocking gethostbyname
+ * Make a single request able to override persistent connection
+   behaviour (make a request always processed on its own connection)
  * LWP::Conn::FILE could support PUT and Content-Ranges
  * Other LWP::Conn implementations: FTP, NNTP, Gopher, MAILTO
  * Support HTTPS, TLS
  * gzip/compress sinks
- * Always pass response data through sinks?
- * Support HTTP/1.0 Keep-Alive?
- * Non-blocking gethostbyname
+ * deflate parameters
  * Tuning
  * Documentation
 
- * Authentication which sets default_headers
- * Delayed spooling
+ * Delayed spooling (for robots)
  * RobotUA
- * Caching
+ * Caching support
  * Some applications
  * one_event(timeout)
 
- * Move to same eventloop as Tk uses.  There appears to be a problem
-   because the Tk fileevent does not allow a socket to be both readable
-   and writable at the same time.
+ * Move to same eventloop as Tk uses.  There appears to be a problem because
+   the Tk fileevent does not allow a socket to be both readable and writable
+   at the same time.  And Grahams Event.pm does not work with current IO
+   modules.
+   
