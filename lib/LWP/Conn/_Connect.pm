@@ -13,37 +13,41 @@ package LWP::Conn::_Connect;
 # XXX: When we require IO-1.18, then this hack can be removed.
 require IO::Handle;
 unless (defined &IO::EINPROGRESS) {
-    my $einprogress = -1;
     eval {
 	require POSIX;
-	$einprogress = &POSIX::EINPROGRESS;
-    };
-    $! = $einprogress;
-    die "No EINPROGRESS found ($!)" if ($@ or $! ne "Operation now in progress");
-    *IO::EINPROGRESS = sub () { $einprogress; };
+	my $einprogress =  POSIX::EINPROGRESS();
+	*IO::EINPROGRESS = sub () { $einprogress };
 
-    # we also emulate $handle->blocking call provided by newer versions of
-    # the IO modules
-    require Fcntl;
-    my $O_NONBLOCK = Fcntl::O_NONBLOCK();
-    my $F_GETFL    = Fcntl::F_GETFL();
-    my $F_SETFL    = Fcntl::F_SETFL();
-    *IO::Handle::blocking = sub {
-	my $fh = shift;
-	my $dummy = '';
-	my $old = fcntl($fh, $F_GETFL, $dummy);
-	return undef unless defined $old;
-	if (@_) {
-	    my $new = $old;
-	    if ($_[0]) {
-		$new &= ~$O_NONBLOCK;
-	    } else {
-		$new |= $O_NONBLOCK;
+	# we also emulate $handle->blocking call provided by newer
+	# versions of the IO modules
+	require Fcntl;
+	my $O_NONBLOCK = Fcntl::O_NONBLOCK();
+	my $F_GETFL    = Fcntl::F_GETFL();
+	my $F_SETFL    = Fcntl::F_SETFL();
+	*IO::Handle::blocking = sub {
+	    my $fh = shift;
+	    my $dummy = '';
+	    my $old = fcntl($fh, $F_GETFL, $dummy);
+	    return undef unless defined $old;
+	    if (@_) {
+		my $new = $old;
+		if ($_[0]) {
+		    $new &= ~$O_NONBLOCK;
+		} else {
+		    $new |= $O_NONBLOCK;
+		}
+		fcntl($fh, $F_SETFL, $new);
 	    }
-	    fcntl($fh, $F_SETFL, $new);
+	    ($old & $O_NONBLOCK) == 0;
 	}
-	($old & $O_NONBLOCK) == 0;
-    }
+    };
+    if ($@) {
+	# Give up, just make fake entries.  Things should still work,
+	# but some event handlers might block when they should not.
+	# This might reduce the amount of parallelism that can take place.
+	*IO::EINPROGRESS = sub () { 0 };
+	*IO::Handle::blocking = sub { };
+    };
 }
 #endhack
 
