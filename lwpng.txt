@@ -6,16 +6,17 @@ conference in august 1998.
 
 =pod
 
-Title: LWPng ...
+Title: LWPng - The next generation of the libwww-perl library
 
 Author: Gisle Aas <aas@sn.no>
 
 =head1 Abstract
 
 This article describe a redesign of the libwww-perl library in order
-to provide support for writing HTTP/1.1 clients that can manage
-multiple persistent connections to the servers it communicate with.  The
-redesign is based on the adoption of an event loop framework.
+to provide support for writing HTTP/1.1 clients.  It allow client
+applications to utilize multiple persistent connections to the servers
+it communicate with.  The redesign is based on the adoption of an
+event loop framework.
 
 =head1 Introduction
 
@@ -44,14 +45,14 @@ This makes it possible to add extra information about
 request/responses and to carry meta-information about the content of
 these messages.  Responses now also start with a status line with a
 status code that encode the overall outcome of the request.  These
-enhancements also make the protocol extensible.
+enhancements make the protocol extensible.
 
 The next step was/is HTTP/1.1 which tries to fix some of the
 shortcommings of the HTTP/1.0 protocol [ref]. One simple but important
 change is that the Host header is now mandatory. This make it possible
 to serve multiple domains from a single server without allocating a
-new IP-address to each.  Another change is support for partial
-content.  The support for caching and proxies has also been much
+new IP-address to each.  Another change is support for partial content
+messages.  The support for caching and proxies has also been much
 clarified and improved on.  There is also a standard mechanism of
 switching away from HTTP/1.1 to some other (hopefully more suitable)
 protocol on the wire.
@@ -60,18 +61,19 @@ The most important change with HTTP/1.1 is the introduction of
 persistent connections.  This means that more than one
 request/response exchange can take place on a single TCP connection
 between a client and a server.  This improves performance and
-generally interacts much better with how TCP works underneath.  This
-also means that the peers must have some way to tell the extent of the
-messages on the wire. In HTTP/1.0 the only way to do this was by using
-the Content-Length header and by closing the connection (which was
-only an option for the server).  Use of the Content-Length header is
-not appropriate when the length of the message can not be determined
-in advance.  HTTP/1.1 introduce two new ways to delimit messages; the
-chunked transfer encoding and the self delimiting multipart content
-types.  The chunked transfer encoding means that the message is broken
-into chunks, each of arbitrary size and each preceded by a line
-specifying the number of bytes in the chunk.  The multipart types use
-a special boundary bytepattern as a delimiter for the messages.
+generally interacts much better with how TCP works underneath.  In
+order to be able to do this, the peers must have some way to tell the
+extent of the messages on the wire. In HTTP/1.0 the only way to do
+this was by using the Content-Length header and by closing the
+connection (which was only an option for the server).  Use of the
+Content-Length header is not appropriate when the length of the
+message can not be determined in advance.  HTTP/1.1 introduce two new
+ways to delimit messages; the chunked transfer encoding and the self
+delimiting multipart content types.  The chunked transfer encoding
+means that the message is broken into chunks, each of arbitrary size
+and each preceded by a line specifying the number of bytes in the
+chunk.  The multipart types use a special boundary bytepattern as a
+delimiter for the messages.
 
 With persistent connections one can improve performance even more by
 the use of a technique called "pipelining".  This means that the
@@ -101,12 +103,12 @@ libwww-perl library for perl4 that Roy maintained (and still does).
 
 At one point both Gisle and Martijn had made their own modulifications
 of Roy's library to better suit the possibilities that perl5 provided.
-We joined forces and made several alpha releases together.  Martijn
-had a little disagreement about rights to library souce code with his
-employer at that time.  This was the main reason Gisle ended up as the
-maintainer of the package.
+We joined forces and made several alpha releases together.
+Unfortunately Martijn had a little disagreement about the rights to
+library souce code with his employer at that time.  This was the main
+reason Gisle ended up as the maintainer of the package.
 
-The LWP:: module name was introduced by Martijn in one of the pre
+The LWP:: module name was introduced by Martijn in one of the
 alpha releases.  It was early pointed out that this name could be
 confused with what some implementations of threads called themselves,
 but no better name alternatives emerged.  The last messages on this
@@ -134,11 +136,11 @@ multiple connections to the same server) at the same time. [ref]
 In the november 1997 Gisle started on a rewrite of how the basic
 services provided by libwww-perl worked.  The goal was to provide full
 HTTP/1.1 client support and at the same time make the library both
-more flexible and (optionally) more lightweight.  Nothing much
+more flexible and (optionally) more lightweight.  Little
 happened until march 1998, but then I finally got opportunity and
-currage enough to start working on this fulltime and it is now
+currage enough to start working on this fulltime and it is by this time
 quite useable.  This work is currently distributed under the name
-LWPng, but is expected to become libwww-perl-6 when the beta phase is
+LWPng, but is expected to become libwww-perl-6 when its beta phase is
 over.
 
 
@@ -155,7 +157,7 @@ passed between servers and clients.  The I<HTTP::Request> class models
 the message sent from a client to a server.  The I<HTTP::Response>
 class models the message send back from a server to a client.  On
 their way between a client to a server these messages are converted to
-the actual protocol on the wire which will depend on what kind of
+the actual protocol on the wire which again will depend on what kind of
 server we are accessing (i.e. does not have to be HTTP).
 
 Instances of the I<LWP::UserAgent> class are created by client
@@ -174,7 +176,7 @@ The canonical example of LWP client usage looks like this:
   my $req = HTTP::Request->new(GET => 'http://www.linpro.no/lwp/');
   $req->header(Accept => 'text/html');
 
-  # send request, get response
+  # send request to server and get response back
   my $res = $ua->request($req);
 
   # check the outcome
@@ -184,8 +186,8 @@ The canonical example of LWP client usage looks like this:
      print "Error: " . $res->status_line . "\n";
   }
 
-The I<HTTP::Daemon> class provide the corresponding interface for
-server applications.  Through instances of this class a server
+The I<HTTP::Daemon> class provide the corresponding interface for LWP
+based server applications.  Through instances of this class a server
 application will get hold of a connection initiated by a client and
 will be able receive I<HTTP::Request> objects from this connection and
 send back I<HTTP::Reponse> objects.  Since the client and server
@@ -249,7 +251,7 @@ polling.)
 =item *
 
 We wanted to use this opportunity to generalize some parts of the
-interfaces more.  For instance the old $ua->from and $ua->agent
+interfaces.  For instance the old $ua->from and $ua->agent
 methods can be generalized to something that is able to set up default
 headers that are added to requests before they are sent out.  Having
 this also solve much of the problem of setting up authorization
@@ -266,7 +268,7 @@ Most features of the library should be made optional.
 
 This hopefully interacts well with the preceding point and should
 allow a wider range of HTTP client applications to be built.  The
-library can be comprehensive and featureful and still useable by
+library can be comprehensive and feature rich and still useable by
 small/simple applications that mainly care about speed.  They should
 not shy away from LWP because it is too big and too slow to start.
 
@@ -278,9 +280,10 @@ design.
 
 =item *
 
-There should be minimal bindings between modules and classes.  One should be
-able to use only the wanted part of the library and individual modules
-should be usable in other context than LWP.
+There should be minimal bindings between the modules and classes
+within the library.  One should be able to use only the wanted part of
+the library and individual modules should be usable in other context
+than LWP.
 
 =item *
 
@@ -298,6 +301,10 @@ Happy coexistence with the Tk module.  One should be able to write
 client applications that have GUIs.
 
 =back
+
+The last item in the list above was one of the reasons why we early
+concluded that the redesign should be based on an event driven
+framework.
 
 
 =head1 Event driven programming
@@ -374,7 +381,7 @@ the event loop implementation provided by the LWP::EventLoop class.
 It is small, simple and support exactly what LWPng needs and not much
 more.  The main problem is that this introduce yet another event loop
 and that it will create problems if the application want to use LWPng
-together with modules based on a different event loop.
+together with modules based on a different event loop implementation.
 
 [Discuss other event loops in Perl modules.  The one provided by Tk.
 Grahams Event.  EventServer.  And chances for getting a standard
@@ -412,54 +419,54 @@ library can be installed together with the new library.
 
 The old LWP::Protocol::* modules has been replaced with LWP::Conn::*
 modules.  The event oriented framework requires a completely different
-interface towards and from the low level modules.  Both versions must
-be able to work side by side for some time.
+interface towards and from the low level protocol modules.  Both
+versions must be able to work side by side for some time.
 
 =item * 
 
 The LWP::Authen modules has also changed interface and therefore name.
 We have kept the prefix, but will now use all lower case for the
-scheme name.
+scheme name part.
 
 =back
 
 Completely new classes include:
 
-=over 2
+=over 4
 
-=item *
+=item LWP::Request
 
-LWP::Request - this is a subclass of HTTP::Request that allows us to
-attach response handlers and callbacks to these objects.  Basically all
-the parameters given (and returned) by the old $ua->request method
-must now be represented as attributes of the request object.
+This is a subclass of HTTP::Request that allows us to attach response
+handlers and callbacks to these objects.  Basically all the parameters
+given (and returned) by the old $ua->request method must now be
+represented as attributes of the request object.
 
-=item *
+=item URI::Attr
 
-URI::Attr - this class make it possible to attach attributes based on
+This class make it possible to attach attributes based on
 hierarchical levels of the URI name space.  It is used for various
 configurations and for remembering facts about places in this space.
 The main benefit is that it allows more generalizations of the
 interface.
 
-=item *
+=item LWP::Hooks
 
 LWP::Hooks is a mixin class that allow handlers to be dynamically
 registered on the object and executed.  LWP::UA and LWP::Request
 inherit its methods.
 
-=item *
+=item LWP::StdSched
 
-LWP::StdSched - Policy decisions about how many and which connections
+Policy decisions about how many and which connections
 to set up or tear down at given point are delegated to a special
 scheduler object by the LWP::UA.  This arangement allow this behaviour
 to be easily replaced or updated.  The LWP::StdSched is a simple
 scheduler that tries to adhere to various limits on the number of
 connections to create.
 
-=item *
+=item LWP::Sink
 
-LWP::Sink - HTTP concepts like chained Transfer-Encoding and
+HTTP concepts like chained Transfer-Encoding and
 Content-Encoding suggest that we need a way to transform the message
 content back to its original form.  Since we also want to be able to
 handle arbitrary sized content and to be able to make the content
@@ -467,9 +474,9 @@ available to the application as early as possible a stream based
 organization of transformation modules is handy.  The LWP::Sink is a
 base class for the the input side of a stream module.
 
-=item *
+=item LWP::EventLoop
 
-LWP::EventLoop has been mentioned before.  It is basically just a
+The eventloop class has been mentioned before.  It is basically just a
 wrapper around the select system call.
 
 =back
@@ -494,7 +501,7 @@ The bare LWP::UA is only capable of doing the following basic things:
 
 =item 1.
 
-It provide the spool() method.
+It provide the spool() method, and when it is invoked...
 
 =item 2.
 
@@ -504,7 +511,7 @@ It know how to run any handlers registered.
 
 If no handler signaled that the request has been handeled, then
 it knows how to dynamically load a protocol module by looking at the scheme
-of the URL and to pass the requests too them.
+of the URL and to pass the requests too it.
 
 =item 4.
 
@@ -523,37 +530,43 @@ instance adding headers).  They can register response callbacks or response
 handlers to be triggered when the response is available.
 
 [One can contrast this with handlers within the Apache web server for
-instace.]
+instace.  The main problem with the solution above is that we really
+ought to be able to control the order handler are applied.  The Apache
+solve this by assigning handlers to named classes and the order
+between classes are fixed.  Handlers could also be attached to the
+URI::Attr tree.  That would allow a different set of handlers to be
+invoked for different URIs.]
 
-The following handlers are currently provided by the library.  Handlers which
-are not used does not have to be loaded either (i.e. Perl does not waste
-time compiling their code).  Many of the handlers use the URI::Attr object
-member of the UA to obtain the configuration information.
+The following handlers are currently provided by the library.
+Handlers which are not used do not have to be loaded either
+(i.e. Perl does not waste time compiling their code).
 
 =over 4
 
 =item default_headers
 
-This handler add static headers to a request where these headers are not
-already present.  It it used to add headers like C<User-Agent> and C<From>.
+This handler add static headers to a request where these headers are
+not already present.  It it for instance used to add headers like
+C<User-Agent> and C<From>.
 
 =item date
 
-This handler add a U<Date> header to the request if applicable.  Not really
+This handler add a C<Date> header to the request if applicable.  Not really
 very useful, but shows how to write small handlers to cope with headers
 that the I<default_headers> handler can't do.
 
 =item authentication
 
-This handler try to add Authorization headers to the request that we know
-might need it.  It looks up realm for the URL and map this to some Authen
-object that can add the corresponding header.  This works together with the
-Authenticate response handler.
+This handler try to add an C<Authorization> header to the request that
+we know might need it.  It looks up realm for the URL and map this to
+some Authen object that can add the corresponding header.  This works
+together with the Authenticate response handler.
 
 =item proxy
 
-This handler try to add the proxy attribute of a request.  The proxy
-configuation might indicate that some URLs are to be passed through a proxy.
+This handler try to set the proxy attribute of a request.  The proxy
+configuation might indicate that some URLs are to be passed through a
+proxy.  It can also add a C<Proxy-Authorization> header to the request.
 
 =item head_parser
 
@@ -564,22 +577,25 @@ through it.
 
 =item cookies
 
-This handler will let an HTTP::Cookies object add C<Cookie> headers to the
-request and will also register a response callback that will let the
-HTTP::Cookies object extract any C<Set-Cookie> headers.
+This handler will let an HTTP::Cookies object add one or more
+C<Cookie> headers to the request and will also register a response
+callback that will let the HTTP::Cookies object extract any
+C<Set-Cookie> headers.
 
 =back
-   
-Some other ideas for response handlers might include:
+
+The handlers currently implemented only modify the request on its way
+to the server.  Some other uses of spool handlers might include:
 
 =over 4
 
 =item local cache
 
-check if we have a local copy of the response and return it instead.  If no
-valid local copy exists register a response handler to update or validate
-the local cache.  Might also add If-None-Match or If-Modified-Since headers
-to the request when we have a stale local copy.
+check if we have a local copy of the response and return it instead.
+If no valid local copy exists register a response handler to update or
+validate the local cache.  Might also add C<If-None-Match> or
+C<If-Modified-Since> headers to the request when we have a stale local
+copy.
 
 =item specific scheme handling
 
@@ -596,43 +612,107 @@ block indecent parts of the URI space
 
 =back
 
-Scheduler parameters.  max_conn/max_conn_per_server.  Mention
-scheduler again.
-
-The semi internal LWP::Server class.  LWP::UA manitains a list of servers
-that it shall/have communicated with.  Connection parameters per server (why
-not use the URI::Attr for this?)
-
-The stop method will when invoked (prematuterly) terminate all
-on-going requests, i.e. all requests return immediately with an error
-response and all network connections are killed.
-
+Many of the handlers use the common URI::Attr object member of the UA
+to obtain their configuration information.
 
 =head2 URI::Attr
 
-For many situations we have found a need to set up configuration parameters
-and other attributes related to the URI name space.  Many of the handlers
-should work differently depending on scheme, host or path.  For example the
-authentication handler might want to remeber "realms" per server and
-remember which path prefixes that is protected within the different realms.
+For many situations we have found a need to set up configuration
+parameters and other attributes related to the URI name space.  Many
+of the handlers should work differently depending on scheme, domain,
+server or path.  For example the authentication handler might want to
+remember "realms" per server and remember which path prefixes that is
+protected within the different realms.
+
+The main idea of the URI::Attr class is to be able to efficiently look
+up all attributes that are relevant to a specific absolute URI and to
+be able to override attributes at lower hierarchal levels of the URI
+namespace.
+
+The LWP::UA object has a URI::Attr instance as a member.  It also
+provide direct access to this member though the methods
+$ua->uri_attr_plain, $ua->uri_attr_update.  Configuration for all the
+handlers and connections are placed within this tree.
+
+Let's show a simple proxy configuration as an example.  We want all
+HTTP request to go through our caching proxy, but not for request to
+servers within our local domain.  This can be express like this
+(assuming our local domain is .perl.com):
+
+  $ua->uri_attr_update(SCHEME=>"http:")->{proxy} = "http://proxy.perl.com";
+  $ua->uri_attr_update(DOMAIN=>"http://dummy.perl.com/")->{proxy} = undef;
+
+The proxy handler can then simply find out if a request needs to go
+through a proxy with a call like this:
+
+  $proxy = $ua->uri_attr_plain($url, "proxy");
+
+This will return the name of the proxy server to use or C<undef> if no
+proxy is to be used.
+
 
 =head2 LWP::Request
 
-LWP::Request response handlers and callbacks.  List handlers present.
+The spool() method of LWP::UA accept LWP::Request object references as
+argument(s).  The LWP::Request class is derived from the HTTP::Request
+class and inherit all its attributes.  The reason we use a subclass is
+that it needs to support some callback methods that are invoked during
+reception of the response from the server.  There are two such
+methods:
 
-   - extract_cookies
-   - redirect handler
-   - authentication handler
+   $req->response_data($data, $res);
+   $req->response_done($res);
 
-Both "response_data" and "response_done" hooks in addition to
-"response_handler".  Only the handler is copied on cloning (and thus
-present in followup responses).  Another difference if whether the
-return value matters.
+The response_data() callback method is invoked repeatedly as parts of
+the content of the response becomes available.  The first time it is
+invoked is right after the headers in the response message has been
+parsed.  At this point $res will be a reference to an HTTP::Response
+object with response code and headers initialized, but the message
+content will be empty.  There is no guarantee that this method will be
+called at all for a given request.
 
-managed_by attribute (ua).  Mainly used to be able to spool followup
-requests.
+The default implementation of response_data() will run any
+I<response_data> hooks and will call the registered data callback
+function if it exists.  If no data callback function is defined, then
+data is simple appended to the content of the response message.
 
-priority/proxy attributes.
+The response_done() callback method is invoked when the whole response
+has been received.  It is guaranteed that it will be invoked exactly
+once for each request spooled (even for requests that fails.)
+
+The default implementation of response_done() will run any
+I<response_done> hooks.  Then it will try to run any
+I<response_handlers>.  If none of the handlers signaled that the
+response has been handled (for instance by sending a followup
+request), then we either call the done callback function or we
+"deliver" the response by calling the $ua->response_received($res)
+method.
+
+Applications can either subclass LWP::Request, to provide their own
+versions of response_data() and response_done(), or they can just
+register handlers and callback functions.  The last option is probably
+to be prefered.
+
+There are two other attributes in LWP::Request worth metion here; The
+$req->proxy field is simply the name of the proxy where to send the
+request and the $req->priority field can be used to make some request
+more important than others.
+
+Again, the handlers allow more features to be optional and ensure
+minimal overhead for applications that don't use them.  Currently, the
+following handlers are provided:
+
+=over 4
+
+=item head parser (data hook)
+
+=item extract_cookies (done hook)
+
+=item redirect handler (response_handler)
+
+=item authentication handler (response_handler)
+
+=back
 
 =head2 LWP::Conn object interface.
 
@@ -678,6 +758,8 @@ w3c-libwww perhaps.
 =head1 Conclusions
 
 This article has discussed the design of HTTP/1.1 support for the next
-generation of the LWP modules.
+generation of the LWP modules.  The new design look promising.  It
+allow you to write client applications that manage multiple persistent
+connections to its peer servers.
 
 =cut
