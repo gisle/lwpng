@@ -76,8 +76,8 @@ sub _set_authorization
 	unless ($a1) {
 	    # A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
 	    #         ":" unq(nonce-value) ":" unq(cnonce-value)
-	    $a1 = MD5->hexhash("$user:$realm:$pass:$nonce:$cnonce");
-	    $a1 = MD5->hexhash($a1);  # XXX should we really do this twice?
+	    $a1 = MD5->hexhash("$user:$realm:$pass") . ":$nonce:$cnonce";
+	    $a1 = MD5->hexhash($a1);
 	    $self->{'A1'} = $a1;
 	}
     } else {
