@@ -137,8 +137,14 @@ sub gen_response
     $res->date(time);
     $res->server("libwww-perl");
     if ($more) {
-	$res->content_type(($more =~ /^\s*</) ? "text/html" : "text/plain");
-	$res->content($more);
+	if (ref($more)) {
+	    while (my($k,$v) = each %$more) {
+		$res->header($k => $v);
+	    }
+	} else {
+	    $res->content_type(($more =~ /^\s*</) ? "text/html" : "text/plain");
+	    $res->content($more);
+	}
     } elsif (0 && $message) {
 	$res->content_type("text/html");
 	$res->content("<title>$message</title>\n<h1>$code $message</h1>\n");
