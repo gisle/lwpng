@@ -302,17 +302,17 @@ does).
 At one point both Gisle and Martijn had made their own modifications
 of Roy's library to better suit the possibilities that perl5 provided.
 We joined forces and made several alpha releases together.
-Unfortunately Martijn had a little disagreement about th his employer
+Unfortunately Martijn had a little disagreement with his employer
 about the intelectual property rights to work done outside hours,
 and to safeguard LWP's continued availability to the Perl community he
 asked Gisle to take over maintenance of the package.
 
-The LWP:: module name was introduced by Martijn in one of the
+The C<LWP::> module name was introduced by Martijn in one of the
 alpha releases.  It was early pointed out that this name could be
 confused with what some implementations of threads called themselves,
 but no better name alternatives emerged.  The last messages on this
 matter was <"6362 Tue Jul 18 09:59:46 1995"@mhs-relay.ac.uk> where
-Martijn concluded that "OK, so we all agree lwp stinks :-)".  The name
+Martijn concluded that "OK, so we all agree LWP stinks :-)".  The name
 stuck.
 
 On 1996-05-26 we made the first non-beta release of libwww-perl.  It
