@@ -457,6 +457,12 @@ use base qw(LWP::Conn::HTTP);
 use LWP::MainLoop qw(mainloop);
 require HTTP::Response;
 
+sub activate
+{
+    my $self = shift;
+    $self->new_request;  # try to pipeline another request
+}
+
 
 sub readable
 {
