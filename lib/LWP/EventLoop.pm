@@ -372,7 +372,7 @@ sub dump  # for debugging
 	}
 	print "\n";
     }
-    my @at = @{$self->{at}};
+    my @at = @{$self->{"at"}};
     if (@at) {
 	print "  at:";
 	for (@at) {
