@@ -21,6 +21,14 @@ sub put
     $self;
 }
 
+sub close
+{
+    my $self = shift;
+    my $sink = delete $self->{'sink'};
+    $sink->close if $sink && ref($sink) ne "CODE";
+    1;
+}
+
 @LWP::Sink::identity::encode::ISA=qw(LWP::Sink::identity);
 @LWP::Sink::identity::decode::ISA=qw(LWP::Sink::identity);
 
