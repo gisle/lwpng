@@ -9,12 +9,15 @@ use base qw(HTTP::Request);
 
 package MGR;
 
+@req = qw(/nph-slowdata.cgi /not-found /nph-slowdata.cgi / /not-found);
+
 sub new { bless {}, $_[0] }
 
 sub get_request
 {
     my($self, $conn) = @_;
-    my $req = LWP::Request->new(GET => "http://furu/nph-slowdata.cgi2");
+    my $path = shift(@req) || return;
+    my $req = LWP::Request->new(GET => "http://furu$path");
     $req->header("User-Agent" => "foo/0.01");
     $req;
 }
@@ -49,7 +52,7 @@ use Data::Dumper;
 
 print Dumper($c1, $c2);
 
-#$LWP::EventLoop::DEBUG++;
+$LWP::EventLoop::DEBUG++;
 while (!mainloop->empty) {
     #mainloop->dump;
     mainloop->one_event;
