@@ -177,15 +177,21 @@ sub new_request
 	my $uri = $req->proxy ? $req->url->as_string : $req->url->full_path;
 	my $proto = $req->protocol || "HTTP/1.1";
 	push(@rlines, "$method $uri $proto");
-	$req->header("Host" => $req->url->netloc);
+	$req->header("Host" => $req->url->netloc);  # always override
+
 	my @conn_header;
 	*$self->{'lwp_req_count'}++;
 	if ($proto eq "HTTP/1.0") {
 	    # can't send any more request, server will close connection
 	    *$self->{'lwp_req_limit'} = 1;
 	} else {
+	    if (my $conn = $req->header("Connection")) {
+		if (grep lc($_) eq "close", split(/\s*,\s*/, $conn)) {
+		    *$self->{'lwp_req_limit'} = 1;
+		}
+	    }
 	    push(@conn_header, "close")
-		if *$self->{'lwp_req_count'} == *$self->{'lwp_req_limit'};
+		if *$self->{'lwp_req_count'} >= *$self->{'lwp_req_limit'};
 	    if (@TE) {
 		push(@conn_header, "TE");
 		$req->header(TE => join(",", @TE));
