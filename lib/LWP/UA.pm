@@ -113,6 +113,12 @@ sub find_server
     }
 }
 
+sub forget_server
+{
+    my($self,$sid) = @_;
+    delete $self->{ua_servers}{$sid};
+}
+
 
 sub spool
 {
