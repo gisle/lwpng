@@ -37,7 +37,7 @@ allows client applications to utilize multiple persistent connections
 to the servers it communicate with.  The redesign is based on the
 adoption of an event driven framework.  Requests are registered with
 the library and will receive callback events as the responses come
-back from the server.  The library try to match the registered
+back from the server(s).  The library try to match the registered
 requests with the the persistent connections it have available or by
 creating new connections when necessary.
 
@@ -87,7 +87,7 @@ First we describe the requirements and principles underlying the new
 design.  The main points are:
 
   - Should support multiple parallel persistent connections
-    with optinal pipelining for HTTP.
+    with optional pipelining for HTTP.
   - Should support persistent command connections for protocols
     like FTP, NNTP and SMTP.
   - Still based on passing HTTP::Request and HTTP::Response
@@ -155,7 +155,7 @@ further study.
 
 An instance of the URI::Attr class is always a member of the LWP::UAs.
 This object form a tree of hashes.  The tree corresponds to the URI
-name space.  The behaviour of the various handlers and protocol
+name space.  The behavior of the various handlers and protocol
 modules can be configured by putting values into this tree.  Handlers
 also store things to remember between requests processed here.  This
 allow a very flexible configuration of the library.
@@ -197,7 +197,7 @@ object is represented as subclasses of LWP::Conn::HTTP and state
 transitions are simply a calls to the C<bless> builtin.  The use of
 classes for representing state also make it easy to express sub-states
 (as subclasses) that behaves mostly like its base state, but modify
-some of its behaviour.  A similar implementation for FTP also exists.
+some of its behavior.  A similar implementation for FTP also exists.
 
 The article ends with some benchmarking which compare the new
 implementation with the old and with w3c-libwww, which is a C based
