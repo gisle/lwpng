@@ -1,7 +1,5 @@
 =begin todo
 
-Non-blocking connect (common base class for both HTTP and FTP)
-
 Base class like Net::Cmd make some of the response parsing code
 reusable for SMTP and NNTP.
 
