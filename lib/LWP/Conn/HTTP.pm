@@ -336,11 +336,11 @@ sub _error
     my $mgr = delete *$self->{'lwp_mgr'};
     my $req = *$self->{'lwp_req'};
     if ($req && @$req) {
-	my $cur_req = shift @$req;  # currect request never retried
+	my $cur_req = shift @$req;
 	$mgr->pushback_request($self, @$req) if @$req;
-	$mgr->connection_closed($self);
 	my $res = *$self->{'lwp_res'};
 	if ($res) {
+	    $mgr->connection_closed($self);
 	    # partial result already available
 	    $res->header("Client-Orig-Status" => $res->status_line);
 	    $res->code(591); # XXX
@@ -349,7 +349,18 @@ sub _error
 	    # return immediately.
 	    $cur_req->response_done($res);
 	} else {
-	    $cur_req->gen_response(590, "No response", $msg);
+	    my $count = *$self->{'lwp_req_count'} - @$req;
+	    if ($msg eq "EOF" && $count > 1) {
+		# The server closed the connection before sending any
+		# response to this request even if it had send response
+		# to some previous request.  This means that this request
+		# should be retried.
+		$mgr->pushback_request($self, $cur_req);
+		$mgr->connection_closed($self);
+	    } else {
+		$mgr->connection_closed($self);
+		$cur_req->gen_response(590, "No response", $msg);
+	    }
 	}
     } else {
 	$mgr->connection_closed($self);
