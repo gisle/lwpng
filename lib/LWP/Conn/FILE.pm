@@ -34,7 +34,7 @@ sub new
 	}
 
 	my $method = uc($req->method);
-	my $path = $url->local_path;
+	my $path = $url->file;
 
 	if ($method eq "HEAD" || $method eq "GET") {
 	    get($req, $path, $method eq "GET");
