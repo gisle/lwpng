@@ -6,9 +6,25 @@ conference in august 1998.
 
 =pod
 
-Title: LWPng - The next generation of the libwww-perl library
+=head1 Title: LWPng - Adding HTTP/1.1 support to libwww-perl
 
-Author: Gisle Aas <aas@sn.no>
+=head2 Author: Gisle Aas <aas@sn.no>
+
+=begin pc98submissions@perl.org
+
+(no affiliation)
+
+Contact information:
+
+  Email:  aas@sn.no
+  Phone:  +47 5533 0252
+
+  Smail:  Gisle Aas
+          Furubotn 42
+          N-5082 Eidsvågneset
+          Norway
+
+=end pc98submissions@perl.org
 
 =head1 Abstract
 
@@ -17,6 +33,10 @@ to provide support for writing HTTP/1.1 clients.  It allow client
 applications to utilize multiple persistent connections to the servers
 it communicate with.  The redesign is based on the adoption of an
 event loop framework.
+
+=head1 Extended abstract
+
+...bla, bla, bla...
 
 =head1 Introduction
 
@@ -422,7 +442,7 @@ modules.  The event oriented framework requires a completely different
 interface towards and from the low level protocol modules.  Both
 versions must be able to work side by side for some time.
 
-=item * 
+=item *
 
 The LWP::Authen modules has also changed interface and therefore name.
 We have kept the prefix, but will now use all lower case for the
@@ -481,8 +501,8 @@ wrapper around the select system call.
 
 =back
 
-We will now investigate the major interfaces of these classes in some
-more detail.
+We will now investigate the major interfaces of some of these classes
+in some more detail.
 
 =head2 LWP::UA
 
@@ -618,26 +638,28 @@ to obtain their configuration information.
 =head2 URI::Attr
 
 For many situations we have found a need to set up configuration
-parameters and other attributes related to the URI name space.  Many
-of the handlers should work differently depending on scheme, domain,
-server or path.  For example the authentication handler might want to
-remember "realms" per server and remember which path prefixes that is
-protected within the different realms.
+parameters and other attributes related to the hierarchal URI name
+space.  Many of the handlers should work differently depending on
+scheme, domain, server or path.  For example the authentication
+handler might want to remember "realms" per server and remember which
+path prefixes that is protected within the different realms.
 
-The main idea of the URI::Attr class is to be able to efficiently look
-up all attributes that are relevant to a specific absolute URI and to
-be able to override attributes at lower hierarchal levels of the URI
-namespace.
+The URI::Attr class instances are trees of hashes.  A specific
+absolute URI define a path in the URI::Attr tree and the main
+operation of URI::Attr is to return all hashes found on this path.
+This allow us to efficiently look up all attributes that are relevant
+to a specific URI and to be able to override attributes at lower
+hierarchal levels of the URI name space.
 
 The LWP::UA object has a URI::Attr instance as a member.  It also
 provide direct access to this member though the methods
 $ua->uri_attr_plain, $ua->uri_attr_update.  Configuration for all the
-handlers and connections are placed within this tree.
+handlers and the protocol machinery are placed within this tree.
 
-Let's show a simple proxy configuration as an example.  We want all
-HTTP request to go through our caching proxy, but not for request to
-servers within our local domain.  This can be express like this
-(assuming our local domain is .perl.com):
+Let's show a simple proxy configuration as an example.  We might want
+all HTTP request to go through our caching proxy, but not for request
+to servers within our local domain.  This can be express like this
+(assuming our local domain is I<.perl.com>):
 
   $ua->uri_attr_update(SCHEME=>"http:")->{proxy} = "http://proxy.perl.com";
   $ua->uri_attr_update(DOMAIN=>"http://dummy.perl.com/")->{proxy} = undef;
@@ -704,49 +726,206 @@ following handlers are provided:
 
 =over 4
 
-=item head parser (data hook)
-
-=item extract_cookies (done hook)
-
 =item redirect handler (response_handler)
+
+This is a handler that make sure that the library automatically and
+transparently follow any redirects responses.  If it kicks in, it will
+create a follow up request as a copy of the current request, modify
+the URL or proxy setting and then respool it with the UA.
 
 =item authentication handler (response_handler)
 
+This is a handler that deals with "401 Unauthorized" or "407 Proxy
+authentication required" responses.  It tries to dynamically load the
+LWP::Authen module that correspond to the authenication scheme (only
+Basic and Digest are currently provided) and then let the loaded
+module deal with asking the user for a username and a password and for
+setting up the C<Authorization> or C<Proxy-Authorization> header in a
+copy the request.  If all works well the new request is respooled with
+the UA.
+
+=item head parser (data hook)
+
+The head parser looks at the <HEAD> section of HTML documents to
+extract header fields like C<Content-Base> and C<Title>.
+
+=item extract_cookies (done hook)
+
+If the I<cookies> spool handler is enabled, then it will register a
+response_done hook in order to look at the C<Set-Cookie> headers of
+all responses.
+
 =back
 
-=head2 LWP::Conn object interface.
+=head2 LWP::Conn::*
 
-The guts of the library is the LWP::Conn classes.  This is where all the
-action (i.e. low level protocol handling) takes place.  The basic model is
-that the LWP::Conn's are what drive the activity (together with $ua->spool).
+The guts of the library is the LWP::Conn classes.  This is where all
+the action (i.e. low level protocol handling) takes place.  Each
+protocol is implemented by its own LWP::Conn class.  For instance the
+HTTP protocol is implemented by the LWP::Conn::HTTP class.  Instances
+of these classes represent a single network connection to a
+corresponding server.  The scheduler within the UA is responsible for
+deciding how many connections to set up for each of the servers we are
+going to communicate with.
 
+The connection objects drive the activity within the library.  As
+network and timer events happen we get callbacks into the connection
+objects and these will make further (higher level) callbacks to the
+rest of the library.
 
-          +--> lwp::ua ---+
+			+-----------+
+       	       	       	|           |
+          +--> lwp::ua -+           |
+          |             +-+---------+
           |               |
       application      lwp::conn
-          |               |
-        (g)ui          network
           ^               ^
           |               |
-          +-- eventloop --+
-                  |
-           external stimuli
+      +------------------------+
+      |       eventloop        |
+      +------------------------+
+          ^               ^
+          |               |
+        (g)ui          network
+          (external stimuli)
 
-How these can be used on their own without the rest of the library.
+One other source of activity within the library is the application
+itself.  It can either spool further requests or it can kill running
+requests (and connections).
 
-=head2 LWP::Conn::HTTP design.
+A HTTP::Conn object register handle and timer callbacks with the
+EventLoop.  The rest of its interface to the outside world is though a
+single manager object.  There is a simple well defined interface that
+the manager must implement.  Though this interface it must return
+request to be performed and it is told about the overall state of the
+connection and when the connection dies.  This allow a single manager
+to manage several connnection objects.
 
-Cool.  The flexibility of Perl continue too
-suprise me.
+This simple interface make it easy to use the HTTP::Conn
+implementations directly without the rest of the library.
 
-Perhaps we need a redisign to be able to support HTTPS?  Don't let the
-LWP::Conn:HTTP object be the actual handle, but use a member object
-instance insted.
+=head2 LWP::Conn::HTTP
 
-=head2 streams/LWP::Sink
+The LWP::Conn::HTTP module implement the HTTP protocol for LWPng.  A
+single LWP::Conn::HTTP instance represent a single network connection
+to an HTTP server.  Several request/response exchanges can take place
+over this single connection. Pipelining of requests is supported too.
 
-process arbitrary sized objects and make the result
-available for further processing as early as possible.
+The design of this module was very much inspired by the "State"
+pattern described in [ref "Design Patterns: Elements of Reusable
+Object-Oriented Software" (Gamma et.al)].  The main intent of this
+pattern is described like this:
+
+  Allow an object to alter its behaviour when its internal state
+  changes.  The object will appear to change its class.
+
+This is usually achieved by having the main object (the connection)
+maintain a reference to some state object that represents the current
+state.  All state specific methods are then delegated to this state
+object.
+
+In this situation Perl's dynamic approach to object orientation came
+handy.  With Perl we can actually (and easily) change the class of an
+extisting object at run-time.  This means that we can simplify the
+"State" pattern a lot.
+
+Each state that the HTTP connection object can be in is represented by
+its own LWP::Conn::HTTP subclass and state transitions are simply a
+calls to the C<bless> builtin.  The states are:
+
+=over 4
+
+=item Connecting
+
+In this state we have called the non-blocking connect(2) and got
+EINPROGRESS back.  We wait until the socket becomes writable which
+signals that the connection attempt was successful.  On success we
+switch to the Idle state and call $self->activate().
+
+=item Idle
+
+In this state we have nothing to do.  We wait until timeout() or
+somebody calls the activate() method.  We must also monitor the socket
+so that we notice if the server decide to close it before we do.
+
+If the activate() method is invoked then we try to obtain a new
+request to send.  If this succeeds then we switch to the Active state.
+
+=item Active
+
+In this state we are sending or or more requests and are prepared to
+read any response that comes back.  When the headers of a response has
+been received, they are parsed and we switch to one of the following
+sub-states depending on the how the message content are to be
+delimited.  When the whole message content has been received we try to
+obtain another request to send and depending on the outcome of this we
+switch back to the Active or the Idle state.
+
+=item ContLen
+
+This is an Active subclass.  We maintain a counter of the number of
+bytes to expect for the message content and we read data until this
+counter reach zero.
+
+=item Chunked
+
+This is an Active subclass.  We must read and parse chunk headers,
+read the corresponding number of chunk bytes and must be prepared to
+parse trailer headers for the response.
+
+=item Multipart
+
+This is an Active subclass.  We read content data until the specified
+boundary byte pattern is found.
+
+=item UntilEOF
+
+This is an Active subclass. We read content data until the server
+closes the connection.
+
+=item  Closed
+
+This is the state that the connection enters when it is dies and the
+socket is closed.  No method calls are allowed any more.
+
+=back
+
+The LWP::Conn::HTTP constructor takes the name of the server host and
+the port to connect to as arguments.  It creates a non-blocking socket
+and tries to connect to the specified server and will enter the
+Connecting or Idle state depending on what connect(2) returns.  We
+also register timeout callbacks which makes this sure that this
+connection object looks after itself.
+
+The following picture illustates the state transitions that take
+place:
+
+          START  ------> Connecting
+            |                 |
+            |                 |
+            V                 |
+                              V
+          Idle  <-------------+---------<-----\
+           /\(work?)                           \
+          /  \                                  \
+         /    |                                  \
+        /     V                                   \
+       /                                           \
+      /   Active (sending request)     <-----------+ (more work?)
+     |      |     \       \      -----             |
+     |      |      \       \          \            |
+     |      |       \       \          \           |
+     |      |        |       |          |          |
+     |      V        V       V          V          |
+     |                                             |
+     |    ConnLen  Chunked  Multipart  UntilEOF    |   (reading response)
+     |      |         |        |          |        |
+     |      |         |        |          |        |
+     |      +-------->+------->+--------- | ------>+
+     V                                    |
+                                          |
+   Closed  <------------------------------+
+  (THE END)
 
 
 =head1 Some benchmarks
@@ -761,5 +940,25 @@ This article has discussed the design of HTTP/1.1 support for the next
 generation of the LWP modules.  The new design look promising.  It
 allow you to write client applications that manage multiple persistent
 connections to its peer servers.
+
+=head1 References
+
+=over 4
+
+=item [1]
+
+http://www.linpro.no/lwp/
+
+=item [2]
+
+<draft-ietf-http-v11-spec-rev-03> which is an update of RFC2068
+
+=item [3]
+
+"Design Patterns - Elements of Reusable Object-Oriented Software",
+E. Gamma, R. Helm, R. Johnson, J. Vlissides.  1995 Addison Wesley.
+
+=back
+
 
 =cut
