@@ -46,6 +46,11 @@ lib/LWP/UA/Cookies.pm
 lib/LWP/UA/Proxy.pm
 lib/LWP/Version.pm
 lib/URI/Attr.pm
+states.ps
+pipeline.ps
+fig1.ps
+fig2.ps
+readline-interface
 old-ua
 t/after.t
 t/bad-req.t
