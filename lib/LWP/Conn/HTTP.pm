@@ -78,6 +78,7 @@ sub new_request
     my @rlines;
     my $method = $req->method || "GET";
     my $uri = $req->proxy ? $req->url->as_string : $req->url->path_query;
+    $uri = "/" unless length($uri);
     my $proto = $req->protocol || "HTTP/1.1";
     push(@rlines, "$method $uri $proto");
     $req->header("Host" => $req->url->authority);  # always override
