@@ -9,7 +9,7 @@ use LWP::UA;
 $LWP::UA::DEBUG++;
 my $ua = LWP::UA->new;
 
-$ua->conn_param(ReqLimit    => 3,
+$ua->conn_param(ReqLimit    => 10,
                 ReqPending  => 1,
 		Timeout     => 30,
 		IdleTimeout => 10);
@@ -58,11 +58,11 @@ sub cmd
 	    $ua->stop;
 	} elsif ($cmd =~ /^s\s+(\S+)/) {
 	    $ua->find_server($1)->stop;
-	} elsif ($cmd =~ /^\s*(\w+)\s+(\S+)/i) {
-	    my $req = LWP::Request->new2(uc($1) => $2);
-	    #$req->{'auto_redirect'}++;
-	    #$req->{'auto_auth'}++;
-	    $ua->spool($req);
+	} elsif ($cmd =~ /^\s*(\d*)\s*(\w+)\s+(\S+)/i) {
+	    my $count = $1 || 1;
+	    my $method = uc($2);
+	    my $url = $3;
+	    $ua->spool(map LWP::Request->new2($method, $url), 1..$count);
         } elsif ($cmd =~ /^\s*!\s*(.*)/) {
 	    my $ret = eval $1;
 	    if ($@) {
@@ -78,7 +78,6 @@ sub cmd
 	    }
         } elsif ($cmd eq "?" || $cmd eq "help") {
             print <<EOT;
-
 <method> <url> : spool request
 s              : stop all requests
 s <url>        : stop requests for this server
@@ -89,9 +88,10 @@ q              : quit
 
 de             : toggle event loop debugging
 dc             : toggle connection debugging
-! <perl-code>  : evaluate some perl code (and print result)
-
+!<perl-code>   : evaluate some perl code (and print result)
 EOT
+        } elsif ($cmd =~ /^\s*$/) {
+	    # ignore
 	} else {
 	    print "Unknown command '$cmd'.  The command '?' list known commands\n";
 	}
