@@ -8,6 +8,10 @@ $VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 
 use LWP::MainLoop qw(mainloop);
 
+# Hope to not see the old URI::URL class any more
+$HTTP::URI_CLASS = "URI";
+require HTTP::Message;
+
 require LWP::Version;
 require LWP::Server;
 require URI::Attr;
@@ -90,26 +94,26 @@ sub agent
 sub find_server
 {
     my($self, $url) = @_;
-    $url = URI::URL->new($url) unless ref $url;
+    $url = URI->new($url) unless ref $url;
     return undef unless $url;
 
     my $proto = $url->scheme || return undef;
-    my $host = $url->host;
-    my($port, $netloc);
+    my $host = $url->host;  # XXX not safe
+    my($port, $authority);
 
     # Handle some special cases where $host can't be trusted
     $host = undef if $proto eq "file" || $proto eq "mailto";
 
     if ($host) {
 	$port = $url->port;
-	$netloc = $port ? "$proto://$host:$port" : "$proto://host";
+	$authority = $port ? "$proto://$host:$port" : "$proto://host";
     } else {
-	$netloc = "$proto:";
+	$authority = "$proto:";
     }
 
-    my $server = $self->{ua_servers}{$netloc};
+    my $server = $self->{ua_servers}{$authority};
     unless ($server) {
-	$server = $self->{ua_servers}{$netloc} =
+	$server = $self->{ua_servers}{$authority} =
 	  LWP::Server->new($self, $proto, $host, $port);
     }
 }
