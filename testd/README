@@ -1,0 +1,3 @@
+The program 'httpd' is the test daemon.  Once started it will write
+it's location to the file URL and will start to server all the files
+within this directory asis.

@@ -1,0 +1,41 @@
+#!/usr/bin/perl -w
+
+$URL_FILE = "URL";
+
+use HTTP::Daemon;
+use URI::URL;
+
+$d = new HTTP::Daemon;
+
+open(URL, ">$URL_FILE") || die "Can't open $URL_FILE: $!";
+print URL $d->url, "\n";
+close(URL);
+
+print "<URL:", $d->url, ">\n";
+
+while ($c = $d->accept) {
+    $r = $c->get_request;
+    if ($r) {
+	print $r->as_string;
+	$c->autoflush;
+	my $u = $r->url;
+	my $file = ($u->path_components)[1];
+	if ($file && !($file =~ m,/,)) {
+	    if (open(FILE, $file)) {
+		my $n = $c->send_file(\*FILE);
+		if (!defined($n)) {
+		    print "send_file() error\n";
+		} else {
+		    print "$n bytes of response returned\n\n";
+		}
+	    } else {
+		$c->send_error(404);
+	    }
+        } else {
+	    $c->send_error(400);
+	}
+    }
+    $c->close;
+    $c = undef;
+}
+ 
