@@ -2,6 +2,8 @@
 This is supposed to be an article about libwww-perl-6 for the Perl
 conference in august 1998.
 
+# $Id$
+
 =pod
 
 Title: LWPng ...
