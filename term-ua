@@ -5,34 +5,27 @@
 # flags too.
 
 use strict;
-use LWP::UA;
-$LWP::UA::DEBUG++;
-my $ua = LWP::UA->new;
-
-$ua->conn_param(ReqLimit    => 10,
-                ReqPending  => 1,
-		Timeout     => 30,
-		IdleTimeout => 10);
-
-$ua->env_proxy;
-
-#require LWP::Authen::basic;
-#$ua->{'uattr'}->attr_update("DIR", "http://localhost/foo/")->{realm}="Foo";
-#$ua->{'uattr'}->attr_update("DIR", "http://localhost/")->{realm}="Bar";
-#$ua->{'uattr'}->attr_update("SERVER", "http://localhost/")->{realms}{"Foo"} = LWP::Authen::basic->new("gisle", "aas");
-#$ua->{'uattr'}->attr_update("SERVER", "http://localhost/")->{realms}{"Bar"} = LWP::Authen::basic->new("gisle", "aas2");
-#$ua->{'uattr'}->attr_update("SERVER", "http://localhost/")->{proxy_realms}{"Foo"} = LWP::Authen::basic->new("tor", "per");
-#$ua->{'uattr'}->attr_update("DOMAIN", "http://furu.g.aas.no/")->{proxy} = "http://localhost";
-$ua->{'uattr'}->attr_update("SCHEME", "http:")->{default_headers}{From} = 'libwww-perl@ics.uci.edu';
-
-
-require LWP::Conn::HTTP;
-
+use LWP::Dump;
 use LWP::MainLoop qw(empty one_event readable);
 
-{
-    package MyRequest;
-    require LWP::Request;
+require LWP::UA;
+require LWP::Request;
+require LWP::Conn::HTTP;
+
+$LWP::UA::DEBUG++;
+$LWP::Server::DEBUG++;
+
+{ package MyUA;
+    use base 'LWP::UA';
+
+    sub response_received
+    {
+	my($self, $res) = @_;
+	print $res->as_string;
+    }
+}
+
+{ package MyRequest;
     use base 'LWP::Request';
 
     sub new2
@@ -57,6 +50,13 @@ use LWP::MainLoop qw(empty one_event readable);
 
 
 $| = 1;
+
+my $ua = MyUA->new;
+$ua->env_proxy;
+$ua->uri_attr_update("SCHEME", "http:")->
+    {default_headers}{From} = 'libwww-perl@ics.uci.edu';
+
+
 print "ua> ";
 readable(\*STDIN, \&cmd);
 
