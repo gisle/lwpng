@@ -68,18 +68,24 @@ Buffered data should be processed/sent off.
 
 =item $s->close
 
-The last chunk of data has been put()ed.  Signals end of stream.
-Resources associated with the sink can be freed.
+Invoking the close() method signals that the last chunk of data has
+been put()ed.  Resources associated with the sink can now be freed.
 
 =back
 
 One important class of sinks are those that transform data in some
 way.  These will be subclasses of I<LWP::Sink::_Pipe> which means that
 they have a attribute called I<sink> that reference the sink that will
-received the processed data.  By convention call transformation sink
-classes have all lowercase names within the LWP::Sink::* namespace.
-They also have variations suffixed with ::encode and ::decode that
-performs the transformations forwards or backwards.
+received data after processing.  By convention call transformation
+sink classes have all lowercase names within the LWP::Sink::*
+namespace.  They also have variations suffixed with ::encode and
+::decode that performs the transformations forwards or backwards.
+
+=head1 BUGS
+
+Perhaps I<LWP::Sink> should provide an interface to load sink
+subclasses on demand and return references to them.  Similar to how
+URI::URL works.
 
 
 =head1 COPYRIGHT
