@@ -17,7 +17,7 @@ sub response_handler
 	      $method ne "HEAD" &&
 	      !$req->redirect_ok($res);
     my $loc = $res->header('Location') || return;
-    $loc = (URI::URL->new($loc, $res->base))->abs(undef,1);
+    $loc = URI->new_abs($loc, $res->base);
 
     if ($code == 305) {  # RC_USE_PROXY
 	$new->proxy($loc);
