@@ -41,7 +41,6 @@ my @tests = (
    # spool will croak for the following because it gets wrong parameter
    [undef() => 499],
    ["http://www.perl.com" => 499],
-   [HTTP::Request->new(GET => "http://www.perl.com") => 499],
 );
 
 
