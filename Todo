@@ -5,10 +5,6 @@
  * Complete LWP5 compatibility
  * Finish the authentication hooks (digest)
  * LWP::Conn::HTTP improvements
-     - chunked request content (when content is CODE ref)
-     - monitor connection for error status messages
-       (only meaningful when we start supporting
-        chunked request content.)
      - bundling of multiple request in a single syswrite() when
        pipelining.
      - minimize headers for second and following requests
