@@ -1,6 +1,7 @@
 package LWP::Conn::FILE;
 use strict;
 require HTTP::Response;
+require LWP::Version;
 
 # Ideally, we should make this implementation shareable with
 # HTTP::Daemon.
@@ -51,7 +52,7 @@ sub new
 	} elsif ($method eq "TRACE") {  # Just for fun!
 	    my $res = HTTP::Response->new(200, "OK");
 	    $res->date(time);
-	    $res->server("libwww-perl");
+	    $res->server($LWP::Version::PRODUCT_TOKEN);
 	    $res->content_type("message/http");
 	    $res->content($req->as_string);
 	    $req->response_done($res);
@@ -81,7 +82,7 @@ sub get
 	my $now = time;
 
 	$res->date($now);
-	$res->server("libwww-perl");
+	$res->server($LWP::Version::PRODUCT_TOKEN);
 
 	my($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$filesize,
 	   $atime,$mtime,$ctime,$blksize,$blocks) = stat(FILE);
