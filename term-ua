@@ -17,7 +17,6 @@ $ua->conn_param(ReqLimit    => 10,
 $ua->env_proxy;
 
 require LWP::Conn::HTTP;
-require LWP::Auth;
 
 use LWP::MainLoop qw(empty one_event readable);
 
