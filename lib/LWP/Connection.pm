@@ -3,6 +3,8 @@ package LWP::Connection;
 use strict;
 require IO::Socket;
 
+use LWP::EventLoop qw(mainloop);
+
 my $conn_no = 0;
 
 sub new
@@ -68,9 +70,9 @@ sub writable
     my $yes  = @_ ? shift : 1;
     my $sock = $self->{'sock'};
     if ($yes) {
-	LWP::EventLoop::writable($sock, sub { $self->write });
+	mainloop->writable($sock, sub { $self->write });
     } else {
-	LWP::EventLoop::cancel_writable($sock);
+	mainloop->writable($sock, undef);   # cancel
     }
 }
 
@@ -80,9 +82,9 @@ sub readable
     my $yes  = @_ ? shift : 1;
     my $sock = $self->{'sock'};
     if ($yes) {
-	LWP::EventLoop::readable($sock, sub { $self->read });
+	mainloop->readable($sock, sub { $self->read });
     } else {
-	LWP::EventLoop::cancel_readable($sock);
+	mainloop->readable($sock, undef);
     }
 }
 
@@ -157,7 +159,9 @@ sub pipeline
 sub close
 {
     my $self = shift;
-    close($self->{'sock'});
+    my $sock = $self->{'sock'};
+    mainloop->forget($sock);
+    close($sock);
     my $no = $self->{conn_no};
     print "C$no: close\n";
 
