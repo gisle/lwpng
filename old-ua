@@ -1,15 +1,20 @@
 #!/local/bin/perl
 
-# Test using the old interface
+# Test behaviour using the old interface
 
 require LWP::UA_old;
+$ua = new LWP::UA_old;  # LWP::UserAgent;
+
+my $url = shift || "http://localhost/";
+
 require HTTP::Request;
+$req = HTTP::Request->new(GET => $url);
 
-$req = HTTP::Request->new(GET => (shift || "http://localhost/"));
-$ua = new LWP::UA_old;
 
-$res = $ua->request($req);
+
+$res = $ua->request($req, @ARGV);
 
 print $res->as_string;
 
 #print $res->request->as_string;
+#system("ls -l /proc/$$/fd");
