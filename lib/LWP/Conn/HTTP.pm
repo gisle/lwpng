@@ -77,10 +77,10 @@ sub new_request
     print STDERR "$self: New-Request $req\n" if $DEBUG;
     my @rlines;
     my $method = $req->method || "GET";
-    my $uri = $req->proxy ? $req->url->as_string : $req->url->full_path;
+    my $uri = $req->proxy ? $req->url->as_string : $req->url->path_query;
     my $proto = $req->protocol || "HTTP/1.1";
     push(@rlines, "$method $uri $proto");
-    $req->header("Host" => $req->url->netloc);  # always override
+    $req->header("Host" => $req->url->authority);  # always override
 
     my @conn_header;
     *$self->{'lwp_req_count'}++;
