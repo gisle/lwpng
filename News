@@ -7,44 +7,47 @@ multiple connections within a single client program.  It was also a
 prerequisite for supporting HTTP/1.1 features like persistent
 connections and pipelining.
 
+
 =head1 HTTP/1.1
 
 RFC 2068 is the proposed standard for the Hypertext Transfer Protocol
 version 1.1, usually denoted HTTP/1.1.  The document is currently
 revised by the IETF and a draft standard document is expected soon??
+The latest draft is currently <draft-ietf-http-v11-spec-rev-03.txt>
 
 The HTTP/1.1 protocol use the same basic message format as earlier
 versions of the protocol and HTTP/1.1 clients/servers can easily adopt
-to peers which only know about the old protocol. HTTP/1.1 adds some
-new methods, some new status codes, and some new headers.  One
-important change is that the Host header is now mandatory.  Other
-changes is support for partial content, through the specification of
-byte ranges and that the support for caching and proxies has been
-improved on.  There is also a standard way of switching from HTTP/1.1
-to some other (more suitable) protocol on the wire.
+to peers which only know about the older versions of the protocol.
+HTTP/1.1 adds some new methods, some new status codes, and some new
+headers.  One important change is that the Host header is now
+mandatory.  Other changes is support for partial content and that the
+support for caching and proxies has been much improved on.  There is
+also a standard mechanism of switching from HTTP/1.1 to some other
+(more suitable) protocol on the wire.
 
-The most important change is the introduction of persistent
-connections.  This means that more than one request/response exchange
-takes place on a single TCP connection between a client and a server.
-This improves performance and generally interacts better with how TCP
-works.  This also means that the peers must be able to tell the extent
-of the messages on the wire. In HTTP/1.0 the only way to do this was
-by using the Content-Length header and by closing the connection
-(which was only an option for the server).  Use of the Content-Length
-header is not appropriate when the length of the message can not be
-determined in advance.  HTTP/1.1 introduce two new ways to delimit
-messages; the chunked transfer encoding and self delimiting multipart
-content types.  The chunked transfer encoding means that the message
-is broken into chunks of arbitrary sizes and that each chunk is
-preceded by a line specifying the number of bytes in the chunk.  The
-multipart types use a special boundary bytepattern as a delimiter for
-the message.
+The most important change with HTTP/1.1 is the introduction of
+persistent connections.  This means that more than one
+request/response exchange takes place on a single TCP connection
+between a client and a server.  This improves performance and
+generally interacts much better with how TCP works underneath.  This
+also means that the peers must be able to tell the extent of the
+messages on the wire. In HTTP/1.0 the only way to do this was by using
+the Content-Length header and by closing the connection (which was
+only an option for the server).  Use of the Content-Length header is
+not appropriate when the length of the message can not be determined
+in advance.  HTTP/1.1 introduce two new ways to delimit messages; the
+chunked transfer encoding and self delimiting multipart content types.
+The chunked transfer encoding means that the message is broken into
+chunks of arbitrary sizes and that each chunk is preceded by a line
+specifying the number of bytes in the chunk.  The multipart types use
+a special boundary bytepattern as a delimiter for the messages.
 
 With persistent connections one can improve performance even more by
 the use of a technique called "pipelining".  This means that the
-client sends multiple requests without waiting for the response of the
-first request before sending the second.  This can have a dramatic
-effect on the thoughput for links with high round-trip delay.
+client sends multiple requests down the connections without waiting
+for the response of the first request before sending the second.  This
+can have a dramatic effect on the thoughput for high latency
+links. [NOTE-pipelining-970624]
 
 
 =head1 Event driven programming model
@@ -70,9 +73,9 @@ Request objects are created and then handed off to the $ua which will
 queue them up for processing.  As you can see, there is no longer any
 natural place to test the outcome of the requests.  What happen is
 that the requests live their own lives and they will be notified
-(though a method call) when the corresponding response is available.
-You will have to set up event handlers (in the requests) that react to
-these events.
+(though a method call) when the corresponding responses are available.
+You, the application programmer, will have to set up event handlers
+(in the requests) that react to these events.
 
 Luckily, this does not mean that all old programs must be rewritten.
 The following show one way to emulate something very close to the old
@@ -93,14 +96,15 @@ and this will in fact be used to emulate the old $ua->request() and
 $ua->simple_request() interfaces.  The goal is to be able to
 completely backwards compatible with the current LWP modules.
 
+
 =head2 LWP::Request
 
-As you can see from the example above we use the class name
+As you can see from the examples above we use the class name
 LWP::Request (as opposed to HTTP::Request) for the requests created.
 LWP::Request is a subclass of HTTP::Request, thus it have all the same
-methods, attributes as HTTP::Request and then some more.  The most
-important of these are two callback methods that will be invoked as
-the response is received:
+methods and attributes as HTTP::Request and then some more.  The most
+important of these additions are two callback methods that will be
+invoked as the response is received:
 
    $req->response_data($data, $res);
    $req->response_done($res);
@@ -111,25 +115,26 @@ invoked, then $res will be a reference to a HTTP::Response object with
 response code and headers initialized, and empty content.  The default
 implementation of response_data just appends the data passed to the
 content of the $res object.  It also supports a registered callback
-function ('data_cb') that can be invoked.
+function ('data_cb') that will be invoked if defined.
 
-The response_done() callback method is invoked when the whole response has been
-received.  It is guaranteed that it will be invoked once for each
-request spooled (even if it fails.)  The default implementation will
-set up the $res->request and $res->previous links and will
-automatically handle redirects and unauthorized responses by
+The response_done() callback method is invoked when the whole response
+has been received.  It is guaranteed that it will be invoked exactly
+once for each request spooled (even if it fails.)  The default
+implementation will set up the $res->request and $res->previous links
+and will automatically handle redirects and unauthorized responses by
 respooling a slightly modified copy of the original requests.  It also
-supports a registered callback function ('done_cb') that will invoked,
-but only for the last response in case of redirect chains.
+supports a registered callback function ('done_cb') that will invoked
+if defined, but only for the last response in case of redirect chains.
 
 As an application programmer you can either subclass LWP::Request, to
-provide your own versions of response_data() and response_done(), or you can
-just register callback functions.
+provide your own versions of response_data() and response_done(), or
+you can just register callback functions.
 
 The LWP::Request object also provide a few more attributes that might
-be of interest.  The $req->priority is a number between 1 and 100 that
-can be used to select which request goes first when multiple are
-spooled at the same time.  Requests will the least numbers go first.
+be of interest.  The $req->priority is a number that can be used to
+select which request goes first when multiple are spooled at the same
+time.  Requests with the smallest numbers go first.  The default
+priority happens to be 99.
 
 The $req->proxy attribute tells us if we are going to pass the request
 to an proxy server instead of the server implied by the URL.  If
@@ -139,27 +144,27 @@ $req->proxy is TRUE, then it should be the URL of the proxy.
 =head2 LWP::MainLoop
 
 The event oriented framework is based on a single common object
-provided by the LWP::MainLoop module that will watch external file
+provided by the LWP::MainLoop module that will watch external IO
 descriptors (sockets) and timers.  When events occur, then registered
-functions are called and these call other event handling functions and
-so on.
+functions are called and these will call other event handling
+functions and so on.
 
 In order for this to work, the mainloop object needs to be in control
-when nothing else happens and you expect protocol handling to take
-place.  This is achieved by repeatedly calling the mainloop->one_event
-method until we are satisfied.  Each call will wait until the next
-event is available, then invoke the corresponding callback function
-and then return.  The one_event() interface is handy because it can be
-applied recursively and you can set up event loops in event handlers
-invoked by outer event loops.
+when nothing else happens and you especially when you expect protocol
+handling to take place.  This is achieved by repeatedly calling the
+mainloop->one_event method until we are satisfied.  Each call will
+wait until the next event is available, then invoke the corresponding
+callback function and then return.  The one_event() interface is handy
+because it can be applied recursively and you can set up inner event
+loops in event handlers invoked by some outer event loop.
 
 The call mainloop->run is a shorthand for a common form of this loop.
-It will call mainloop->one_event until there is no registered sockets
-and no timers left.
+It will call mainloop->one_event until there is no registered IO
+handles (sockets) and no timers left.
 
 The following program shows how you can register your own callbacks.
-For instance the application might want to be able to read commands
-from the terminal.
+For instance as here the application might want to be able to read
+commands from the terminal.
 
   use LWP::MainLoop qw(mainloop);
 
