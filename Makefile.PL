@@ -4,6 +4,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
    NAME         => "LWPng-alpha",
    VERSION_FROM => "lib/LWP/Version.pm",
-   PREREQ_PM    => { LWP => '5.32', },
+   PREREQ_PM    => { LWP => '5.40',
+		   },
    dist         => { COMPRESS => 'gzip -9f', SUFFIX => 'gz'},
 );
