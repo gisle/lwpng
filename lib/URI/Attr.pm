@@ -134,4 +134,26 @@ sub _make_hash
     $_[0];
 }
 
+sub as_string
+{
+    my $self = shift;
+    my $level = shift || 0;
+    my($down, $attr) = @$self;
+    my $str = "";
+    if ($attr) {
+	$str = "(" . join(", ", sort keys %$attr) . ")\n";
+    } elsif ($level) {
+	$str .= "\n";
+    }
+    if ($down) {
+	for (sort keys %$down) {
+	    $str .= "$_";
+	    my $s = as_string($down->{$_}, $level+1);
+	    $s =~ s/^/  /gm;
+	    $str .= $s;
+	}
+    }
+    $str;
+}
+
 1;
