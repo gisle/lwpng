@@ -1,3 +1,30 @@
+1998-03-30   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.12
+
+   Will now copy response_handler hooks when making a clone of a
+   LWP::Request object.
+
+   Handle "300 Multiple Choices" as 302 if a Location header is
+   found in the response.
+
+   LWP::Server will now automatically create a new connection if
+   the last connection is closed and we still have requests to do.
+
+   LWP::UA::setup_proxy returned wrong value when a proxy was already
+   set up.
+
+   LWP::Conn::HTTP always overwrite the request TE header now.
+
+   LWP::Sink::_Pipe instead of LWP::Sink::_trans.  push() instead
+   of append().
+
+   LWP::Sink::identity can buffer data now.
+
+   Implemented LWP::Sink::Buffer and LWP::Sink::qp.
+
+
+
 1998-03-26   Gisle Aas <aas@sn.no>
 
    Release alpha-0.11
