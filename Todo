@@ -3,8 +3,10 @@
  * Write test scripts
  * Chunked request content
  * Prototect more connection callbacks with eval {}
+ * Validate requests (always generate responses)
  * Complete LWP5 compatibility
  * Response hooks
+ * Other LWP::Conn implementations: FILE, FTP, NNTP, Gopher, MAILTO
  * Documentation
 
  * Cookie hook
