@@ -25,6 +25,8 @@ $ua->conn_param(ReqLimit    => 3,
 		Timeout     => 30,
 		IdleTimeout => 10);
 
+$ua->env_proxy;
+
 require LWP::Request;
 require LWP::Conn::HTTP;
 
@@ -55,9 +57,10 @@ sub cmd
 	    $LWP::EventLoop::DEBUG = !$LWP::EventLoop::DEBUG;
 	    print "Eventlopp debug is ",
 	          ($LWP::EventLoop::DEBUG ? "on" : "off"), "\n";
-	} elsif ($cmd =~ /^(get|GET)\s+(\S+)/) {
-	    my $req = LWP::Request->new(GET => $2);
+	} elsif ($cmd =~ /^(get|head|trace)\s+(\S+)/i) {
+	    my $req = LWP::Request->new(uc($1) => $2);
 	    $req->{'auto_redirect'}++;
+	    $req->{'auto_auth'}++;
 	    $ua->spool($req);
 	} elsif ($cmd =~ /^c\s+(\S+)/) {
 	    $ua->server($1)->create_connection;
