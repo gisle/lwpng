@@ -7,11 +7,11 @@ package LWP::HConn; # HTTP Connection
 # This library is free software; you can redistribute it and/or
 # modify it under the same terms as Perl itself.
 
-# A hack that should work on Linux until we require IO-1.18, then it
-# should work everywhere
+# A hack that should work at least on Linux
+# XXX: When we require IO-1.18, then this hack can be removed.
 unless (defined &IO::EINPROGRESS) {
     $! = 115;
-    die "No EINPROGRESS ($!)" unless $! eq "Operation now in progress";
+    die "No EINPROGRESS found ($!)" unless $! eq "Operation now in progress";
     *IO::EINPROGRESS = sub () { 115; };
 }
 
@@ -33,11 +33,11 @@ sub new
 
     my $mgr = delete $cnf{ManagedBy} ||
       Carp::croak("'ManagedBy' is mandatory");
-    my $host = delete $cnf{PeerAddr} || delete $cnf{Host} ||
-      Carp::croak("'PeerAddr' is mandatory");
+    my $host =   delete $cnf{Host} || delete $cnf{PeerAddr} ||
+      Carp::croak("'Host' is mandatory");
     my $port;
     $port = $1 if $host =~ s/:(\d+)//;
-    $port = delete $cnf{PeerPort} || delete $cnf{Port} || $port || 80;
+    $port = delete $cnf{Port} || delete $cnf{PeerPort} || $port || 80;
 
     my $timeout = delete $cnf{Timeout} || 3*60;
     my $req_limit = delete $cnf{ReqLimit} || 1;
@@ -492,10 +492,11 @@ sub check_rbuf
 		    $res->push_header($k, $v) if $k;
 		    ($k, $v) = ($1, $2);
 		} elsif (/^\s+(.*)/) {
-		    warn "Bad trailer" unless $k;
+		    warn "Bad chunked trailer (no key for continuation)"
+		        unless $k;
 		    $v .= " $1";
 		} else {
-		    warn "Bad trailer: $_\n";
+		    warn "Bad chunked trailer: $_\n";
 		}
 	    }
 	} else {
