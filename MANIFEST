@@ -10,7 +10,9 @@ lib/LWP/Server.pm
 lib/LWP/StdSched.pm
 lib/LWP/UA_old.pm
 lib/LWP/UA.pm
+lib/URI/Attr.pm
 old-ua
 t/after.t
+t/uri-attr.t
 term-serv
 term-ua
