@@ -17,7 +17,7 @@ BEGIN {
 	require Time::HiRes;
 	Time::HiRes->import('time');
     };
-    print STDERR $@ if $@ && $DEBUG;
+    warn $@ if $@ && $DEBUG;
 }
 
 my $atid = 0;  # incremented in order to generate unique after/at identifiers
@@ -171,7 +171,7 @@ sub _vec
     }
     $self->{$cachebits} = $vec;
     if (@closed) {
-	print "1) Getting rid of closed handles: @closed\n";
+	warn "Getting rid of closed handles: @closed" if $DEBUG;
 	$self->forget(@closed);
     }
 }
@@ -182,7 +182,7 @@ sub _check_closed
     my @closed = grep {!defined fileno($_)}
                     map { $_->[0] } values %{$self->{fh}};
     if (@closed) {
-	print "2) Getting rid of closed handles: @closed\n";
+	warn "Getting rid of closed handles: @closed" if $DEBUG;
 	$self->forget(@closed);
     }
 }
@@ -234,6 +234,16 @@ sub dump
 	}
 	print "\n";
     }
+    my @at = @{$self->{at}};
+    if (@at) {
+	print "  at:";
+	for (@at) {
+	    my($id,$time,$cb) = @$_;
+	    $time = sprintf("%.3g", $time - $now);
+	    print " $id/${time}s/$cb";
+	}
+	print "\n";
+    }
 }
 
 sub empty
@@ -245,19 +255,18 @@ sub empty
 sub one_event   # or none
 {
     my $self = shift;
-
+    my $timeout = shift;
     my $now = time;
-    my $timeout = 60;
     my $at = $self->{'at'};
     if (@$at) {
-	$timeout = $at->[0][1] - $now;
-	if ($timeout <= 0) {
+	my $at_timeout = $at->[0][1] - $now;
+	if ($at_timeout <= 0) {
 	    # the first timer has expired
 	    my($id, $time, $cb) = @{shift @$at};
 	    if ($DEBUG) {
 		print STDERR "timer callback $id";
-		if ($timeout < -0.01) {
-		    printf STDERR " (%.2fs late)\n", -$timeout;
+		if ($at_timeout < -0.01) {
+		    printf STDERR " (%.2fs late)\n", -$at_timeout;
 		} else {
 		    print STDERR "\n";
 		}
@@ -266,6 +275,7 @@ sub one_event   # or none
 	    warn $@ if $@ && $^W;
 	    return;
 	}
+	$timeout = $at_timeout if !$timeout || $at_timeout < $timeout;
     }
 
     for (values %{$self->{fh}}) {
@@ -336,7 +346,7 @@ sub one_event   # or none
 	    }
 	}
 	if (@closed) {
-	    print "3) Getting rid of closed handles: @closed\n";
+	    warn "Getting rid of closed handles: @closed" if $DEBUG;
 	    $self->forget(@closed);
 	}
     } else {
@@ -366,7 +376,11 @@ sub _fh_callback
 sub run
 {
     my $self = shift;
-    $self->one_event until $self->empty;
+    my $done;
+    if (my $timeout = shift) {
+	$self->after($timeout, sub {$done++});
+    };
+    $self->one_event until $self->empty || $done;
 }
 
 1;
