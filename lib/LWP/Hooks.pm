@@ -30,6 +30,24 @@ sub clear_hooks
     $self;
 }
 
+sub copy_hooks_from
+{
+    my($self, $other, $type) = @_;
+    unless (defined $type) {
+	while (my($k,$v) = each %$other) {
+	    next unless $k =~ /^(\w+)_hooks$/;
+	    $self->copy_hooks_from($other, $1);
+	}
+	return;
+    }
+
+    my $hooks = $other->{"${type}_hooks"};
+    return unless $hooks;
+    for (@$hooks) {
+	$self->add_hook($type, $_);
+    }
+}
+
 
 sub run_hooks
 {
