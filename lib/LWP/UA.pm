@@ -88,7 +88,7 @@ sub find_server
 
     # Handle some special cases where $host can't be trusted
     if ($proto eq "file") {
-	$host = undef if $host eq "localhost";
+	$host = undef if $host && $host eq "localhost";
     } elsif ($proto eq "mailto") {
 	$host = undef;
     }
