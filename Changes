@@ -1,3 +1,20 @@
+1998-07-05   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.22
+
+   LWP::Conn::FILE now works on systems where getpwuid() and getgrgid()
+   do not (i.e. WinNT).  Patch by Blair Zajac <blair@gps.caltech.edu>.
+
+   LWP::Conn::HTTP and LWP::Conn::FTP now use LWP::Conn::_Connect to
+   to the connection establishment.
+
+   LWP::Conn::_Connect really works now (I think!)
+
+   The IO::EINPROGRESS hack is now more forgiving.  This hopefully means
+   that we work on WinNT too.
+
+
+
 1998-06-27   Gisle Aas <aas@sn.no>
 
    Release alpha-0.21
