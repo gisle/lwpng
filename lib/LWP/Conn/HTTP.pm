@@ -59,7 +59,7 @@ sub new
 	$addrs[0] = inet_aton($host);
     } else {
 	(undef, undef, $addrtype, undef, @addrs) = gethostbyname($host);
-	die "Bad address" if $addrtype != AF_INET;
+	die "Bad address type '$addrtype'" if @addrs && $addrtype != AF_INET;
     }
     @addrs = map pack_sockaddr_in($port, $_), @addrs;
 
@@ -211,13 +211,13 @@ sub _error
 	$mgr->pushback_request($self, @$req) if @$req;
 	my $res = *$self->{'lwp_res'};
 	if ($res) {
-	    # partial result
+	    # partial result already available
 	    $res->header("Client-Orig-Status" => $res->status_line);
-	    $res->code(600); # XXX
+	    $res->code(591); # XXX
 	    $res->message($msg);
 	    $cur_req->done($res);
 	} else {
-	    $cur_req->done(HTTP::Response->new(601, "No response"));
+	    $cur_req->gen_response(590, "No response");
 	}
     }
     $self->state("Closed");
@@ -253,6 +253,19 @@ sub inactive
     shift->_error("Connect timeout");
 }
 
+
+sub _error
+{
+    my($self, $msg) = @_;
+
+    # zap request queue
+    my $mgr = *$self->{'lwp_mgr'};
+    while (my $req = $mgr->get_request($self)) {
+	$req->gen_response(590, $msg);
+    }
+
+    $self->SUPER::_error($msg);
+}
 
 
 
