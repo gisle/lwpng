@@ -92,7 +92,7 @@ sub attr
 }
 
 
-sub p_attr
+sub attr_plain
 {
     my $self = shift;
     my @attr = map {$_->[1]} $self->attr(@_);
@@ -167,7 +167,7 @@ URI::Attr - associate attributes with the URI name space
  use URI::Attr;
  $attr = URI::Attr->new;
  $attr->attr_update(SERVER => "http://www.perl.com")->{visit} = "yes";
- if ($attr->p_attr($url, "visit")) {
+ if ($attr->attr_plain($url, "visit")) {
      #...
  }
 
@@ -232,7 +232,7 @@ If the optional $attr_name is given, only the attribute with the given
 name is considered.  If no $attr_name is given, then the attributes
 are returned as a hash reference.
 
-=item $db->p_attr($uri, [$attr_name])
+=item $db->attr_plain($uri, [$attr_name])
 
 Same as attr() but only return the attribute(s), not the associated
 level names.
