@@ -3,7 +3,7 @@
 # A server that binds to some port and then prints everything
 # received on STDOUT and forwards STDIN to the net.
 
-use LWP::MainLoop qw(mainloop);
+use LWP::MainLoop qw(readable forget_all run);
 use IO::Socket;
 
 $| = 1;
@@ -16,28 +16,31 @@ while (1) {
     my $conn = $listen->accept;
     next unless $conn;
 
-    mainloop->readable(\*STDIN, sub {
-			   my $buf;
-			   sysread(STDIN, $buf, 100);
-			   $buf =~ s,\\\n$,,;
-			   if ($buf eq ".\n") {
-			       close($conn);
-			       mainloop->forget_all;
-			       return;
-			   }
-			   $conn->print($buf);
-		       });
+    readable(\*STDIN,
+	     sub {
+		 my $buf;
+		 sysread(STDIN, $buf, 100);
+		 $buf =~ s,\\\n$,,;
+		 if ($buf eq ".\n") {
+		     close($conn);
+		     forget_all();
+		     return;
+		 }
+		 $conn->print($buf);
+	     });
 
-    mainloop->readable($conn, sub {
-			   my $buf;
-			   unless (sysread($conn, $buf, 100)) {
-			       close($conn);
-			       mainloop->forget_all;
-			       return;
-			   };
-			   $buf =~ s,\r,CR,g;
-			   $buf =~ s,\n,LF\n,g;
-			   print $buf;
-		       });
-    mainloop->run;
+    readable($conn,
+	     sub {
+		 my $buf;
+		 unless (sysread($conn, $buf, 100)) {
+		     close($conn);
+		     forget_all;
+		     return;
+		 };
+		 $buf =~ s,\r,<CR>,g;
+		 $buf =~ s,\n,<LF>\n,g;
+		 $buf =~ s,\t,<TAB>,g;
+		 print $buf;
+	     });
+    run();  # returns when no events are pending, i.e. after forget_all()
 }
