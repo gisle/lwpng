@@ -1,7 +1,7 @@
 package LWP::Sink::Monitor;
 
-require LWP::Sink;
-@ISA=qw(LWP::Sink);
+require LWP::Sink::identity;
+@ISA=qw(LWP::Sink::identity);
 
 use strict;
 
@@ -26,19 +26,21 @@ sub put
 {
     my $self = shift;
     $self->_log("put", @_);
-    $self;
+    $self->SUPER::put(@_);
 }
 
 sub flush
 {
-    shift->_log("flush", @_);
-    1;
+    my $self = shift;
+    $self->_log("flush", @_);
+    $self->SUPER::flush(@_);
 }
 
 sub close
 {
-    shift->_log("close", @_);
-    1;
+    my $self = shift;
+    $self->_log("close", @_);
+    $self->SUPER::close(@_);
 }
 
 1;
