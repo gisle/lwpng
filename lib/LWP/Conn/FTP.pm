@@ -11,6 +11,8 @@ use IO::Socket ();
 use LWP::MainLoop qw(mainloop);
 use strict;
 
+require HTTP::Response;
+
 use vars qw($DEBUG @ISA);
 @ISA=qw(IO::Socket::INET);
 
@@ -434,7 +436,6 @@ sub activate
 	$self->gen_response(501, "RENAME not implemented yet");
 
     } elsif ($method eq "TRACE") {
-	require HTTP::Response;
 	my $req = delete *$self->{'lwp_req'};
 	my $res = HTTP::Response->new(200, "OK");
 	$res->date(time);
@@ -463,6 +464,12 @@ sub file_trans
     my($self, $method, $file) = @_;
     *$self->{'lwp_meth'} = $method;
     *$self->{'lwp_file'} = $file;
+
+    my $res = HTTP::Response->new(200, "OK");
+    $res->date(time);
+    $res->server(*$self->{'lwp_server_product'});
+    # XXX we should guess content_type and such here
+    *$self->{'lwp_res'} = $res;
 
     if ($method eq "PUT") {
 	$self->port("W");
@@ -502,8 +509,14 @@ sub port
 
 sub data
 {
-    my($self, $data) = @_;
-    print "DATA: $self $data\n";
+    my $self = shift;
+
+    eval {
+	*$self->{'lwp_req'}->response_data($_[0], *$self->{'lwp_res'});
+    };
+    if ($@) {
+	# Initiate ABRT
+    }
 }
 
 sub data_done
@@ -513,8 +526,10 @@ sub data_done
     if (++*$self->{'lwp_done'} == 2) {
 	print "The second one...\n";
 	my $req = delete *$self->{'lwp_req'};
-	$req->gen_response(200);
+	my $res = delete *$self->{'lwp_res'};
+	$req->response_done($res);
 
+	# Start with next request
 	$self->state("Inlogged");
 	$self->activate;
     }
@@ -529,7 +544,9 @@ sub response
     my($self, $r, $code) = @_;
     my $skip_mdtm = *$self->{'lwp_noMDTM'};
     if ($r eq "2") {
-	# XXX save returned SIZE somewhere
+	if ($self->message =~ /^\d+\s+(\d+)$/) {
+	    *$self->{'lwp_res'}->content_length($1);
+	}
     } elsif ($code eq "550") {
 	# Unluckily, we get the same answer for a file that does not
 	# exists and a file that happens to be a directory, so we must
@@ -551,12 +568,18 @@ sub response
 
 package LWP::Conn::FTP::Mdtm;
 use base 'LWP::Conn::FTP';
+use HTTP::Date qw(str2time);
 
 sub response
 {
     my($self, $r, $code) = @_;
     if ($r eq "2") {
-	# XXX save returned Last-Modified somewhere
+	if ($self->message =~ /^\d+\s+(\d{8})(\d{6})?$/) {
+	    my $t = str2time($2 ? "$1T$2" : $1);
+	    *$self->{'lwp_res'}->last_modified($t);
+	    # XXX  This is also the place to implement
+	    # If-Modified-Since requests
+	}
     } elsif ($code ne "550") {
 	*$self->{'lwp_noMDTM'}++;
     }
@@ -605,13 +628,20 @@ sub response
 {
     my($self, $r, $code) = @_;
     if ($r eq "1") {
-	# info message, ignore (might extract content-length from it)
+	# info message only, we know that the response will succeed
 	# and if method is "HEAD" we might want to send a ABRT at
 	# this time...
+	my $res = *$self->{'lwp_res'};
+	if ($self->message =~ /\((\d+)\s+bytes\)/) {
+	    # If it is already set, should we compare it with the
+	    # previous value??
+	    $res->content_length($1);
+	}
+	*$self->{'lwp_req'}->response_data("", $res);
     } elsif ($r eq "2") {
-	# we are done.  XXX: Must sync with data_done callback
+	# we are done.  Must sync with data_done callback
 	$self->state("Inlogged");
-	$self->data_done($self->message);
+	$self->data_done($code);
     } elsif ($code eq "550") {
 	if (lc($self->message) =~ /or directory/) {
 	    $self->state("Inlogged");
