@@ -7,57 +7,16 @@ package LWP::Conn::HTTP; # An HTTP Connection class
 # This library is free software; you can redistribute it and/or
 # modify it under the same terms as Perl itself.
 
-# A hack that should work at least on systems with POSIX.pm.  It
-# implements the constant EINPROGRESS and IO::Handle->blocking;
-# XXX: When we require IO-1.18, then this hack can be removed.
-require IO::Handle;
-unless (defined &IO::EINPROGRESS) {
-    my $einprogress = -1;
-    eval {
-	require POSIX;
-	$einprogress = &POSIX::EINPROGRESS;
-    };
-    $! = $einprogress;
-    die "No EINPROGRESS found ($!)" if ($@ or $! ne "Operation now in progress");
-    *IO::EINPROGRESS = sub () { $einprogress; };
-
-    # we also emulate $handle->blocking call provided by newer versions of
-    # the IO modules
-    require Fcntl;
-    my $O_NONBLOCK = Fcntl::O_NONBLOCK();
-    my $F_GETFL    = Fcntl::F_GETFL();
-    my $F_SETFL    = Fcntl::F_SETFL();
-    *IO::Handle::blocking = sub {
-	my $fh = shift;
-	my $dummy = '';
-	my $old = fcntl($fh, $F_GETFL, $dummy);
-	return undef unless defined $old;
-	if (@_) {
-	    my $new = $old;
-	    if ($_[0]) {
-		$new &= ~$O_NONBLOCK;
-	    } else {
-		$new |= $O_NONBLOCK;
-	    }
-	    fcntl($fh, $F_SETFL, $new);
-	}
-	($old & $O_NONBLOCK) == 0;
-    }
-}
-
 use strict;
 use vars qw($DEBUG);
 use vars qw(@TE);
 @TE = qw(deflate base64 rot13);
 
-my $TCP_PROTO = (getprotobyname('tcp'))[2];
 use Carp ();
-use IO::Socket qw(AF_INET SOCK_STREAM inet_aton pack_sockaddr_in);
 use LWP::MainLoop qw(mainloop);
+use LWP::Conn::_Connect ();
 
 use base qw(IO::Socket::INET);
-
-
 
 sub new
 {
@@ -73,6 +32,7 @@ sub new
 
     my $timeout = delete $cnf{Timeout} || 3*60;
     my $idle_timeout = delete $cnf{IdleTimeout} || $timeout;
+    my $conn_timeout = delete $cnf{ConnTimeout} || $timeout;
     my $req_limit = delete $cnf{ReqLimit} || 1;
     $req_limit = 1 if $req_limit < 1;
     my $req_pending = delete $cnf{ReqPending} || 1;
@@ -84,75 +44,10 @@ sub new
 	}
     }
 
-    # Resolve address, should really be non-blocking too
-    my($addrtype, @addrs);
-    if ($host =~ /^\d+(?:\.\d+){3}$/) {
-	$addrtype = AF_INET;
-	$addrs[0] = inet_aton($host);
-    } else {
-	# XXX might want a state for handling non-blocking
-	# gethostbyname, perhaps by using the Net::DNS module.
-	(undef, undef, $addrtype, undef, @addrs) = gethostbyname($host);
-	die "Bad address type '$addrtype'" if @addrs && $addrtype != AF_INET;
-    }
-    @addrs = map pack_sockaddr_in($port, $_), @addrs;
-
-
-    my $sock;
-    while (@addrs) {
-	my $addr = shift @addrs;
-	$sock = IO::Socket::INET->new;
-	unless ($sock) {
-	    warn "Failed IO::Socket::INET ctor: $!\n";
-	    next;
-	}
-	bless $sock, "LWP::Conn::HTTP";
-	unless (socket($sock, AF_INET, SOCK_STREAM, $TCP_PROTO)) {
-	    warn "Failed socket: $!\n";
-	    undef($sock);
-	    next;
-	}
-
-	$sock->blocking(0);
-	mainloop->timeout($sock, $timeout);
-
-        *$sock->{'lwp_mgr'}             = $mgr;
-	*$sock->{'lwp_req_count'}       = 0;
-	*$sock->{'lwp_req_limit'}       = $req_limit;
-	*$sock->{'lwp_req_max_pending'} = $req_pending;
-	*$sock->{'lwp_timeout'}         = $timeout;
-	*$sock->{'lwp_idle_timeout'}    = $idle_timeout;
-
-	if ($DEBUG) {
-	    use Socket qw(unpack_sockaddr_in inet_ntoa);
-	    my($port, $addr) = unpack_sockaddr_in($addr);
-	    print STDERR "Connecting ", inet_ntoa($addr), ":$port...\n";
-	}
-	if (connect($sock, $addr)) {
-	    last;
-	} else {
-	    if ($! == &IO::EINPROGRESS) {
-		# XXX Perhaps we need some way of checking the other
-		# addresses in @addrs if this one fail.
-		$sock->state("Connecting");
-		*$sock->{'lwp_rbuf'} = "";
-		mainloop->writable($sock);
-		return $sock;
-	    } else {
-		mainloop->forget($sock);
-		$sock->close;
-		undef($sock);
-	    }
-	}
-    }
-    if ($sock) {
-        $sock->state("Idle");
-	mainloop->timeout($sock, $idle_timeout);
-	*$sock->{'lwp_rbuf'} = "";
-	mainloop->readable($sock);
-	$sock->activate;
-    }
-    $sock;
+    return LWP::Conn::_Connect->new($host, $port, $conn_timeout,
+		 "LWP::Conn::HTTP::Idle",
+		 [$mgr, $req_limit, $req_pending, $timeout, $idle_timeout]
+                );
 }
 
 sub state
@@ -398,51 +293,33 @@ sub response_data
 
 
 
-package LWP::Conn::HTTP::Connecting;
-use base qw(LWP::Conn::HTTP);
-
-use LWP::MainLoop qw(mainloop);
-
-
-sub writable
-{
-    my $self = shift;
-    if (defined($self->peername)) {
-	mainloop->writable($self, undef);
-        mainloop->readable($self);
-	mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
-        $self->state("Idle");
-	$self->activate;
-    } else {
-	$self->_error("Can't connect: $!");
-    }
-}
-
-
-sub inactive
-{
-    shift->_error("Connect timeout");
-}
-
-
-sub _error
-{
-    my($self, $msg) = @_;
-
-    # zap request queue
-    my $mgr = *$self->{'lwp_mgr'};
-    while (my $req = $mgr->get_request($self)) {
-	$req->gen_response(590, $msg);
-    }
-
-    $self->SUPER::_error($msg);
-}
-
-
-
 package LWP::Conn::HTTP::Idle;
 use base qw(LWP::Conn::HTTP);
 use LWP::MainLoop qw(mainloop);
+
+sub connected
+{
+    my($self, $param) = @_;
+    @{*$self}{'lwp_mgr', 'lwp_req_limit', 'lwp_req_max_pending',
+	      'lwp_timeout', 'lwp_idle_timeout'} = @$param;
+    *$self->{'lwp_req_cont'} = 0;
+    *$self->{'lwp_rbuf'} = "";
+    mainloop->readable($self);
+    mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
+    $self->activate;
+}
+
+sub connect_failed
+{
+    my($self, $msg, $param) = @_;
+    my $mgr = shift @$param;
+    while (my $req = $mgr->get_request($self)) {
+	$req->gen_response(590, $msg);
+    }
+    $self->state("Closed");
+    $mgr->connection_closed($self);
+}
+
 
 sub activate
 {
