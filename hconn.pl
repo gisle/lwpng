@@ -1,5 +1,7 @@
 use lib "./lib";
 
+my $no=0;
+
 use LWP::Conn::HTTP;
 
 package LWP::Request;
@@ -11,15 +13,21 @@ sub response_data
 {
     my($self, $data, $res) = @_;
     # do something
-    print "DATA CALLBACK: [$data]\n";
+    #print "DATA CALLBACK: [$data]\n";
     $res->add_content($data);
 }
 
 sub done
 {
     my($self, $res) = @_;
-    print "DONE\n";
+    $no++;
+    print "DONE $no\n";
     print $res->as_string;
+}
+
+sub proxy
+{
+    0;
 }
 
 #sub progress
@@ -31,7 +39,7 @@ sub done
 
 package MGR;
 
-@req = qw(/xxx /); # /nph-slowdata.cgi / /nph-slowdata.cgi  /not-found);
+@req = qw(/); # /nph-slowdata.cgi / /nph-slowdata.cgi  /not-found);
 
 sub new { bless {}, $_[0] }
 
@@ -71,22 +79,23 @@ package main;
 
 $mgr = new MGR;
 
-$LWP::Conn::HTTP::DEBUG++;
+#$LWP::Conn::HTTP::DEBUG++;
 #$LWP::EventLoop::DEBUG++;
 
-LWP::Conn::HTTP->new(ManagedBy => $mgr,
-		PeerAddr => "127.0.0.1",
-		ReqPending => 1,
-		ReqLimit   => 10,
-		Timeout    => 60,
-	       );
+for (1..1) {
 
-#$c2 = LWP::Conn::HTTP->new("furu", 80, $mgr);
+    LWP::Conn::HTTP->new(
+			 ManagedBy   => $mgr,
+			 PeerAddr    => "127.0.0.1:12467",
+			 ReqPending  => 2,
+			 ReqLimit    => 100,
+			 Timeout     => 20,
+			 IdleTimeout => 200,
+			);
 
-#use Data::Dumper; print Dumper($c1, $c2);
+}
 
 use LWP::MainLoop qw(empty one_event);
-
 while (!empty) {
     one_event();
 }
