@@ -189,3 +189,188 @@ Currently LWPng use its own private event loop implementation.  The
 plan is to adopt the event loop implementation used by the Tk
 extention.  This should allow happies mixing of Tk and LWPng.
 
+
+=head2 LWP::UA
+
+ $ua->spool
+ $ua->reschedule
+ $ua->stop
+
+The following 'connection parameters' can be adjusted.  You can set
+them both at the global level and for each individual server.
+
+=over 12
+
+=item ReqLimit
+
+This is a number indicating how many requests a single
+connection will be used for.  When the limit has reached,
+then the connection will close itself.  You can get
+non-persistent connections by specifying this value
+to be 1.
+
+=item ReqPending
+
+How many request can be send on a single connections
+before we have to wait for response from the server.
+This controls the degree of pipelining.
+
+=item Timeout
+
+For how long will we wait with no activity on the line,
+before signaling an error (and closing the connection).
+
+=item IdleTimeout
+
+When the request queue is empty, connections go to
+the idle state.  This specify how long before the
+connection is closed if no new work arrives.
+
+=back
+
+
+=head1 Internals overview
+
+For each server that the $ua is going to talk to it maintain a
+LWP::Server object.  This object holds a queue of requests not yet
+processes.  The $ua->spool() method mainly move the request to the
+correct queue.
+
+A LWP::Server can also create one or more LWP::Conn::HTTP objects that
+each represent a network connection to the server.  The connection
+objects are were all the action takes place.  They will fetch work
+(request) from the server queue, talk the network protocol and collect
+responses.
+
+
+ LWP::UA
+ LWP::Server
+ LWP::Conn:XXX
+
+ URI::Attr
+ LWP::StdSched
+
+=head1 LWP::Conn protocol
+
+The LWP::Conn objects conform to the following protocol when
+interacting with their manager object (passed in as parameter during
+creation).
+
+  $conn = LWP::Conn::XXX->new(MangagedBy => $mgr,
+                              Host => $host,
+                              Port => $port,
+                              ...);
+
+  $conn->activate;
+  $conn->stop;
+
+  $mgr->get_request($conn);
+  $mgr->pushback_request($conn, @requests);
+  $mgr->connection_active($conn);
+  $mgr->connection_idle($conn);
+  $mgr->connection_closed($conn);
+
+  $req->response_data($data, $res);
+  $req->response_done($res);
+
+
+=head1 LWP::Conn::HTTP
+
+Well, this is a very special module.  You don't usually have designs
+where the objects change their class all the time.
+
+You should just know about 3 basic states that a connection object can
+be in and then think of writable(), readable() and inactive() as the
+three kind of events that we should be prepared to handle at any time.
+
+=over 5
+
+=item 1) Connecting (a non-blocking connect() has been called)
+
+We are waiting for the socket to become writable (which
+means that the connect was successful.)  readable
+cant happen.  inactive() means failure to connect.
+
+=item 2) Idle (No work to do)
+
+Either work arrive from the application
+or the socket will become readable.  When we read
+we would expect to get 0 bytes as a signal that the
+server has closed the connection.  We don't ask for
+the writable event in this state, because we have
+nothing to write.
+
+=item 3) Active (sending request(s), receiving header of first request)
+
+If the socket becomes writable we send more request
+data until we are done.  If the socket becomes
+readable we read data until we have seen a whole
+HTTP header and then swith to a (sub-state) depending
+on the kind of response we are reading. When a
+response has been completely received we go back to
+idle if there is not more requests to send.
+
+=back
+
+The following is an attempt on a picture of the state transitions
+going on.
+
+     START  ------> Connecting
+       |                 |
+       |   --->CLOSE     |
+       V  /              |
+         /               |
+     Idle  <-------------+---------------\
+       |                                  \
+       | (work?)                           \
+       |                                    \
+       V                                     \
+                                              \
+     Active (sending request)     <-----------+ (more work?)
+       |     \       \      ----\             |
+       |      \       \          \            |
+       |       \       \          \           |
+       |        |       |          |          |
+       V        V       V          V          |
+                                              |
+     ConnLen  Chunked  Multipart  UntilEOF    |   (reading response)
+       |         |        |          |        |
+       |         |        |          |        |
+       +---------+--------+--------- | -------+
+                                     |
+                                     V
+                                   CLOSE
+
+
+This design was inspired by the "State" pattern described in "Design
+Patterns: Elements of Reusable Object-Oriented Software" (Gamma
+et.al).  The description of the "State" pattern in this book says:
+
+=over 5
+
+=item Intent
+
+Allow an object to alter its behaviour when its internal state
+changes.  The object will appear to change its class.
+
+=item Motivation
+
+Consider a class TCPConnection that represents a network
+connection.  A TCPConnection object can be in one of several
+different states: Established, Listening, Closed. When a
+TCPConnection object receives request from other objects, it
+responds differently depending on its current state.  For
+example, the effect of an Open request depends on whether the
+connection is in its Colsed state or its Establised state.  The
+state pattern describes how TCPConnection can exhibit different
+behaviour in each state.
+
+=back
+
+
+Lucky for me Perl is a language that allows me to change the class of
+a living object.  That became handy in this situation.
+
+Using classes to describe states also allows a natural description
+(and implementation) of substates that behaves like it's base-state
+for some events but modify the behaviour for others.
