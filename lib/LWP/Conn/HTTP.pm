@@ -164,7 +164,7 @@ sub new_request
 		if *$self->{'lwp_req_count'} == *$self->{'lwp_req_limit'};
 	    if (@TE) {
 		push(@conn_header, "TE");
-		$req->push_header(TE => join(", ", @TE));
+		$req->header(TE => join(", ", @TE));
 	    }
 	}
 	$req->header("Connection" => join(", ", @conn_header)) if @conn_header;
