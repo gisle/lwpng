@@ -1,3 +1,20 @@
+1998-04-06   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.14
+
+   Added LWP::Authen::digest, but it still needs some tweaking.
+
+   LWP::Conn::HTTP now supports dynamic request content, which is
+   triggered by letting the request->content() be a CODE reference.
+
+   LWP::Conn::HTTP now supports '101 Swithing protocol' responses.
+   The socket connection is returned as an (unofficial) attribute
+   of the HTTP::Response object.
+
+   Updated the 'News' file some.
+
+
+
 1998-04-01   Gisle Aas <aas@sn.no>
 
    Release alpha-0.13
