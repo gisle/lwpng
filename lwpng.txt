@@ -40,11 +40,11 @@ allows client applications to utilize multiple persistent connections
 to the servers it communicates with.  The redesign is based on the
 adoption of an event driven framework.  Requests are registered with
 the library and will receive callback events as the responses come
-back from the servers.  The library try to match the registered
-requests with the the persistent connections it has available or will
-create new connections when necessary.
+back from the servers.  The library tries to match the registered
+requests with the persistent connections it has available or creates
+new connections when necessary.
 
-All details of the programming interface has not yet been settled.
+All details of the programming interface have not yet been settled.
 More experience with non-trivial applications built on top of the new
 library is still needed.
 
@@ -63,7 +63,7 @@ The libwww-perl package has been quite successful at implementing a
 wide range of web client applications and also as a support tool for
 server side programs and programmers.  One important feature that it
 has been lacking is support for the new version of the HTTP protocol,
-HTTP/1.1.  This article describe the redesign that have taken place in
+HTTP/1.1.  This article describes the redesign that has taken place in
 order to add such support to libwww-perl.
 
 
@@ -109,7 +109,7 @@ way to tell the extent of the messages on the wire. For HTTP/1.0 the
 only way to do this was by either using the Content-Length header or
 by closing the connection (which was only an option for the server).
 Use of the Content-Length header is not appropriate when the length of
-the message can not be determined in advance.  HTTP/1.1 introduce two
+the message can not be determined in advance.  HTTP/1.1 introduces two
 new ways to delimit messages; the chunked transfer encoding and the
 self delimiting multipart content types.  The chunked transfer
 encoding means that the message is broken into chunks, each of
@@ -126,12 +126,12 @@ links [5].
 
 Some of the HTTP/1.1 features are also available in deployed
 HTTP/1.0 clients and servers.  Persistent connections can sometimes be
-used with HTTP/1.0 if the clients sends a "Connection: Keep-Alive"
+used with HTTP/1.0 if the clients send a "Connection: Keep-Alive"
 header.  Most of todays HTTP/1.0 clients send the Host header.
 
 Beyond HTTP/1.1 we have HTTP/NG which is a project still in the
 research phase [6]. HTTP/NG is an attempt to take a more radical
-approach.  The main "features" is making the protocol binary in order
+approach.  The main "features" are making the protocol binary in order
 not to waste bytes on long human readable headers and direct support
 for multiplexing over a single network connection.  It is not clear
 that this will be a big enough win to make the world move away from
@@ -146,8 +146,8 @@ Martijn suggested that it would be a good thing if the reusable
 components of this program were broken out into a library.  The result
 was the libwww-perl library for perl4 that Roy maintained [7,8].
 
-At one point both Gisle and Martijn had made their own modulifications
-of Roy's library to better suit the possibilities that perl5 provided.
+At one point both Gisle and Martijn had made their own modifications
+to Roy's library to better suit the possibilities that perl5 provided.
 We joined forces and made several alpha releases together.
 Unfortunately Martijn had a little disagreement with his employer
 about the intellectual property rights to work done outside hours.
@@ -268,15 +268,15 @@ Handling of URLs (both absolute and relative)
 
 =item *
 
-Cookie handling.
+Cookie handling
 
 =item *
 
-RobotRules (robots.txt)
+RobotRules (/robots.txt)
 
 =item *
 
-A few command line clients.
+A few command line clients
 
 =item *
 
@@ -294,7 +294,7 @@ transparently support multiple persistent connections to the servers
 and that we wanted these connections to be used efficiently (i.e. we
 should be able to support pipelining too).
 
-As for LWP5, the programming interface still ought to hide the details
+As for LWPng, the programming interface still ought to hide the details
 of connection set up and tear down, but in order to allow the library
 to utilize its connections efficiently it would need to have more than
 a single request to work with at a time.  This meant that the
@@ -306,7 +306,7 @@ set by the application (throughput, latency, limit number of
 connections, limit on number of outstanding requests per connection,
 etc.).
 
-Some other design goals and guidelines included.
+Some other design goals and guidelines included:
 
 =over 2
 
@@ -422,7 +422,7 @@ this impose the burden of creating event handler routines that are
 reentrant.
 
 Let us start by investigating the impact of the event driven framework
-on the overall LWP programming model.  The basic model for sending
+on the overall LWPng programming model.  The basic model for sending
 requests and receiving responses in LWP5 used to be:
 
   $res = $ua->request($req);   # return when response is available
@@ -529,7 +529,7 @@ The old LWP::UserAgent has become LWP::UA.  The name was changed
 because we wanted to make a general cleanup of the interface.  The
 name change also makes the transition period easier as the old LWP5
 library can be installed together with the new library without
-conflict..
+conflict.
 
 =item *
 
@@ -579,7 +579,7 @@ by the LWP::UA.  This arrangement allow this behaviour to be easily
 replaced or updated at any time.  The LWP::StdSched is the default
 scheduler that the library will instantiate if the application does
 not set up some other scheduler before requests are spooled.  The
-LWP::StdSched is a very simple minded scheduler that tries to adhere
+LWP::StdSched is a very simpleminded scheduler that tries to adhere
 to various limits on the number of connections to create.
 
 =item LWP::Sink
@@ -589,9 +589,9 @@ suggest that we need a way to transform the message content back to
 its original form.  Since we also want to be able to handle arbitrary
 sized content and to be able to make the content available to the
 application as early as possible, a stream based organization of
-transformation modules come handy.  LWP::Sinks that can accept data,
+transformation modules is useful.  LWP::Sinks that can accept data,
 do something with it and then send it off to some other sink can be
-used as transformers.  The library contain prebuilt transformer sinks
+used as transformers.  The library contains prebuilt transformer sinks
 that for instance deal with C<deflate> or C<base64> encoded data.
 Transformers can be linked together to form stream pipelines.
 
@@ -687,7 +687,7 @@ with dynamic headers that the I<default_headers> handler can't do.
 
 This handler tries to add an C<Authorization> header to the request
 that we somehow know might need it.  It looks up the realm for the URL
-and map this to some Authen object that can add the corresponding
+and maps this to some Authen object that can add the corresponding
 header.  This works together with the Authenticate response handler
 (described below).
 
@@ -754,14 +754,14 @@ parameters and other attributes related to the hierarchal URI name
 space.  Many of the handlers should work differently depending on
 scheme, domain, server or path.  For example the authentication
 handler might want to remember "realms" per server and remember which
-path prefixes that is protected within the different realms.
+path prefixes are protected within the different realms.
 
 The URI::Attr class instances are trees of hashes.  A specific
 absolute URI defines a path in the URI::Attr tree and the main
 operation of URI::Attr is to return all hashes found on this path.
 This allow us to efficiently look up all attributes that are relevant
 to a specific URI.  Since order along the path is preserved we are
-able to override specific attributes at lower hierarchal levels of the
+able to override specific attributes at lower hierarchical levels of the
 URI name space.
 
 The LWP::UA object has a URI::Attr instance as a member.  It also
@@ -791,7 +791,7 @@ C<undef> if the URL is "http://mox.perl.com".
 
 The spool() method of LWP::UA accepts one or more LWP::Request object
 references as arguments.  The LWP::Request class is derived from the
-HTTP::Request class and inherit all its attributes.  The reason we use
+HTTP::Request class and inherits all its attributes.  The reason we use
 a subclass is that it needs to support some callback methods that are
 invoked during reception of the response from the server.  There are
 two such methods:
@@ -814,7 +814,7 @@ data is simply appended to the content of the response message.
 
 The response_done() callback method is invoked when the whole response
 has been received.  It is guaranteed that it will be invoked exactly
-once for each request spooled (even for requests that fails.)
+once for each request spooled (even for requests that fail.)
 
 The default implementation of response_done() will run any
 I<response_done> hooks.  Then it will try to run any
@@ -926,8 +926,8 @@ connection object will create LWP::Response objects and will invoke
 the response_data() and response_done() callback methods described
 above.
 
-The following are the two methods can be invoked on a live connection
-by the manager.
+The following are the two methods the can be invoked on a live
+connection by the manager.
 
   $conn->activate;  # reactivate an idle connection
   $conn->stop;      # kill it early
@@ -1055,7 +1055,7 @@ transfer the content of the files are not visible outside a
 LWP::Conn:FTP object.
 
 The LWP::Conn::FTP module use a similar approach to LWP::Conn::HTTP,
-but it has many more states to represent the conversation that have to
+but it has many more states to represent the conversation that has to
 take place on the command connection.  The concept of representing
 persistent connections within the library has also shown to be a big
 win for the FTP support.  It is now straight forward to provide
@@ -1191,7 +1191,7 @@ generation of the LWP modules.  The new modules allows you to write
 client applications that manage multiple persistent connections to its
 peer servers.
 
-The new design look promising but the performance ought to improve in
+The new design looks promising but the performance ought to improve in
 order to fulfill the design goals.  Still there are spots in the
 programming interface that need more thought.  It would be a good
 thing to have more testing and feedback from application writers
