@@ -228,7 +228,8 @@ sub _error
     print STDERR "Conn::HTTP-Error: $msg\n" if $DEBUG;
     mainloop->forget($self);
     $self->close;
-    
+
+    delete *$self->{'lwp_te'};
     my $mgr = delete *$self->{'lwp_mgr'};
     my $req = *$self->{'lwp_req'};
     if ($req && @$req) {
@@ -253,8 +254,13 @@ sub response_data
 {
     my $self = shift;
     my $req  = shift;
+    # my($data, $res) = @_;
     eval {
-	$req->response_data(@_);
+	if (my $te = *$self->{'lwp_te'}) {
+	    $te->put($_[0]);
+	} else {
+	    $req->response_data(@_);
+	}
     };
     if ($@) {
 	chomp($@);
@@ -457,14 +463,49 @@ sub check_rbuf
     } elsif (my(@trans_enc) = $res->header("Transfer-Encoding")) {
 	require HTTP::Headers::Util;
 	@trans_enc = HTTP::Headers::Util::split_header_words(@trans_enc);
-	if (@trans_enc > 1) {
-	    $self->_error("Multiple transfer encodings");
+	my $last_enc = pop(@trans_enc);
+	if (lc($last_enc->[0]) ne "chunked") {
+	    $self->_error("Last Transfer-Encoding was not chunked");
 	    return;
 	}
-	my $trans_enc = $trans_enc[0][0];
-	if ($trans_enc ne "chunked") {
-	    $self->_error("Unknown transfer encoding '$trans_enc'");
-	    return;
+	if (@trans_enc) {
+	    if (@trans_enc > 10) {
+		# protect against servers trying to use all our resources
+		$self->_error("Too long TE chain");
+		return;
+	    }
+	    # must set up stream *$self->{'lwp_te'}
+	    eval {
+		print STDERR "Must set up @trans_enc\n";
+		require LWP::Sink::identity;
+		require LWP::Sink::Monitor if $LWP::Conn::HTTP::DEBUG;
+		my $te;
+		$te = LWP::Sink::Monitor->new("chunked") if $LWP::Conn::HTTP::DEBUG;
+		for (@trans_enc) {
+		    my $enc = lc(shift @$_);
+		    $enc =~ /^([a-z][a-z0-9]*)$/ or die "Bad TE '$enc'";
+		    $enc = $1; # untaint
+		    #next if $enc eq "identity";
+		    my $filter = "LWP::Sink::$enc";
+		    no strict 'refs';
+		    unless (defined %{"$filter\::"}) {
+			eval "require $filter";
+			if ($@) {
+			    die "No filter for TE '$enc': $@";
+			}
+		    }
+		    $filter = "$filter\::decode"->new(@$_);
+		    $te = $te ? $te->append($filter) : $filter;
+		    $te->append(LWP::Sink::Monitor->new($enc)) if $LWP::Conn::HTTP::DEBUG;
+		}
+		$te->append(LWP::Sink::identity->new);
+		$te->append( sub { $req->response_data($_[0], $res); } );
+		*$self->{'lwp_te'} = $te;
+	    };
+	    if ($@) {
+		$self->_error($@);
+		return;
+	    }
 	}
 	$res->remove_header("Transfer-Encoding");  # XXX or perhaps not?
 	$self->state("Chunked");
@@ -516,6 +557,9 @@ sub end_of_response
     my $self = shift;
     print STDERR "$self: End-Of-Response\n" if $LWP::Conn::HTTP::DEBUG;
     my $req = shift @{*$self->{'lwp_req'}};  # get rid of current request
+    if (my $te = delete *$self->{'lwp_te'}) {
+	$te->close;
+    }
     $req->response_done(*$self->{'lwp_res'});
     *$self->{'lwp_res'} = undef;
     if ($self->last_request_sent && !$self->current_request) {
@@ -590,22 +634,22 @@ sub check_rbuf
 
 	} elsif ($chunked == -1) {
 	    # read a new chunk header
-	    if ($$buf =~ s/^([^\012]*)\015?\012//) {
-		my $chunk_size = $1;
-		unless ($chunk_size =~ /^([0-9A-Fa-f]+)\s*(;|$)/) {
-		    $self->_error("Bad chunk size line '$chunk_size'");
-		    return;
-		}
-		if (length($1) > 7) {
-		    $self->_error("Chunk too big '$chunk_size'");
-		    return;
-		}
-		$chunked = hex($1) + 2;  # XXX + 2 (CRLF)
-		$chunked = -2 if $chunked == 2;
+	    last unless $$buf =~ s/^([^\012]*)\015?\012//;
+	    my $chunk_size = $1;
+	    unless ($chunk_size =~ /^0*([0-9A-Fa-f]+)\s*(;|$)/) {
+		$self->_error("Bad chunk size line '$chunk_size'");
+		return;
 	    }
+	    if (length($1) > 7) {
+		$self->_error("Chunk too big '$chunk_size'");
+		return;
+	    }
+	    $chunked = hex($1) + 2;  # XXX + 2 (CRLF)
+	    $chunked = -2 if $chunked == 2;
+
 	} elsif ($chunked == -2) {
 	    # read footer
-	    return unless $$buf =~ /^\015?\012/m;
+	    last unless $$buf =~ /^\015?\012/m;
 	    # must have a blank line somewhere before we begin
 
 	    local($_);
