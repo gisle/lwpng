@@ -57,7 +57,7 @@ sub new
 sub state
 {
     my($self, $state) = @_;
-    print "STATE: $state\n" if $DEBUG;
+    #print "STATE: $state\n" if $DEBUG;
     my $class = "LWP::Conn::FTP::$state";
     bless $self, $class;
 }
@@ -147,7 +147,7 @@ sub parse_response
     } elsif ($code) {
 	*$self->{'lwp_response_code'} = $code;
 	*$self->{'lwp_response_mess'} = \@res;
-	print STDERR "====>\t", join("\n\t", @res), "\n" if $DEBUG;
+	print STDERR "   <===\t", join("\n\t", @res), "\n" if $DEBUG;
 	$self->response(substr($code, 0, 1), $code);
 	$self->parse_response;
     }
@@ -184,7 +184,7 @@ sub send_cmd
     if ($DEBUG) {
 	my $out = $cmd;
 	$out =~ s/^(PASS\s+)(.+)/$1 . "*" x length($2)/e;
-	print STDERR "$out\n";
+	print STDERR "===>\t$out\n";
     }
     $cmd .= "\015\012";
     # XXX should really wait for the socket to become writable, but
@@ -510,21 +510,23 @@ sub port
 sub data
 {
     my $self = shift;
+    #return if *$self->{'lwp_meth'} eq "HEAD";
 
     eval {
 	*$self->{'lwp_req'}->response_data($_[0], *$self->{'lwp_res'});
     };
     if ($@) {
 	# Initiate ABRT
+	$self->abort
     }
 }
 
 sub data_done
 {
-    my $self = shift;
+    my($self, $code) = @_;
     print "DATA DONE\n";
-    if (++*$self->{'lwp_done'} == 2) {
-	print "The second one...\n";
+    if (++*$self->{'lwp_done'} == 2 || ($code && $code eq "426")) {
+	#print "The second one...\n";
 	my $req = delete *$self->{'lwp_req'};
 	my $res = delete *$self->{'lwp_res'};
 	$req->response_done($res);
@@ -532,6 +534,19 @@ sub data_done
 	# Start with next request
 	$self->state("Inlogged");
 	$self->activate;
+    }
+}
+
+use Socket qw(MSG_OOB);
+
+sub abort
+{
+    my $self = shift;
+    send($self, "\377\364", 0);        # TELNET: IAC, IP
+    send($self, "\377\362", MSG_OOB);  # TELNET: IAC, DM
+    $self->send_cmd("ABOR");
+    if (my $data = delete *$self->{'lwp_data'}) {
+	$data->close;
     }
 }
 
@@ -577,8 +592,7 @@ sub response
 	if ($self->message =~ /^\d+\s+(\d{8})(\d{6})?$/) {
 	    my $t = str2time($2 ? "$1T$2" : $1);
 	    *$self->{'lwp_res'}->last_modified($t);
-	    # XXX  This is also the place to implement
-	    # If-Modified-Since requests
+	    # XXX  This is also the place to implement If-Modified-Since
 	}
     } elsif ($code ne "550") {
 	*$self->{'lwp_noMDTM'}++;
@@ -639,11 +653,16 @@ sub response
 	}
 	*$self->{'lwp_req'}->response_data("", $res);
 	# XXX catch except
+	$self->abort if *$self->{'lwp_meth'} eq "HEAD";
     } elsif ($r eq "2") {
 	# we are done.  Must sync with data_done callback
 	$self->state("Inlogged");
 	$self->data_done($code);
-    } elsif ($code eq "550") {
+    } elsif ($code eq "426") {  # transfer aborted
+	*$self->{'lwp_res'}->header("Abort" => $self->message);
+	$self->state("Inlogged");
+	$self->data_done($code);
+    } elsif ($code eq "550") {  # no such file
 	if (lc($self->message) =~ /or directory/) {
 	    $self->state("Inlogged");
 	    delete(*$self->{'lwp_data'})->close;
@@ -672,7 +691,7 @@ sub response
 	*$self->{'lwp_req'}->response_data("", *$self->{'lwp_res'});
 	# XXX catch except
     } elsif ($r eq "2") {
-	# we are done.  XXX: Must sync with data_done callback
+	# we are done.  Must sync with data_done callback
 	$self->state("Inlogged");
 	$self->data_done($self->message);
     } elsif ($code eq "550") {
@@ -752,6 +771,7 @@ sub readable
     my $buf = "";
     my $n = sysread($self, $buf, 2048);
     if ($n) {
+	print STDERR "Got $n bytes\n";
 	*$self->{'lwp_ftp'}->data($buf);
     } else {
 	if (defined $n) {
