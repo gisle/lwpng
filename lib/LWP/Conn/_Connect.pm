@@ -246,6 +246,10 @@ attempt.  A value of 0 indicate no timeout.  The $host argument can be
 a single scalar or an array of scalar host names.  The $port argument
 must be numeric.
 
+=head1 BUGS
+
+The gethostbyname(3) call used in the constructor is blocking.
+
 =head1 COPYRIGHT
 
 Copyright 1998, Gisle Aas
