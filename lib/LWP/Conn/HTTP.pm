@@ -141,10 +141,17 @@ sub new_request
     if ($req) {
 	print STDERR "$self: New-Request $req\n" if $DEBUG;
 	my @rlines;
+	my $method = $req->method || "GET";
 	my $uri = $req->proxy ? $req->url->as_string : $req->url->full_path;
-	push(@rlines, $req->method . " $uri HTTP/1.1");
+	my $proto = $req->protocol || "HTTP/1.1";
+	push(@rlines, "$method $uri $proto");
 	$req->header("Host" => $req->url->netloc);
-	if (++(*$self->{'lwp_req_count'}) == *$self->{'lwp_req_limit'}) {
+	*$self->{'lwp_req_count'}++;
+	if ($proto eq "HTTP/1.0") {
+	    # can't send any more request, server will close connection
+	    *$self->{'lwp_req_limit'} = 1;
+	} elsif (*$self->{'lwp_req_count'} == *$self->{'lwp_req_limit'}) {
+	    # make server close the connection
 	    $req->header("Connection" => "close");
 	}
 	$req->scan(sub { push(@rlines, "$_[0]: $_[1]") });
