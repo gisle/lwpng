@@ -1,0 +1,3 @@
+HTTP/1.1 303 See Other (Change method to 'GET')
+Location: redir4
+

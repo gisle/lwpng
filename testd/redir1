@@ -1,0 +1,9 @@
+HTTP/1.1 301 Moved
+Connection: close
+Location: redir2
+Content-Type: text/plain
+
+We make relative redirects, even if they are not really legal.  They
+seem to be used, and I think a client should handle it.  A proper
+absolute URL is hard to make as this static content does not know the
+base URL of the server.
