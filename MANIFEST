@@ -1,5 +1,6 @@
 MANIFEST
 Makefile.PL
+README
 design.txt
 lib/LWP/EventLoop.pm
 lib/LWP/HConn.pm
