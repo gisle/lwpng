@@ -1,3 +1,18 @@
+1998-07-07   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.23
+
+   Introduced LWP::Request->new_response method.  This method is
+   used to fabricate all new response objects.  It means that a LWP::Request
+   subclasses can now override the response class to make.
+
+   LWP::Request->gen_response renamed as LWP::Request->give_response.
+
+   LWP::Conn::_Connect was missing the activate() and stop() methods
+   that the manager could invoke.
+
+
+
 1998-07-05   Gisle Aas <aas@sn.no>
 
    Release alpha-0.22
