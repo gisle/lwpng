@@ -99,6 +99,13 @@ sub reschedule
     $sched->reschedule($self);
 }
 
+sub delete
+{
+    # must break circular references
+    my $self = shift;
+    delete $self->{'servers'};
+}
+
 
 sub as_string
 {
