@@ -9,5 +9,5 @@ lib/LWP/Request.pm
 lib/LWP/Server.pm
 lib/LWP/UA.pm
 t/after.t
-tserv.pl
-ua-test.pl
+term-serv
+term-ua
