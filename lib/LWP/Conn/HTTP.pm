@@ -164,21 +164,43 @@ sub new_request
 		if *$self->{'lwp_req_count'} == *$self->{'lwp_req_limit'};
 	    if (@TE) {
 		push(@conn_header, "TE");
-		$req->header(TE => join(", ", @TE));
+		$req->header(TE => join(",", @TE));
 	    }
 	}
-	$req->header("Connection" => join(", ", @conn_header)) if @conn_header;
+	if (@conn_header) {
+	    $req->header("Connection" => join(",", @conn_header));
+	} else {
+	    $req->remove_header("Connection");
+	}
+
+	my $cont_ref = $req->content_ref;
+	$cont_ref = $$cont_ref if ref($$cont_ref);
+	if (ref($cont_ref) eq "CODE") {
+	    if (my $len = $req->header("Content-Length")) {
+		*$self->{'lwp_wlen'} = $len + 0;
+	    } else {
+		# must use chunked encoding for the request content
+		$req->push_header("Transfer-Encoding", "chunked");
+		*$self->{'lwp_wlen'}  = 0;
+	    }
+	    *$self->{'lwp_wdyn'} = $cont_ref;  # dynamic content
+	    $cont_ref = \"";   #"; make sure a complete header is sent first.
+	} else {
+	    my $len = length($$cont_ref);
+	    $req->header("Content-Length" => $len) if $len;
+	}
+
 	$req->scan(sub { push(@rlines, "$_[0]: $_[1]") });
-	# XXX if $req->content is a code reference, we should probably
-	# arrange for something clever to happen that involves chunked
-	# encoding.
-	push(@rlines, "", $req->content);
+	push(@rlines, "", $$cont_ref);
 	push(@{ *$self->{'lwp_req'} }, $req);
 	*$self->{'lwp_wbuf'} = join("\015\012", @rlines);
+
+print *$self->{'lwp_wbuf'};
+
 	mainloop->writable($self);
 	return $req;
     }
-    return undef;
+    return;
 }
 
 
@@ -247,7 +269,7 @@ sub _error
 	    # return immediately.
 	    $cur_req->response_done($res);
 	} else {
-	    $cur_req->gen_response(590, "No response");
+	    $cur_req->gen_response(590, "No response", $msg);
 	}
     } else {
 	$mgr->connection_closed($self);
@@ -355,6 +377,38 @@ sub writable
 	if ($n < length($$buf)) {
 	    substr($$buf, 0, $n) = "";  # get rid of this
 	} else {
+	    # Check if we are generating dynmic content
+	    if (my $dyn = *$self->{'lwp_wdyn'}) {
+		my $chunk = &$dyn();
+		my $clen  = length($chunk);
+
+		if (my $len = *$self->{'lwp_wlen'}) {
+		    # we are generating content with the specified length
+		    if ($clen > $len) {
+			# chunk to large, truncate it
+			substr($chunk, $len) = '';
+			$clen = $len;
+		    } elsif ($clen == 0) {
+			$self->_error("Short dynamic request content ($len bytes missing)");
+			# Other possibilities is to fill request
+			# content with some random padding or to
+			# just continue to call the callback routine
+			# until we have enough.
+			return;
+		    }
+		    *$self->{'lwp_wbuf'} = $chunk;
+		    $len -= $clen;
+		    *$self->{'lwp_wlen'} = $len;
+		    delete *$self->{'lwp_wdyn'} unless $len;
+		} else {
+		    # we are using chunked transfer encoding for this request
+		    *$self->{'lwp_wbuf'} = join("\015\012",
+						sprintf("%x", $clen),
+						$chunk, "");
+		    delete *$self->{'lwp_wdyn'} if $clen == 0;
+		}
+		return;
+	    }
 	    # request sent
 	    delete *$self->{'lwp_wbuf'};
 	    # try to start a new one?
