@@ -205,6 +205,12 @@ sub activate
 {
 }
 
+sub stop
+{
+    my $self = shift;
+    $self->_error("STOP");
+}
+
 sub login_info
 {
     my($self, $req) = @_;
@@ -260,6 +266,7 @@ sub response
 	*$self->{'lwp_unix'}++ if $mess =~ /\bUNIX\b/i;
 	*$self->{'lwp_server_product'} .= " ($mess)";
     }
+    *$self->{'lwp_idle'}++;
     $self->state("Outlogged");
     $self->activate;
 }
@@ -272,9 +279,13 @@ sub activate
 {
     my $self = shift;
     my $req = *$self->{'lwp_mgr'}->get_request;
-    unless ($req) {
+    if (!$req) {
+	*$self->{'lwp_idle'}++;
 	*$self->{'lwp_mgr'}->connection_idle($self);
 	return;
+    } elsif (*$self->{'lwp_idle'}) {
+	*$self->{'lwp_idle'} = 0;
+	*$self->{'lwp_mgr'}->connection_active($self);
     }
     *$self->{'lwp_req'} = $req;
     (*$self->{'lwp_user'}, *$self->{'lwp_pass'}, *$self->{'lwp_acct'})
@@ -402,9 +413,14 @@ sub activate
     my $req = *$self->{'lwp_req'};
     unless ($req) {
 	$req = *$self->{'lwp_mgr'}->get_request;
-	unless ($req) {
+	if (!$req) {
+	    *$self->{'lwp_idle'}++;
 	    *$self->{'lwp_mgr'}->connection_idle($self);
 	    return;
+	} 
+	elsif (*$self->{'lwp_idle'}) {
+	    *$self->{'lwp_idle'} = 0;
+	    *$self->{'lwp_mgr'}->connection_active($self);
 	}
 	*$self->{'lwp_req'} = $req;
 	my($user, $pass, $acct) = $self->login_info($req);
