@@ -1,4 +1,4 @@
-package LWP::Sink::_trans;
+package LWP::Sink::_Pipe;
 
 use strict;
 

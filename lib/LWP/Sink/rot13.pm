@@ -1,9 +1,9 @@
 package LWP::Sink::rot13;
 
 require LWP::Sink;
-require LWP::Sink::_trans;
+require LWP::Sink::_Pipe;
 
-@ISA=qw(LWP::Sink::_trans
+@ISA=qw(LWP::Sink::_Pipe
         LWP::Sink
        );
 

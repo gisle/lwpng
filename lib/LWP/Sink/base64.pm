@@ -3,10 +3,10 @@ package LWP::Sink::base64;
 use strict;
 use vars qw(@ISA);
 
-require LWP::Sink::_trans;
+require LWP::Sink::_Pipe;
 require LWP::Sink;
 
-@ISA=qw(LWP::Sink::_trans
+@ISA=qw(LWP::Sink::_Pipe
         LWP::Sink
        );
 

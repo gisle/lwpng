@@ -1,7 +1,7 @@
 package LWP::Sink::deflate;
 
 use strict;
-use base qw(LWP::Sink::_trans LWP::Sink);
+use base qw(LWP::Sink::_Pipe LWP::Sink);
 
 sub put
 {
