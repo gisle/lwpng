@@ -36,7 +36,130 @@ event loop framework.
 
 =head1 Extended abstract
 
-...bla, bla, bla...
+The article starts with a very short introduction to HTTP in order to
+explain the main highlights of HTTP/1.1.  The point we focus on is
+support for persistent connections between clients and server.  This
+allow more than one request/response exchange can take place on a
+single TCP connection.  This also opens the possibility of doing
+pipelining.
+
+We also added a section which describe the history of libwww-perl.
+The project started on the first WWW conference in Geneva.  The
+libwww-perl for perl4 was the reuseable components of the MOMspider
+program broken out to become a library.  At one point both Gisle and
+Martijn had made their own modulifications of Roy's library to better
+suit the possibilities that perl5 provided.  We made several alpha
+releases together, but in the end Gisle ended up as the maintainer of
+the package.  The first non-beta release of libwww-perl was made in
+May 1996.  In the two years that has passed since that time lots of
+bugs has been fixed and some features added, but nothing radical has
+happened.
+
+In the november 1997 Gisle started on a rewrite of how the basic
+services provided by libwww-perl worked.  The goal was to provide full
+HTTP/1.1 client support and at the same time make the library both
+more flexible and (optionally) more lightweight.  This work is
+currently distributed under the name LWPng, but is expected to become
+libwww-perl-6 when its beta phase is over.
+
+Then we have a short section introducing the current libwww-perl
+library programming interface.  The main point to get through is that
+the LWP model is that all requests through any protocol module are
+forced into an HTTP straightjacket.  We provide an object oriented
+model of HTTP style messages that are passed between servers and
+clients.  On their way between a client to a server these messages are
+converted to the actual protocol on the wire which again will depend
+on what kind of server we are accessing (i.e. does not have to be
+HTTP).
+
+The next section describe the requirements and principles undelying
+the new design.  The main points are:
+
+  - Support presistent connections (with pipelining)
+  - Still based on passing HTTP::Request and HTTP::Response objects
+    around.
+  - Hide connection management
+  - Easy to use
+  - Compatible with LWP5
+  - Efficient
+  - Generalizations since we anyway will be changing some of the
+    iterfaces.
+  - Optinal features should add minimal penalty to
+    applications that don't use them.
+  - Most features of the library should be made optional.
+  - Minimal bindings between modules within the library.
+  - No more signal handling (as this is not one of perl's strong point)
+  - Happy coexistence with Tk
+
+The next section give reasons for why we have chosen to base the
+design on an event driven framework.  It also describe how the main
+programming interface for the users of this library change as a
+consequence of this.  The main thing being that we use $ua->spool to
+register requests instead of $ua->request that sends a sigle request
+and wait for the response to come back.  We also describe how the
+$ua->request type of interface can be built on top of $ua->spool in
+order to implement compatibility with LWP5.
+
+The next section describe the major classes of the design.  These
+include.
+
+  * LWP::UA (previously known as LWP::UserAgent) is the main
+    interface.  It represents the virtual browser within the library.
+
+  * LWP::Conn::* modules implement various protocol drivers.
+
+  * LWP::Request is a subclass of the HTTP::Request in order to
+    support response handlers and callbacks.
+
+  * URI::Attr make it possible to attach attributes based on
+    hierarchical levels of the URI name space.
+  
+  * LWP::Sink objects can be used to build streams of transformers
+    in order to process the content of HTTP messages.
+
+  * LWP::EventLoop is the event loop that the current implementation
+    is using.  Hopefully there will be a standard Perl event loop at
+    some point.
+
+The next section goes into more detail of the LWP::UA class.  This
+also introduce the concept of handlers which is the main stategy of
+how we implement optional features and how we achieve zero overhead
+for applications that don't use the features.  Various type handlers
+are also discussed.  Some are things provided by the library and which
+perform things that correspond to LWP5 features.  Some others like
+implementing a local cache is for further study.
+
+The next section goes into more detail of the URI::Attr member of the
+LWP::UA.  The behaviour of the various handlers and protocol modules
+can be configured by putting values into this tree.
+
+The next section goes into more detail of the LWP::Request class and
+the interface for how responses are returned from the protocol
+modules.  This also discuss various hooks and handlers that the
+default LWP::Request methods invoke.  Handlers for dealing with
+transparent redirects and Unauthorized responses are also presented.
+
+The next section discuss the guts of the library, which is the
+LWP::Conn classes.  It is these connection objects that drive the
+activity within the library.  As network and timer events happen we
+get callbacks into the connection objects and these will make further
+(higher level and fewer) callbacks to the rest of the library.  One
+other source of activity within the library is the application itself.
+It can either spool further requests or it can kill running requests
+(and connections).
+
+The implementation of LWP::Conn::HTTP is then presented.  It represent
+the state of the object as subclasses of LWP::Conn::HTTP and state
+transitions are simply a calls to the C<bless> builtin.  The use of
+classes also make it easy to express sub-states (as subclasses) that
+behaves mostly like its base state, but modify some of its behaviour.
+
+The article ends with some benchmarking which compare the new
+implementation with the old and the w3c-libwww is a C based HTTP/1.1
+library.
+
+
+
 
 =head1 Introduction
 
@@ -115,11 +238,12 @@ clear whether this is such a big win. [ref]
 
 =head1 History of libwww-perl
 
-The libwww-perl project started on the first WWW conference in Geneva
-where Martijn Koster discussed MOMspider with Roy Fielding.  Martijn
-suggested that it would be a good thing if the reuseable components of
-this program was broken out into a library.  The result was the
-libwww-perl library for perl4 that Roy maintained (and still does).
+The libwww-perl project started on the first WWW conference in 1994
+(Geneva) where Martijn Koster discussed MOMspider with Roy Fielding.
+Martijn suggested that it would be a good thing if the reuseable
+components of this program was broken out into a library.  The result
+was the libwww-perl library for perl4 that Roy maintained (and still
+does).
 
 At one point both Gisle and Martijn had made their own modulifications
 of Roy's library to better suit the possibilities that perl5 provided.
@@ -763,15 +887,15 @@ The guts of the library is the LWP::Conn classes.  This is where all
 the action (i.e. low level protocol handling) takes place.  Each
 protocol is implemented by its own LWP::Conn class.  For instance the
 HTTP protocol is implemented by the LWP::Conn::HTTP class.  Instances
-of these classes represent a single network connection to a
-corresponding server.  The scheduler within the UA is responsible for
-deciding how many connections to set up for each of the servers we are
-going to communicate with.
+of these classes represent a single (logical) network connection to a
+corresponding kind of server.  The scheduler within the UA is
+responsible for deciding how many connections to set up for each of
+the servers we are going to communicate with.
 
-The connection objects drive the activity within the library.  As
-network and timer events happen we get callbacks into the connection
-objects and these will make further (higher level) callbacks to the
-rest of the library.
+It is these connection objects that drive the activity within the
+library.  As network and timer events happen we get callbacks into the
+connection objects and these will make further (higher level and
+fewer) callbacks to the rest of the library.
 
 			+-----------+
        	       	       	|           |
@@ -793,7 +917,7 @@ One other source of activity within the library is the application
 itself.  It can either spool further requests or it can kill running
 requests (and connections).
 
-A HTTP::Conn object register handle and timer callbacks with the
+A HTTP::Conn object register socket and timer callbacks with the
 EventLoop.  The rest of its interface to the outside world is though a
 single manager object.  There is a simple well defined interface that
 the manager must implement.  Though this interface it must return
@@ -824,14 +948,18 @@ maintain a reference to some state object that represents the current
 state.  All state specific methods are then delegated to this state
 object.
 
-In this situation Perl's dynamic approach to object orientation came
-handy.  With Perl we can actually (and easily) change the class of an
-extisting object at run-time.  This means that we can simplify the
-"State" pattern a lot.
+For libwww-perl, Perl's dynamic approach to object orientation came
+handy.  With Perl we can actually (and efficiently) change the class
+of an extisting object at run-time.  This means that a Perl
+implementation can simplify the "State" pattern a lot.
 
 Each state that the HTTP connection object can be in is represented by
 its own LWP::Conn::HTTP subclass and state transitions are simply a
-calls to the C<bless> builtin.  The states are:
+calls to the C<bless> builtin.  The use of classes also make it easy
+to express sub-states (as subclasses) that behaves mostly like its
+base state, but modify some of its behaviour.
+
+The states used by LWP::Conn::HTTP are:
 
 =over 4
 
@@ -839,14 +967,15 @@ calls to the C<bless> builtin.  The states are:
 
 In this state we have called the non-blocking connect(2) and got
 EINPROGRESS back.  We wait until the socket becomes writable which
-signals that the connection attempt was successful.  On success we
-switch to the Idle state and call $self->activate().
+usually means that the connection attempt was successful.  On success
+we switch to the Idle state and call $self->activate().
 
 =item Idle
 
 In this state we have nothing to do.  We wait until timeout() or
-somebody calls the activate() method.  We must also monitor the socket
-so that we notice if the server decide to close it before we do.
+somebody calls the activate() method.  We must also monitor the
+network connection so that we notice if the server decide to close it
+before we do.
 
 If the activate() method is invoked then we try to obtain a new
 request to send.  If this succeeds then we switch to the Active state.
@@ -870,8 +999,9 @@ counter reach zero.
 =item Chunked
 
 This is an Active subclass.  We must read and parse chunk headers,
-read the corresponding number of chunk bytes and must be prepared to
-parse trailer headers for the response.
+then read the corresponding number of chunk bytes.  This repeats until
+a 0-chunk is received.  Finally we must be prepared to parse trailer
+headers for the response.
 
 =item Multipart
 
@@ -881,7 +1011,7 @@ boundary byte pattern is found.
 =item UntilEOF
 
 This is an Active subclass. We read content data until the server
-closes the connection.
+closes the connection.  This is also the HTTP/1.0 behaviour.
 
 =item  Closed
 
@@ -892,10 +1022,10 @@ socket is closed.  No method calls are allowed any more.
 
 The LWP::Conn::HTTP constructor takes the name of the server host and
 the port to connect to as arguments.  It creates a non-blocking socket
-and tries to connect to the specified server and will enter either the
-Connecting or Idle state depending on what connect(2) returns.  We
-also register timeout callbacks which makes this sure that this
-connection object looks after itself.
+and tries to connect to the specified server and will then either
+enter the Connecting or Idle state depending on what connect(2)
+returns.  We also register timeout callbacks which makes this sure
+that this connection instance looks after itself.
 
 The following picture illustates the state transitions that take
 place:
@@ -928,10 +1058,24 @@ place:
   (THE END)
 
 
+=head1 LWP::Conn::FTP
+
+The LWP::Conn::FTP module use a similar apporoach, but it has many
+more states to represent the conversation on the command socket.  The
+concept of representing persistent connections within the library has
+also shown to be a big win for the FTP support.  It is now easy to
+provide persistent FTP connections that does not tear down the command
+socket after each request.
+
+[The LWP::Conn::FTP implementation does not really work yet.]
+
+
 =head1 Some benchmarks
 
 How well does it perform piplining.  Compare it with LWP5 and
 w3c-libwww perhaps.
+
+[...]
 
 
 =head1 Conclusions
