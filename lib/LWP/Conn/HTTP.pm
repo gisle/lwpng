@@ -302,7 +302,7 @@ sub connected
     my($self, $param) = @_;
     @{*$self}{'lwp_mgr', 'lwp_req_limit', 'lwp_req_max_pending',
 	      'lwp_timeout', 'lwp_idle_timeout'} = @$param;
-    *$self->{'lwp_req_cont'} = 0;
+    *$self->{'lwp_req_count'} = 0;
     *$self->{'lwp_rbuf'} = "";
     mainloop->readable($self);
     mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
