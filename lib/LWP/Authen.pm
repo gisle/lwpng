@@ -1,4 +1,4 @@
-package LWP::Auth;  # LWP::Authen?
+package LWP::Authen;
 #use Data::Dumper;
 
 use strict;
@@ -69,30 +69,38 @@ sub auth_handler
 		    $res->push_header("Client-Warning" =>
 			   "Unsupported authentication scheme '\u$scheme'");
 		} else {
+		    chomp($@);
 		    $res->push_header("Client-Warning" => $@);
 		}
 		next;
 	    }
 	}
-	my $followup = $class->authenticate($req, $res, $proxy, $param);
-	if ($followup) {
-	    if (ref($followup)) {
-		my $new;
-		if (ref($followup) eq "HASH") {
-		    $new = $req->clone;
-		    $new->{'previous'} = $res;
-		    $new->priority(10) if $new->priority > 10;
-		    while (my($k,$v) = each %$followup) {
-			$new->header($k => $v);
+	eval {
+	    my $followup = $class->authenticate($req, $res, $proxy, $param);
+	    if ($followup) {
+		if (ref($followup)) {
+		    my $new;
+		    if (ref($followup) eq "HASH") {
+			$new = $req->clone;
+			$new->{'previous'} = $res;
+			$new->priority(10) if $new->priority > 10;
+			while (my($k,$v) = each %$followup) {
+			    $new->header($k => $v);
+			}
+		    } else {
+			$new = $followup;
 		    }
+		    $req->{'mgr'}->spool($new);
+		    return "FOLLOWUP SPOOLED";
 		} else {
-		    $new = $followup;
+		    return $followup;
 		}
-		$req->{'mgr'}->spool($new);
-		return "FOLLOWUP SPOOLED";
-	    } else {
-		return $followup;
 	    }
+	};
+	if ($@) {
+	    chomp($@);
+	    $res->push_header("Client-Warning" => $@);
+	    return;
 	}
     }
     return;  # not handled
