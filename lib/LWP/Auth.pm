@@ -76,17 +76,26 @@ sub auth_handler
 	}
 	my $followup = $class->authenticate($req, $res, $proxy, $param);
 	if ($followup) {
-	    my $new = $req->clone;
-	    $new->{'previous'} = $res;
-	    $new->priority(10) if $new->priority > 10;
-	    while (my($k,$v) = each %$followup) {
-		$new->header($k => $v);
+	    if (ref($followup)) {
+		my $new;
+		if (ref($followup) eq "HASH") {
+		    $new = $req->clone;
+		    $new->{'previous'} = $res;
+		    $new->priority(10) if $new->priority > 10;
+		    while (my($k,$v) = each %$followup) {
+			$new->header($k => $v);
+		    }
+		} else {
+		    $new = $followup;
+		}
+		$req->{'mgr'}->spool($new);
+		return "FOLLOWUP SPOOLED";
+	    } else {
+		return $followup;
 	    }
-	    $req->{'mgr'}->spool($new);
-	    return "FOLLOWUP SPOOLED";
 	}
     }
-    return;
+    return;  # not handled
 }
 
 1;
