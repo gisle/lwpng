@@ -2,6 +2,9 @@
 # This is supposed to be an article about libwww-perl-6 for the Perl
 # conference in August 1998.
 
+# Note that figures should be included at the location of the
+# [[xxx.ps]] markers in this text.
+
 
 =Title LWPng - Adding HTTP/1.1 support to libwww-perl
 
@@ -42,8 +45,8 @@ requests with the the persistent connections it has available or will
 create new connections when necessary.
 
 All details of the programming interface has not yet been settled.
-More experience with non-trivial applications based on the new library
-is still needed.
+More experience with non-trivial applications built on top of the new
+library is still needed.
 
 
 =head1 Introduction
@@ -72,7 +75,7 @@ request message to the server.  The server then returns a response
 message.
 
 HTTP started out as an extremely simple protocol where the client
-connected to a server, sent a line with "GET <name>" and the server
+connected to a server, sent a line saying "GET <name>" and the server
 returned the resource identified by <name> and closed the connection.
 This version of the protocol has afterwards been dubbed HTTP/0.9.
 
@@ -82,7 +85,7 @@ and MIME-like messages for both the request from the client and the
 response from the server [2].  This makes it possible to attach extra
 information about requests/responses and to carry meta-information
 describing the content of these messages.  Responses now also start with a
-status line with a status code that encodes the overall outcome of the
+status line that encodes the overall outcome of the
 request.  These enhancements make the protocol extensible.
 
 The next step was/is HTTP/1.1 which tries to fix some of the
@@ -147,8 +150,8 @@ At one point both Gisle and Martijn had made their own modulifications
 of Roy's library to better suit the possibilities that perl5 provided.
 We joined forces and made several alpha releases together.
 Unfortunately Martijn had a little disagreement with his employer
-about the intelectual property rights to work done outside hours,
-and to safeguard LWP's continued availability to the Perl community he
+about the intelectual property rights to work done outside hours.
+To safeguard LWP's continued availability to the Perl community he
 asked Gisle to take over maintenance of the package.
 
 The C<LWP::> module name was introduced by Martijn in one of the alpha
@@ -183,7 +186,7 @@ flexible and (optionally) more lightweight.  Little happened until
 march 1998, but then I finally got opportunity and tuits enough to
 start working on this project almost full time.  The software is at
 the time of writing quite usable and is distributed under the name
-LWPng.  It is expected to be renamed as libwww-perl-6 when its beta
+LWPng.  It is expected to be renamed as libwww-perl-6.00 when its beta
 phase is over.
 
 
@@ -477,7 +480,7 @@ interface that basically gives us:
 
 The current LWPng implementation and the examples above are based on
 the event loop implementation provided by the LWP::EventLoop class.
-This class is fairly small and simple.  It supports exactly what LWPng
+This class is fairly small and quite simple.  It supports exactly what LWPng
 needs and not much more.  The main problem is that this introduces yet
 another event loop and that it will create problems if the application
 want to use LWPng together with modules based on some other event
@@ -892,16 +895,16 @@ control to the event loop after starting things off (using
 C<mainloop-E<gt>run> as shown in examples above).
 
 The following figure shows how the application relates to the library
-and the major callback paths.
+and the major call paths.
 
 [[fig1.ps]]
 
-An HTTP::Conn object looks after itself based on the socket and timer
+An LWP::Conn object looks after itself based on the socket and timer
 callbacks that it registers with the event loop.  It obtain its
 workload and report progress to some object that it denotes as its
 manager.  A single manager can be shared between multiple connection
-objects.  A reference to the manager is passed to the connection
-object constructor:
+objects.  A reference to the manager is passed to the LWP::Conn object
+constructor together with a specification of where to connect:
 
   $conn = LWP::Conn::HTTP->new(MangagedBy => $mgr,
                                Host => $host,
@@ -909,7 +912,7 @@ object constructor:
                                ...);
 
 The following are the methods that a connection will invoke on a
-manager:
+manager during its life:
 
   $mgr->get_request($conn);
   $mgr->pushback_request($conn, @requests);
@@ -927,11 +930,11 @@ The following are the two methods can be invoked on a live connection
 by the manager.
 
   $conn->activate;  # reactivate an idle connection
-  $conn->stop;
+  $conn->stop;      # kill it early
 
 As you can see the interface between a connection object and its
 manager is really quite simple.  This makes it easy for applications
-with special needs to use any of the HTTP::Conn implementations in
+with special needs to use any of the LWP::Conn implementations in
 isolation without the rest of the library.  All the application have
 to do is to provide an object that implement the 5 methods that make
 up the manager interface.  Internally in the library instances of the
@@ -949,14 +952,15 @@ The design of this module was much inspired by the "State"
 pattern described in [16].  The main intent of this
 pattern is described like this:
 
-  Allow an object to alter its behaviour when its internal state
-  changes.  The object will appear to change its class.
+  Allow an object to alter its behaviour when
+  its internal state changes.  The object will
+  appear to change its class.
 
 This is usually achieved by having the main object (the connection)
-maintain a reference to an object that represents the current
-state.  All state specific methods are then delegated to this state
-object, and state changes involve updating the reference to some other
-state object.
+maintain a reference to an object that represents the current state.
+All state specific methods are then delegated to this state object,
+and state changes involve updating this reference to point to some
+other state object.
 
 For libwww-perl, Perl's dynamic approach to object orientation came
 handy.  With Perl we can actually (and efficiently) change the class
@@ -998,13 +1002,13 @@ been received, they are parsed and we switch to one of the following
 sub-states depending on the how the message content are to be
 delimited.  When the whole message content has been received we try to
 obtain another request to send and depending on the outcome of this we
-switch back to the Active or the Idle state.
+switch back to either the Active or the Idle state.
 
 =item ContLen
 
 This is an Active subclass.  We maintain a counter of the number of
-bytes to expect for the message content and we read data until this
-counter reach zero.
+bytes to still expect for the message content and we read data until
+this counter reach zero.
 
 =item Chunked
 
@@ -1044,23 +1048,28 @@ that this connection instance looks after itself.
 
 =head1 LWP::Conn::FTP
 
-The LWP::Conn::FTP module use a similar approach, but it has many
-more states to represent the conversation that have to take place on
-the command channel.  The concept of representing persistent
-connections within the library has also shown to be a big win for the
-FTP support.  It is now straightforward to provide persistent FTP
-connections that do not tear down the command socket after each
-request.
+The LWP::Conn::FTP module implements the FTP protocol for LWPng.  A
+single LWP::Conn:FTP instance represents a single command connection
+to an FTP server.  The creation of the data connections used to
+transfer the content of the files are not visible outside a
+LWP::Conn:FTP object.
+
+The LWP::Conn::FTP module use a similar approach to LWP::Conn::HTTP,
+but it has many more states to represent the conversation that have to
+take place on the command connection.  The concept of representing
+persistent connections within the library has also shown to be a big
+win for the FTP support.  It is now straight forward to provide
+persistent FTP connections that do not tear down the command socket
+after each request.
 
 =head1 Some benchmarks
 
 LWPng is still alpha software, so it might be a bit premature to do
-serious benchmarking of it.  There has really not yet been any work
-on trying to optimize the library for speed, since we are still
-focusing on getting the programming interface defined, but it might be
-interesting to see how we are doing so far.
+serious benchmarking of it.  No work on trying to optimize the library
+for speed has yet been done, as we are still focusing on getting the
+programming interface defined.
 
-The test below is based on a simple script that fetch a single HTML
+The test below is based on simple scripts that fetch a single HTML
 page, parse it and then fetch all images referenced.  This is similar
 to what a graphical browser whould have to do to load a page.  We
 measure the complete downloading time using the Unix 'time' command
@@ -1069,8 +1078,8 @@ We don't go into deeper detail such as looking at the number of TCP
 packets generated or the number of system calls invoked.
 
 These tests results have been made on a 90Mhz i586 running RedHat
-Linux 4.  We have used perl5.004_04, libwww-perl-5.32 and
-lwpng-alpha-0.20.  The tests performed are:
+Linux 4.0.  We have used perl5.004_04, libwww-perl-5.32 and
+lwpng-alpha-0.20 during the test.  The tests performed were:
 
 =over 3
 
@@ -1086,17 +1095,17 @@ The page fetcher script using the new LWPng interface.  The script
 will start fetching the images as soon as the corresponding part of
 the HTML document has been received.
 
-How the LWPng library behaves depend on various parameters.
-C<MaxConn> is the number of parallel connections we allow it to have
-to a single server.  C<ReqLimit> sets a limit on the number of
-requests it will send over a single connection.  Setting this value to
-1 effectively disables persistent connections.  C<ReqPend> sets a
-limit on the number of requests we can have outstanding on a
-connection before we must wait for a response.  Setting this value to
-1 effectively disables pipelining.
+The LWPng library behaviour depend on various parameters.  C<MaxConn>
+is the number of parallel connections we allow it to have to a single
+server.  C<ReqLimit> sets a limit on the number of requests it will
+send over a single connection.  Setting this value to 1 effectively
+disables persistent connections.  C<ReqPend> sets a limit on the
+number of requests we can have outstanding on a connection before we
+must wait for a response.  Setting this value to 1 effectively
+disables pipelining.
 
-The LWPng script has been tested with the
-following combinations of the parameters:
+The LWPng script has been tested with the following combinations of
+the parameters:
 
      MaxConn   ReqLimit   ReqPend
    +---------+----------+----------
@@ -1106,59 +1115,74 @@ following combinations of the parameters:
  D |    1        100         3
  E |    2        100         3
 
+The LWP5 and LWPng-A tests should be comparable as the libraries would
+have to set up the same number of network connections.
+
 =item SOCK
 
 A simplifed version of page fetcher script that just hard-code
-downloading of the specified URLs over a single persistent
-IO::Socket::INET connection.  All requests are written using a single
-print and then we read the responses until the server close the
-connection.  The numbers for this test should indicate an upper limit
-on the downloading speed we can hope to achieve with Perl.
+downloading of the URLs over a single persistent IO::Socket::INET
+connection (bypassing any LWP code).  All requests are sent to the
+server using a single print and then we read the responses until the
+server close the connection.  The numbers reported for this test
+should indicate an upper limit on the downloading speed we can hope to
+achieve with Perl.
+
+The LWPng-D and SOCK tests should be comparable.  Both download all
+documents over a single connection with pipelining.
 
 =back
 
-First test is between a client and a server connected by a local
-Ethernet.  We downloaded the page with images 5 times to get
-measurable results.
+I used I<www.microsoft.com> as the server to run this test
+against.  The reason was simply that this was the first far away site
+I found that implemented HTTP/1.1 persistent connections and at the
+same time used a lot of image icons.  At the time of the test run,
+there were 17 referenced images to fetch.  The average image size was
+1761 bytes.  Of the images 8 had a size less than 256 bytes.  I
+believe that the bottleneck on the connection was the 64 kbit ISDN
+line to my ISP.
 
-gran --> furu [get-page-lwp5 http://furu/ 5], 3 images
+The results were:
 
- LWP5)    0.94user 0.31system 0:02.49elapsed 50%CPU
- LWPng-A) 2.61user 0.23system 0:03.61elapsed 78%CPU
- LWPng-C) 2.38user 0.31system 0:03.57elapsed 75%CPU
- LWPng-D) 2.36user 0.26system 0:03.49elapsed 74%CPU
- LWPng-E) 2.30user 0.25system 0:03.22elapsed 79%CPU
- SOCK)    0.28user 0.05system 0:01.40elapsed 23%CPU
+ LWP5)    3.69user 0.31system 0:20.29elapsed 19%CPU
+ LWPng-A) 5.40user 0.34system 0:20.97elapsed 27%CPU
+ LWPng-B) 5.46user 0.33system 0:21.61elapsed 26%CPU
+ LWPng-C) 4.79user 0.26system 0:14.86elapsed 33%CPU
+ LWPng-D) 5.12user 0.25system 0:12.40elapsed 43%CPU
+ LWPng-E) 4.99user 0.31system 0:10.76elapsed 49%CPU
+ SOCK)    0.78user 0.08system 0:11.28elapsed 7%CPU
 
-The results seem to indicate that CPU power to run Perl was the
-bottleneck here and we observe that LWPng use about 2.5 times more
-computation for the same task.  It is not really a promising result when
-one of the goals was to make something that should ultimately be more
-lightweight.  The LWPng parameter settings did not change the results
-significantly, but the SOCK result indicate that a persistent
-connection can in fact be very efficient on a local network.
+The first observation to make is that currently LWPng is not more
+lightweight than LWP5.  It use about 50% more CPU to process the
+requests.  We also observe that we save a lot of CPU time by not using
+LWP at all.
 
-The next test was done by fetching the front page of a webserver far
-away.  The packets passed through X routers and the 64 kbit ISDN line
-to my ISP.  I happened to select www.microsoft.com as it was the first
-site I found that implemented HTTP/1.1 persistent connections and at
-the same time used a lot of image icons.  At the time of the tests
-there were 17 referenced images to fetch.
+We see that the use of persistent connections really did help.  The
+time used to download the page decreased from 21s to 15s (30%) and
+after adding pipelining it went down to 12.5s (additional 12%).  Using
+multiple connections to the server (B,E) did not do much to decrease
+download time.  We also observe that LWPng-D download time if fairly
+close to the SOCK time.
 
-furu --> www.microsoft.com, [17 images]
+For the next test we downloaded the I<www.microsoft.com> frontpage
+locally and then accessed it from a Apache server over the local
+Ethernet.  The result were:
 
- LWP5)    3.86user 0.30system 0:21.07elapsed 19%CPU
- LWPng-A) 6.17user 0.38system 0:21.85elapsed 29%CPU
- LWPng-C) 5.70user 0.37system 0:16.56elapsed 36%CPU
- LWPng-D) 5.58user 0.38system 0:13.82elapsed 43%CPU
- LWPng-E) 5.87user 0.33system 0:13.09elapsed 47%CPU
- SOCK)    0.73user 0.10system 0:10.89elapsed 7%CPU
+ LWP5)    4.01user 0.25system 0:04.32elapsed 98%CPU
+ LWPng-A) 5.20user 0.34system 0:05.61elapsed 98%CPU
+ LWPng-B) 5.20user 0.31system 0:05.63elapsed 97%CPU
+ LWPng-C) 4.75user 0.30system 0:05.12elapsed 98%CPU
+ LWPng-D) 4.74user 0.31system 0:05.09elapsed 99%CPU
+ LWPng-E) 4.93user 0.17system 0:05.11elapsed 99%CPU
+ SOCK)    0.78user 0.24system 0:01.15elapsed 88%CPU
 
-Again we see that LWPng use more CPU that LWP5 to achieve the
-same thing, but here persistent connection and pipelining makes a real
-difference and we are actually fairly close to the SOCK figures.
+What happened here was that CPU became the bottleneck.  Again we see
+that LWPng use more CPU that LWP5 to achieve the same thing.
+Persistent or parallel connections did nothing to help.  It would be
+interesting to redo this test after LWPng has been through a round of
+profiling and optimizations.
 
-LWPng obviously need more optimizations.
+A faster perl (or faster hardware) would help LWP too.
 
 =head1 Conclusions
 
@@ -1168,11 +1192,11 @@ client applications that manage multiple persistent connections to its
 peer servers.
 
 The new design look promising but the performance ought to improve in
-order to fullfil all the design goals.  Still there are spots in the
-programming interface that need more thought.  Need more testing and
-feedback from application writers before we can say that the interface
-has stabilized and we go to the beta phase of bug fixing and
-optimizations.
+order to fullfil the design goals.  Still there are spots in the
+programming interface that need more thought.  It would be a good
+thing to have more testing and feedback from application writers
+before we can say that the interface has stabilized and we go to the
+beta phase of bug fixing and further optimizations.
 
 =head1 References
 
@@ -1229,7 +1253,7 @@ ParallelUserAgent - Marc Langheinrich <URL>
 
 =item [10]
 
-w3c-libwww-perl - H. Frystyk <URL>
+w3c-libwww - H. Frystyk <URL>
 
 =item [12]
 
