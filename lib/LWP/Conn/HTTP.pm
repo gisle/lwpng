@@ -17,6 +17,8 @@ unless (defined &IO::EINPROGRESS) {
 
 use strict;
 use vars qw($DEBUG);
+use vars qw($OFFER_DEFLATE_TE);
+$OFFER_DEFLATE_TE = 1;
 
 my $TCP_PROTO = (getprotobyname('tcp'))[2];
 use Carp ();
@@ -138,7 +140,7 @@ sub state
 sub new_request
 {
     my $self = shift;
-    return if defined *$self->{'lwp_wbuf'};
+    return if defined *$self->{'lwp_wbuf'}; # XXX not really necessary?
     return if $self->last_request_sent;
     return if $self->pending_requests >= *$self->{'lwp_req_max_pending'};
 
@@ -152,15 +154,24 @@ sub new_request
 	my $proto = $req->protocol || "HTTP/1.1";
 	push(@rlines, "$method $uri $proto");
 	$req->header("Host" => $req->url->netloc);
+	my @conn_header;
 	*$self->{'lwp_req_count'}++;
 	if ($proto eq "HTTP/1.0") {
 	    # can't send any more request, server will close connection
 	    *$self->{'lwp_req_limit'} = 1;
-	} elsif (*$self->{'lwp_req_count'} == *$self->{'lwp_req_limit'}) {
-	    # make server close the connection
-	    $req->header("Connection" => "close");
+	} else {
+	    push(@conn_header, "close")
+		if *$self->{'lwp_req_count'} == *$self->{'lwp_req_limit'};
+	    if ($OFFER_DEFLATE_TE) {
+		push(@conn_header, "TE");
+		$req->push_header(TE => "deflate");
+	    }
 	}
+	$req->header("Connection" => join(", ", @conn_header)) if @conn_header;
 	$req->scan(sub { push(@rlines, "$_[0]: $_[1]") });
+	# XXX if $req->content is a code reference, we should probably
+	# arrange for something clever to happen that involves chunked
+	# encoding.
 	push(@rlines, "", $req->content);
 	push(@{ *$self->{'lwp_req'} }, $req);
 	*$self->{'lwp_wbuf'} = join("\015\012", @rlines);
@@ -424,8 +435,8 @@ sub check_rbuf
 	return;
     }
 
-    if ($code == 100) {
-	print STDERR "100 Continue\n" if $LWP::Conn::HTTP::DEBUG;
+    if ($code >= 100 && $code <= 199) {
+	print STDERR "Info response ($code)\n" if $LWP::Conn::HTTP::DEBUG;
 	# XXX: should we store $res anywhere or just forget about it?
 	$self->check_rbuf;
 	return;
@@ -438,13 +449,17 @@ sub check_rbuf
     #print $res->as_string if $LWP::Conn::HTTP::DEBUG;
 
     # Determine how to find the end of message
-    my $trans_enc;
     if ($req->method eq "HEAD" || $code =~ /^(?:1\d\d|[23]04)$/) {
 	$self->state("ContLen");
 	*$self->{'lwp_cont_len'} = 0;
 	$self->end_of_response;
 	return;
-    } elsif ( ($trans_enc = $res->header("Transfer-Encoding"))) {
+    } elsif (my(@trans_enc) = $res->header("Transfer-Encoding")) {
+	if (@trans_enc > 1) {
+	    $self->_error("Multiple transfer encodings");
+	    return;
+	}
+	my $trans_enc = $trans_enc[0];
 	if ($trans_enc ne "chunked") {
 	    $self->_error("Unknown transfer encoding '$trans_enc'");
 	    return;
