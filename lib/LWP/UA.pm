@@ -15,7 +15,7 @@ sub new
 	   def_timeout => 20,
 	   def_pipeline => 1,
 	   def_keepalive => 1,
-	   def_maxconn => 1,
+	   def_maxconn => 3,
 	   
 	  }, $class;
 }
@@ -40,6 +40,7 @@ sub spool
     }
     $server->add_request($req);
     $self->reschedule;
+    print "$req spooled\n";
 }
 
 sub max_server_connections
@@ -68,7 +69,6 @@ sub reschedule
 	while ($conn_to_start--) {
 	    $server->new_connection;
 	}
-
     }
 }
 
