@@ -25,7 +25,7 @@ use LWP::Request ();
 use LWP::MainLoop qw(run one_event empty);
 
 use HTML::LinkExtor ();
-use URI::URL qw(url);
+use URI;
 use MD5 ();
 
 require 'db.pl';
@@ -45,7 +45,7 @@ my $sth;
 $sth = $dbh->query($sql) or die $dbh->errmess;
 
 while (my($id, $scheme,$host,$port,$abs_path) = $sth->fetchrow) {
-    my $url = URI::URL->new("$scheme:$abs_path");
+    my $url = URI->new("$scheme:$abs_path");
     $url->host($host) if $host;
     $url->port($port) if $port;
     my $method = visit_ok($url);
