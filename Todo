@@ -1,9 +1,11 @@
-
  * More testing
- * Write test scripts
+ * Write all the missing t/*.t test scripts
 
- * Complete LWP5 compatibility
- * Finish the authentication hooks (digest)
+ * Simplify the LWP::Request handlers and callbacks.
+ * Complete LWP5 compatibility modules: LWP::UserAgent and LWP::Simple
+   Perhaps make a separate distribution for them until LWP5 can be
+   declared obsolete.  'LWP5emu'
+ * Finish the authentication hooks (digest especially)
  * LWP::Conn::HTTP improvements
      - bundling of multiple request in a single syswrite() when
        pipelining is likely to improve performance.
@@ -19,21 +21,25 @@
  * LWP::Conn::FILE could support PUT and Content-Ranges
  * Other LWP::Conn implementations: FTP, NNTP, Gopher, MAILTO
  * Support HTTPS, TLS.  This might need restructuring of the LWP::Conn:HTTP.
-   Perhaps the socket should be a member and not the connection object
-   itself.
+   Perhaps the socket should be a member and not the HTTP connection object
+   itself?
  * gzip/compress sinks
- * deflate parameters
+ * deflate parameters, find out if it matters...
  * tuning - make things go faster
  * documentation - as always
 
+ * Caching support
+ * Some applications (at least in order to gain some experience with
+   using this interface).
  * Delayed spooling (for robots)
  * RobotUA
- * Caching support
- * Some applications
 
  * Move to same eventloop as Tk uses.  There appears to be a problem because
    the Tk fileevent does not allow a socket to be both readable and writable
    at the same time.  Grahams Event.pm does not work with current IO modules
    so I have not tried to use it yet.  Compatibility with Win32 is also a
-   concern.
-   
+   concern in all of this.
+
+
+-------
+$Id$
