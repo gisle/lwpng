@@ -21,4 +21,7 @@ sub put
     $self;
 }
 
+@LWP::Sink::identity::encode::ISA=qw(LWP::Sink::identity);
+@LWP::Sink::identity::decode::ISA=qw(LWP::Sink::identity);
+
 1;
