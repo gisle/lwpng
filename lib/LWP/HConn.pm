@@ -349,7 +349,11 @@ sub check_rbuf
 		$self->state("UntilEOF");
 		# If we have pending requests, then we know we will never
 		# get a reply, so let's return them...
-		#XXX
+		my $req = $ {*$self}{'lwp_req'};
+		if (@$req > 1) {
+		    my $mgr = $ {*$self}{'lwp_mgr'};
+		    $mgr->pushback_request($self, splice(@$req, 1));
+		}
 	    }
 	}
     }
@@ -361,11 +365,16 @@ sub end_of_response
 {
     my $self = shift;
     print STDERR "$self: End-Of-Response\n" if $LWP::HConn::DEBUG;
-    $self->state("Active");
-    shift @{$ {*$self}{'lwp_req'}};  # get rid of current request
+    my $req = shift @{$ {*$self}{'lwp_req'}};  # get rid of current request
+    $req->done($ {*$self}{'lwp_res'});
     $ {*$self}{'lwp_res'} = undef;
-    $self->_error("DONE")
-      if $self->last_request_sent && !$self->current_request;
+    if ($self->last_request_sent && !$self->current_request) {
+	mainloop->forget($self);
+	$self->close;
+	$ {*$self}{'lwp_mgr'}->connection_closed($self);
+	return;
+    }
+    $self->state("Active");
     $self->new_request;
     if ($self->current_request) {
 	$self->check_rbuf;
@@ -390,7 +399,7 @@ sub check_rbuf
     my $data = substr($$buf, 0, $cont_len);
     substr($$buf, 0, $cont_len) = '';
     $cont_len -= length($data);
-    print STDERR "CL callback for ", length($data), " bytes\n";
+    $res->request->response_data($data, $res);
     if ($cont_len > 0) {
 	$ {*$self}{'lwp_cont_len'} = $cont_len;
     } else {
@@ -425,7 +434,7 @@ sub check_rbuf
 		substr($data, -2+$chunked, 2-$chunked) = '';
 		$chunked = -1 if $chunked == 0;
 	    }
-	    print STDERR "CHUNKED callback for ", length($data), " bytes\n";
+	    $res->request->response_data($data, $res);
 
 	} elsif ($chunked == -1) {
 	    # read a new chunk header
@@ -490,13 +499,15 @@ sub check_rbuf
     my $self = shift;
     my $buf      = \ $ {*$self}{'lwp_rbuf'};
     my $res      =   $ {*$self}{'lwp_res'};
-    print STDERR "Old callback for ", length($$buf), " bytes\n";
+    $res->request->response_data($$buf, $res);
     $$buf = '';
 }
 
-sub server_close_connection
+sub server_closed_connection
 {
     shift->end_of_response;
 }
+
+sub last_request_sent { 1; }
 
 1;
