@@ -1,7 +1,10 @@
 package LWP::UA;
+require LWP::Hooks;
+@ISA=qw(LWP::Hooks);
 
 use strict;
 use vars qw($DEBUG);
+
 
 require LWP::Server;
 require URI::Attr;
@@ -20,8 +23,8 @@ sub new
 	       servers => {},
 	      }, $class;
 
-    $ua->add_hook("request", \&default_headers);
-    $ua->add_hook("request", \&need_proxy);
+    $ua->add_hook("request", \&setup_default_headers);
+    $ua->add_hook("request", \&setup_proxy);
     #$ua->agent("libwww-perl/ng");
 
     $ua;
@@ -34,32 +37,16 @@ sub agent
     my $old = $self->{'agent'};
     if (@_) {
 	my $agent = $self->{'agent'} = shift;
-	$self->{'uattr'}->attr_update(SCHEME => "http:")
-	    ->{'default_headers'}{'User-Agent'} = $agent;
+	for ("http", "https") {
+	    $self->{'uattr'}->attr_update(SCHEME => "$_:")
+		->{'default_headers'}{'User-Agent'} = $agent;
+	}
 	$self->{'uattr'}->attr_update(SCHEME => "mailto:")
 	    ->{'default_headers'}{'X-Mailer'} = $agent;
 	$self->{'uattr'}->attr_update(SCHEME => "news:")
 	    ->{'default_headers'}{'X-Newsreader'} = $agent;
     }
     $old;
-}
-
-
-sub add_hook
-{
-    my $self = shift;
-    my $type = shift;
-    push(@{$self->{"${type}_hooks"}}, @_);
-}
-
-
-sub run_hooks
-{
-    my $self = shift;
-    my $type = shift;
-    for my $hook (@{$self->{"${type}_hooks"}}) {
-	&$hook($self, @_);
-    }
 }
 
 
@@ -122,8 +109,10 @@ sub spool
 	    $req->gen_response(400, "Request URL must be absolute");
 	    next;
 	}
+	bless $req, "LWP::Request" if ref($req) eq "HTTP::Request"; #upgrade
 
-	$self->run_hooks("request", $req);
+	next unless $self->run_hooks_until_failure("request", $req);
+
 	my $proxy = $req->proxy;
 	my $server = $self->find_server($proxy ? $proxy : $req->url);
 	$req->managed_by($self);
@@ -176,7 +165,7 @@ sub delete
 }
 
 
-sub default_headers
+sub setup_default_headers
 {
     my($self, $req) = @_;
     for my $hash ($self->{'uattr'}->p_attr($req->url, "default_headers")) {
@@ -185,14 +174,48 @@ sub default_headers
 	    $req->header($k => $hash->{$k});
 	}
     }
+    1;
 }
 
-sub need_proxy
+
+sub cookie_jar
+{
+    my $self = shift;
+    my $old = $self->{'cookie_jar'};
+    if (@_) {
+	my $c = $self->{'cookie_jar'} = shift;
+	if ($c) {
+	    $self->add_hook("request", \&setup_cookie);
+	} else {
+	    $self->remove_hook("request", \&setup_cookie);
+	}
+    }
+    $old;
+}
+
+
+sub setup_cookie
+{
+    my($self, $req) = @_;
+    my $jar = $self->{'cookie_jar'} || return 1;
+    $jar->add_cookie_header($req);
+    $req->add_hook("response_done",
+		   sub {
+		       my($req, $res) = @_;
+		       $jar->extract_cookies($res);
+		       1;
+		   });
+    1;
+}
+
+
+sub setup_proxy
 {
     my($self, $req) = @_;
     return if $req->proxy;
     my $proxy = $self->{'uattr'}->p_attr($req->url, "proxy");
     $req->proxy($proxy);
+    1;
 }
 
 
