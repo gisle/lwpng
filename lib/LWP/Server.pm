@@ -170,6 +170,7 @@ sub create_connection
 	$conn = $conn_class->new($self->conn_param);
     };
     if ($@) {
+	print STDERR $@;
 	chomp($@);
 	$self->kill_queued_requests(590, $@);
 	return;
@@ -224,7 +225,7 @@ sub remove_from_refarray
 sub connection_active
 {
     my($self, $conn) = @_;
-    print "ACTIVE $conn\n";
+    print STDERR "ACTIVE $conn\n";
     $self->remove_from_refarray($self->{idle_conns}, $conn);
 }
 
@@ -232,7 +233,7 @@ sub connection_active
 sub connection_idle
 {
     my($self, $conn) = @_;
-    print "IDLE $conn\n";
+    print STDERR "IDLE $conn\n";
     if ($self->remove_from_refarray($self->{idle_conns}, $conn)) {
 	warn "$conn was already in idle_conns";
     }
@@ -242,7 +243,7 @@ sub connection_idle
 sub connection_closed
 {
     my($self, $conn) = @_;
-    print "CLOSED $conn\n";
+    print STDERR "CLOSED $conn\n";
     $self->remove_from_refarray($self->{idle_conns}, $conn);
     $self->remove_from_refarray($self->{conns}, $conn) or
 	warn "$conn was not registered";
