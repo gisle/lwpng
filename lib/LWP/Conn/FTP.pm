@@ -33,15 +33,13 @@ sub new
     bless $sock, $class;
     
     *$sock->{'lwp_mgr'}  = $mgr;
-    *$sock->{'lwp_user'} = delete $cnf{Username} || "anonymous";
-    *$sock->{'lwp_pass'} = delete $cnf{Password} || "ftp@";
     *$sock->{'lwp_type'} = "";
     *$sock->{'lwp_rbuf'} = "";
     *$sock->{'lwp_rlim'} = delete $cnf{ReqLimit} || 4;
 
     if (%cnf && $^W) {
 	for (keys %cnf) {
-	    warn "Unknown LWP::Conn::HTTP->new attribute '$_' ignored\n";
+	    warn "Unknown LWP::Conn::FTP->new attribute '$_' ignored\n";
 	}
     }
 
@@ -65,19 +63,20 @@ sub inactive
 }
 
 
-sub server_closed_connection
+sub error
 {
-    my $self = shift;
-    $self->_error("EOF");
+    my($self, $msg) = @_;
+    $self->_error("$msg: " . $self->message);
 }
 
 sub _error
 {
     my($self, $msg) = @_;
-    print STDERR "ERROR: $msg: " . $self->message;
+    $msg .= "\n" unless substr($msg,-1,1) eq "\n";
+    print STDERR "ERROR: $msg";
     mainloop->forget($self);
     $self->close;
-    if (my $data = *$self->{'lwp_data'}) {
+    if (my $data = delete *$self->{'lwp_data'}) {
 	$data->close;
     }
     *$self->{'lwp_mgr'}->connection_closed($self);
@@ -87,11 +86,11 @@ sub readable
 {
     my $self = shift;
     my $buf = \ *$self->{'lwp_rbuf'};
-    my $n = sysread($self, $$buf, 512, length($$buf));
+    my $n = sysread($self, $$buf, 2048, length($$buf));
     if (!defined($n)) {
 	$self->_error("Bad read: $!");
     } elsif ($n == 0) {
-	$self->server_closed_connection;
+	$self->_error("EOF");
     } else {
 	$self->check_rbuf;
     }
@@ -120,19 +119,16 @@ sub parse_response
     my($code, $more, @res);
     while (@{*$self->{'lwp_lines'}}) {
 	my $line = shift @{*$self->{'lwp_lines'}};
-	if ($line =~ /^(\d\d\d)(-?)/) {
-	    $more = $2;
+	if ($line =~ /^(\d\d\d)([\-\s])/) {
+	    $more = $2 eq "-";
 	    if ($code) {
-		if ($code ne $1) {
-		    push(@res, $line);
-		    return $self->reponse_error(\@res);
-		}
+                $more++ if $code ne $1;
 	    } else {
 		$code = $1;
 	    }
 	} elsif (!$code) {
 	    push(@res, $line);
-	    return $self->reponse_error(\@res);
+	    return $self->reponse_error(join("\n", @res));
 	}
 	push(@res, $line);
     }
@@ -144,6 +140,12 @@ sub parse_response
 	print STDERR "====>\t", join("\n\t", @res), "\n" if $DEBUG;
 	$self->response(substr($code, 0, 1), $code, \@res);
     }
+}
+
+sub response_error
+{
+    my($self, $bad_response) = @_;
+    print STDERR "FTP: Bad server response '$bad_response' ignored\n";
 }
 
 sub code
@@ -184,16 +186,47 @@ sub activate
 {
 }
 
+sub login_info
+{
+    my($self, $req) = @_;
+    my $url = $req->url;
+    my($user,$pass) = $req->authorization_basic;
+    $user ||= $url->user || "anonymous";
+    $pass ||= $url->password || "nobody@";
+    my $acct = $req->header("Account") || "home";
+    ($user, $pass, $acct);
+}
+
+sub gen_response
+{
+    my($self, $code, $mess, $more) = @_;
+    my $req = delete *$self->{'lwp_req'};
+    if (ref($more)) {
+	$more->{Server} = *$self->{'lwp_server_product'};
+    }
+    $req->gen_response($code, $mess, $more);
+    $self->activate;
+}
+
+
 package LWP::Conn::FTP::Start;
 use base 'LWP::Conn::FTP';
 
 sub response
 {
     my($self, $r) = @_;
-    $self->_error("Missing grating") unless $r eq "2";
-    *$self->{'lwp_greating'} = $self->message;
+    $self->error("Bad welcome") unless $r eq "2";
+    my $mess = $self->message;
+    *$self->{'lwp_greeting'} = $mess;
+    # Try to make it into a HTTP product token
+    $mess =~ s/^\d+\s+//;
+    $mess =~ s/^[\w\.]+\s+//;  # host name
+    $mess =~ s/\s+ready\.?\s+$//;
+    $mess =~ s/\s+\(Version\s+/\// && $mess =~ s/\)//;
+    *$self->{'lwp_server_product'} = $mess;
     $self->send_cmd("SYST" => "Syst");
 }
+
 
 package LWP::Conn::FTP::Syst;
 use base 'LWP::Conn::FTP';
@@ -201,13 +234,35 @@ use base 'LWP::Conn::FTP';
 sub response
 {
     my($self, $r) = @_;
-    if ($r eq "2" && $self->message =~ /UNIX/) {
-	print STDERR "Hurray! It is a Unix system\n";
-	*$self->{'lwp_unix'}++;
+    if ($r eq "2") {
+	chomp(my $mess = $self->message);
+	*$self->{'lwp_syst'} = $mess;
+	$mess =~ s/^\d+\s+//;
+	*$self->{'lwp_unix'}++ if $mess =~ /\bUNIX\b/i;
+	*$self->{'lwp_server_product'} .= " ($mess)";
     }
-    my $user = *$self->{'lwp_user'};
-    $self->send_cmd("USER $user" => "User");
+    $self->state("Ready");
+    $self->activate;
 }
+
+
+package LWP::Conn::FTP::Ready;
+use base 'LWP::Conn::FTP';
+
+sub activate
+{
+    my $self = shift;
+    my $req = *$self->{'lwp_mgr'}->get_request;
+    unless ($req) {
+	*$self->{'lwp_mgr'}->connection_idle($self);
+	return;
+    }
+    *$self->{'lwp_req'} = $req;
+    (*$self->{'lwp_user'}, *$self->{'lwp_pass'}, *$self->{'lwp_acct'})
+	= $self->login_info($req);
+    $self->send_cmd("USER " . *$self->{'lwp_user'} => "User");
+}
+
 
 package LWP::Conn::FTP::User;
 use base 'LWP::Conn::FTP';
@@ -219,23 +274,72 @@ sub response
 	my $pass = *$self->{'lwp_pass'};
 	$self->send_cmd("PASS $pass" => "Pass");
     } elsif ($r eq "2") {
-	$self->state("Ready");
-	$self->activate;
+	$self->login_complete;
     } else {
-	$self->_error("Can't login");
+	$self->cant_login;
     }
 }
 
+sub login_complete
+{
+    my $self = shift;
+    $self->state("Inlogged");
+    $self->activate;
+}
+
+sub cant_login
+{
+    my $self = shift;
+    my $mess = $self->message;
+    $mess =~ s/^\d+\s+//;
+    chomp($mess);
+    $self->state("Ready");
+    $self->gen_response(401, $mess,
+			{"WWW-Authenticate" => 'Basic realm="FTP"',
+			});
+    $self->activate;
+}
+
+
 package LWP::Conn::FTP::Pass;
-use base 'LWP::Conn::FTP';
+use base 'LWP::Conn::FTP::User';
+sub response
+{
+    my($self, $r) = @_;
+    if ($r eq "3") {
+	my $acct = *$self->{'lwp_acct'};
+	$self->send_cmd("ACCT $acct" => "Acct");
+    } elsif ($r eq "2") {
+	$self->login_complete;
+    } else {
+	$self->cant_login;
+    }
+}
+
+
+package LWP::Conn::FTP::Acct;
+use base 'LWP::Conn::FTP::User';
 sub response
 {
     my($self, $r) = @_;
     if ($r eq "2") {
-	$self->state("Ready");
-	$self->activate;
+	$self->login_complete;
     } else {
-	$self->_error("Can't send password");
+	$self->cant_login;
+    }
+}
+
+
+package LWP::Conn::Rein;
+use base 'LWP::Conn::FTP';
+
+sub response
+{
+    my($self, $r) = @_;
+    if ($r eq "2") {
+	$self->send_cmd("USER " . *$self->{'lwp_user'} => "User");
+    } else {
+	$self->error("Can't reinitialize");
     }
 }
 
@@ -247,41 +351,72 @@ sub response
 {
     my($self, $r) = @_;
     if ($r eq "2") {
-	$self->state("Ready");
+	$self->state("Inlogged");
 	$self->activate;
     } else {
-	$self->_error("Can't change type");
+	$self->error("Can't set TYPE");
     }
 }
 
 
-package LWP::Conn::FTP::Ready;
+package LWP::Conn::FTP::Inlogged;
 use base 'LWP::Conn::FTP';
 use LWP::MainLoop qw(mainloop);
+
+
+sub type
+{
+    my($self, $type) = @_;
+    unless (*$self->{'lwp_type'} eq $type) {
+	*$self->{'lwp_type'} = $type;
+	$self->send_cmd("TYPE $type" => "Type");
+    }
+}
 
 sub activate
 {
     my $self = shift;
+    $self->type("I");  # we always use binary transfer mode
 
-    unless (*$self->{'lwp_type'} eq "I") {
-	*$self->{'lwp_type'} = "I";
-	$self->send_cmd("TYPE I" => "Type");
-	return;
+    my $req = *$self->{'lwp_req'};
+    unless ($req) {
+	$req = *$self->{'lwp_mgr'}->get_request;
+	unless ($req) {
+	    *$self->{'lwp_mgr'}->connection_idle($self);
+	    return;
+	}
+	*$self->{'lwp_req'} = $req;
+	my($user, $pass, $acct) = $self->login_info($req);
+	if ($user ne *$self->{'lwp_user'}) {
+	    (*$self->{'lwp_user'}, *$self->{'lwp_pass'}, *$self->{'lwp_acct'})
+		= ($user, $pass, $acct);
+	    $self->send_cmd("REIN" => "Rein");
+	    return;
+	}
     }
 
-    my $req = *$self->{'lwp_mgr'}->get_request;
-    return unless $req;
-
-    *$self->{'lwp_file'} = $req->url->path;
-
-    my @cwd = qw();
-    if (@cwd) {
-	@{*$self->{'lwp_cwd'}} = @cwd;
-	$self->state("Cwd");
-	$self->cwd;
-	return;
+    # We now have a request to perform and is logged in as the correct
+    # user.
+    my $method = uc($req->method);
+    if ($method =~ /^(GET|HEAD|PUT)$/) {
+	*$self->{'lwp_file'} = $req->url->path;
+	my @cwd = qw();
+	if (@cwd) {
+	    @{*$self->{'lwp_cwd'}} = @cwd;
+	    $self->state("Cwd");
+	    $self->cwd;
+	    return;
+	} else {
+	    $self->cwd_done;
+	}
+    } elsif ($method eq "DELETE") {
+	$self->gen_response(501, "Delete not implemented yet");
+    } elsif ($method eq "RENAME") {
+	$self->gen_response(501, "Delete not implemented yet");
+    } elsif ($method eq "TRACE") {
+	$self->gen_response(501, "Trace not implemented yet");
     } else {
-	$self->cwd_done;
+	$self->gen_response(501, "Method not implemented");
     }
 }
 
@@ -321,6 +456,8 @@ sub data_done
     print "DATA DONE\n";
     if (++*$self->{'lwp_done'} == 2) {
 	print "The second one...\n";
+	my $req = delete *$self->{'lwp_req'};
+	$req->gen_response(200);
 	$self->activate;
     }
 }
@@ -333,14 +470,14 @@ sub response
     my($self, $r) = @_;
     if ($r eq "2") {
 	my $file = *$self->{'lwp_file'};
-	$self->send_cmd("RETR $file" => "RETR");
+	$self->send_cmd("RETR $file" => "Retr");
     } else {
 	$self->_error("PORT failed");
     }
 }
 
-package LWP::Conn::FTP::RETR;
-use base 'LWP::Conn::FTP::Ready';
+package LWP::Conn::FTP::Retr;
+use base 'LWP::Conn::FTP::Inlogged';
 
 sub response
 {
@@ -349,10 +486,10 @@ sub response
 	# info message, ignore
     } elsif ($r eq "2") {
 	# we are done.  XXX: Must sync with data_done callback
-	$self->state("Ready");
+	$self->state("Inlogged");
 	$self->data_done($self->message);
     } elsif ($code eq "550") {
-	$self->state("Ready");
+	$self->state("Inlogged");
 	delete(*$self->{'lwp_data'})->close;
 	$self->activate;
     } else {
@@ -374,7 +511,7 @@ sub cwd
 	    $self->send_cmd("CWD $dir");
 	}
     } else {
-	$self->state("Ready");
+	$self->state("Inlogged");
 	$self->cwd_done;
     }
 }
