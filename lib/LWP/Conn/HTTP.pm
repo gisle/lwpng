@@ -445,6 +445,19 @@ sub check_rbuf
 	return;
     }
 
+    my $req = $self->current_request;
+
+    if ($code == 101) {  # SWITCHING PROTOCOL
+	# XXX Should check for pipelining
+	mainloop->forget($self);
+	(delete *$self->{'lwp_mgr'})->connection_closed($self); # a white lie
+	bless $self, "IO::Socket::INET";  # downgrade
+	$res->{'101_socket'} = $self;     # a header would be more visible
+	$res->content($$buf);             # if we read too much
+	$req->response_done($res);
+	return;
+    }
+
     if ($code >= 100 && $code <= 199) {
 	print STDERR "Info response ($code)\n" if $LWP::Conn::HTTP::DEBUG;
 	# XXX: should we store $res anywhere or just forget about it?
@@ -453,7 +466,6 @@ sub check_rbuf
     }
 
     *$self->{'lwp_res'} = $res;
-    my $req = $self->current_request;
     $res->request($req);
     return unless $self->response_data($req, "", $res);
     #print $res->as_string if $LWP::Conn::HTTP::DEBUG;
