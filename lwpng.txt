@@ -45,11 +45,11 @@ creating new connections when necessary.
 =head1 Extended abstract
 
 The article starts with a very short introduction to HTTP in order to
-explain the main highlights of HTTP/1.1.  The point we focus on is
-support for persistent connections between clients and server.  This
-allow more than one request/response exchange to take place on a
-single TCP connection.  This also opens the possibility of doing
-pipelining of the requests.
+explain the main highlights of version 1.1 of the protocol.  The point
+we focus on is support for persistent connections between clients and
+servers.  This allow more than one request/response exchange to take
+place on a single TCP connection.  This also opens the possibility of
+doing pipelining of the requests.
 
 The second section briefly describe the history of libwww-perl.  The
 project started on the first WWW conference in Geneva, 1994.  The
@@ -69,19 +69,18 @@ HTTP/1.1 client support and at the same time make the library both
 more flexible and (optionally) more lightweight.  This work is
 currently distributed under the name LWPng, but is expected to become
 libwww-perl-6 when its upcoming beta phase is over.  The code actually
-works pretty well at this point, but some details of the proramming
+works pretty well at this point, but some details of the programming
 interface it not stable yet, so currently it is labeled "alpha".
 
 Then we have a short section introducing the current libwww-perl
-programming interface.  The main point to get through is the LWP
-communication model.  It force all requests for any protocol module
-into an HTTP straight-jacket.  LWP provide an object oriented model of
-HTTP style messages that are passed between servers and clients.  On
-their way between a client and a server these messages are converted
-to the actual protocol on the wire.  This give us the same programming
-interface when accessing HTTP, FTP, NNTP or Gopher servers.  The
-interface also provide access to the local file system and allow
-sending of e-mail.
+programming interface (LWP5).  The main point to get through is the
+LWP communication model.  It force all requests for any protocol
+module into an HTTP straight-jacket.  LWP provide an object oriented
+model of HTTP style messages.  On their way between a client and a
+server these messages are converted to the actual protocol on the
+wire.  This give us the same programming interface when accessing
+HTTP, FTP, NNTP or Gopher servers.  The interface also provide access
+to the local file system and allow sending of e-mail.
 
 With all this background in place, we start describing the new design.
 First we describe the requirements and principles underlying the new
@@ -95,43 +94,47 @@ design.  The main points are:
     objects around.
   - Still easy to use
   - Compatible with LWP5
-  - Hide connection management from the programming interface.
+  - Hide connection management from the main programming interface.
   - Efficient and fast
   - Optional features of the library should add minimal penalty to
     applications that don't use them.
   - Most features of the library should be made optional.
   - Use the opportunity to do obvious generalizations since we
     anyway will be changing some of the interfaces.
-  - Minimal bindings between modules within the library.
+  - Minimize bindings between modules within the library.
   - No more signal handling (as this isn't one of perl's stronger sides)
   - Happy coexistence with the Tk modules
 
 The first few of the requirements (and the last one) lead to the
 adoption of a design based on an event driven framework.  We give some
 rationale for this and then we describe how the main programming
-interface for the library users change as a consequence of this.  The
-main thing being that we use the $ua->spool method to register
-requests without waiting for the corresponding response, instead of
-the $ua->request method that sends a single request and will not
-return until the response come back.  We also describe how the
-$ua->request type of interface can be built on top of $ua->spool, in
-order to achieve compatibility with LWP5.
+interface for the library change as a consequence of this.  The main
+thing being that we use the $ua->spool method to register requests
+without waiting for the corresponding response, instead of using the
+$ua->request method that sends a single request and will not return
+until the response come back.  We also describe how the $ua->request
+type of interface can be built on top of $ua->spool, in order to
+achieve compatibility with LWP5.
 
 Then we give an overview of the major classes involved in the new
 design.  These include:
 
   * LWP::UA (known as LWP::UserAgent in LWP5) represents the virtual
-    browser within the library. It is the network interface that the
-    application sees.
+    browser within the library. It provide the main network interface
+    that the application sees.
 
   * LWP::Conn::* modules implement various protocol drivers.
 
   * LWP::Request is a subclass of the HTTP::Request.  It is introduced
-    because we need support various response handlers and callback.
+    because we need to support various response handlers and callbacks.
 
   * URI::Attr make it possible to attach attributes based on
     hierarchical levels of the URI name space.
   
+  * LWP::StdSched is the a simple connection scheduler implementation.
+    Policy decisions about how many and which connections to set up or
+    tear down are delegated to a special scheduler object by LWP::UA.
+
   * LWP::Sink objects can be used to build streams of transformers
     in order to do pipelined processing of the content of HTTP messages.
 
@@ -174,12 +177,18 @@ inform the rest of the library of how they are doing.  The life of a
 connection involves fetching requests, one at a time, from the request
 queue and process them until the queue is empty or the connection is
 terminated for some reason.  If the queue get empty connections enter
-the Idle state to wait until they are again activated by the library
+the Idle state and wait until they are again activated by the library
 or they time out.
 
 The other source of activity within the library is the application
 itself.  It can at any time either spool further requests or it can
 kill running requests and connections.
+
+A connection object have a simple and clean interface towards a single
+manager object.  This means that the LWP::Conn classes and can be used
+by themselves without the rest of the library present.  This can be
+useful for special applications that only communicate with a single or
+few servers and want optimum performance.
 
 The implementation of LWP::Conn::HTTP class is presented specifically.
 A single LWP::Conn::HTTP instance represent a single network
@@ -188,9 +197,7 @@ object is represented as subclasses of LWP::Conn::HTTP and state
 transitions are simply a calls to the C<bless> builtin.  The use of
 classes for representing state also make it easy to express sub-states
 (as subclasses) that behaves mostly like its base state, but modify
-some of its behaviour.
-
-A similar implementation for FTP also exists.
+some of its behaviour.  A similar implementation for FTP also exists.
 
 The article ends with some benchmarking which compare the new
 implementation with the old and with w3c-libwww, which is a C based
