@@ -8,7 +8,7 @@ require HTTP::Request;
 require LWP::Hooks;
 @ISA=qw(HTTP::Request LWP::Hooks);
 
-require URI::URL;
+require URI;
 
 sub new2  # alternative ctor that sets up some handlers
 {
