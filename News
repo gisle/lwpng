@@ -103,7 +103,7 @@ important of these are two callback methods that will be invoked as
 the response is received:
 
    $req->response_data($data, $res);
-   $req->done($res);
+   $req->response_done($res);
 
 The response_data() callback method is invoked repeatedly as parts of
 the content of the response becomes available.  The first time it is
@@ -113,7 +113,7 @@ implementation of response_data just appends the data passed to the
 content of the $res object.  It also supports a registered callback
 function ('data_cb') that can be invoked.
 
-The done() callback method is invoked when the whole response has been
+The response_done() callback method is invoked when the whole response has been
 received.  It is guaranteed that it will be invoked once for each
 request spooled (even if it fails.)  The default implementation will
 set up the $res->request and $res->previous links and will
@@ -123,7 +123,7 @@ supports a registered callback function ('done_cb') that will invoked,
 but only for the last response in case of redirect chains.
 
 As an application programmer you can either subclass LWP::Request, to
-provide your own versions of response_data() and done(), or you can
+provide your own versions of response_data() and response_done(), or you can
 just register callback functions.
 
 The LWP::Request object also provide a few more attributes that might
