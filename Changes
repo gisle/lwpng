@@ -1,3 +1,39 @@
+1998-04-01   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.13
+
+   Moved redirect handling and authentication handling to separate
+   modules:  LWP::Redirect and LWP::Authen
+
+   New interface for specific authentication handlers.  Renamed
+   LWP::Authen::BASIC to LWP::Authen::basic.
+
+   Automatic setup of Authorization and Proxy-Authorization headers
+   based on earlier logins after 401/407 responses.
+
+   Set Date header in requests that have content.
+
+   term-ua can ask for login information now.  It prints a prompt.
+   Command to evaluate perl code.  Help command.
+
+   A response handler can now abort processing of other response
+   handlers by returning the string "ABORT".
+
+   The "request" hook in the LWP::UA has been renamed "spool_request"
+   and we have inverted the value returned to signal that the request
+   has been handeled.
+
+   More compact dumping of the URI::Attr object state.
+
+   LWP::Conn::HTTP now make sure that $req->response_done() is called
+   as the last thing in the event handler routine.  This allows it to
+   not return immediately, for instance because a handler ask the
+   human user about how to proceed.
+
+   The 'authd' test daemon.
+
+
+
 1998-03-30   Gisle Aas <aas@sn.no>
 
    Release alpha-0.12
