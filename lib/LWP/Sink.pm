@@ -31,3 +31,62 @@ sub DESTROY
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+LWP::Sink - Something that receive data
+
+=head1 SYNOPSIS
+
+  require LWP::Sink;
+  @ISA=qw(LWP::Sink);
+
+=head1 DESCRIPTION
+
+The I<LWP::Sink> class is an abstraction similar to writeable files.
+You can send data to it.  Different variations of sinks are available
+that all conform to this simple interface:
+
+=over 4
+
+=item $s = LWP::Sink::Foo->new
+
+The object constructor.  The I<LWP::Sink> class is abstract, so you
+will create some subclass normally.
+
+=item $s->put($data)
+
+Data is given to a sink by calling the put() method with suitable
+sized chunkes of data.  The return value from $s->put will be a
+reference to the object itself.
+
+=item $s->flush
+
+Buffered data should be processed/sent off.
+
+=item $s->close
+
+The last chunk of data has been put()ed.  Signals end of stream.
+Resources associated with the sink can be freed.
+
+=back
+
+One important class of sinks are those that transform data in some
+way.  These will be subclasses of I<LWP::Sink::_Pipe> which means that
+they have a attribute called I<sink> that reference the sink that will
+received the processed data.  By convention call transformation sink
+classes have all lowercase names within the LWP::Sink::* namespace.
+They also have variations suffixed with ::encode and ::decode that
+performs the transformations forwards or backwards.
+
+
+=head1 COPYRIGHT
+
+Copyright 1998, Gisle Aas
+
+This library is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
+
+=cut
