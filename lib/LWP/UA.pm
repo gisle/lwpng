@@ -7,23 +7,25 @@ sub new
 {
     my($class) = shift;
     bless {
-	   default_headers => { "User-Agent" => "lwp/ng",
-				"From" => "aas\@sn.no",
-			      },
-	   cookie_jar => undef,
-
-	   def_timeout => 20,
-	   def_pipeline => 1,
-	   def_keepalive => 1,
-	   def_maxconn => 3,
+#	   default_headers => { "User-Agent" => "lwp/ng",
+#				"From" => "aas\@sn.no",
+#			      },
+	   conn_param => {},
+           servers => {},
 	   
 	  }, $class;
 }
 
-sub spool
+sub conn_param
 {
-    my($self, $req) = @_;
-    my $url = $req->url;   # XXX: proxy....
+    my $self = shift;
+    %{ $self->{conn_param} };
+}
+
+sub server
+{
+    my($self, $url) = @_;
+    $url = URI::URL->new($url) unless ref($url);
     my $proto = $url->scheme;
     $proto = "nntp" if $proto eq "news";  # hack
     my $host = $url->host;
@@ -35,16 +37,47 @@ sub spool
 	$server = $self->{servers}{$netloc} =
 	  LWP::Server->new($self, $proto, $host, $port);
     }
-    $server->add_request($req);
+}
+
+sub spool
+{
+    my($self, $req, $pri) = @_;
+    my $server = $self->server($req->url);
+    $server->add_request($req, $pri);
     #$self->reschedule;
     print "$req spooled\n";
 }
 
-sub max_server_connections
+sub as_string
 {
     my $self = shift;
-    $self->{def_maxconn};
+    my @str;
+    push(@str, "$self\n");
+    require Data::Dumper;
+    for (sort keys %$self) {
+	my $str;
+	if ($_ eq "servers") {
+	    my @s;
+	    for (sort keys %{$self->{servers}}) {
+		push(@s, "  $_ =>\n");
+		my $s = $self->{servers}{$_}->as_string;
+		$s =~ s/^/    /mg; # indent
+		push(@s, $s);
+	    }
+	    $str = join("", "\$servers = {\n", @s, "};\n");
+	} else {
+	    $str = Data::Dumper->Dump([$self->{$_}], [$_]);
+	}
+	$str =~ s/^/  /mg;  # indent
+	push(@str, $str);
+    }
+
+
+    join("", @str, "");
 }
+
+
+#----------------------------------------
 
 sub reschedule
 {

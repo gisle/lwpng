@@ -1,8 +1,6 @@
 package LWP::Server;
 use strict;
 
-require LWP::Connection;
-
 sub new
 {
     my($class, $ua, $proto, $host, $port) = @_;
@@ -17,63 +15,135 @@ sub new
 	    created => time(),
 	    last_active => undef,
 
-	    num_req => 0,
-	    num_connections => 0,
-	    pending_req => [],
+	    req_queue   => [],
+	    pending_req => 0,
+
+            conn_param => {},
+	    conns => [],
+	    idle_conns => 0,
 	  }, $class;
 }
 
-sub proto
+# General parameters
+
+sub proto   {  $_[0]->{'proto'};  }
+sub host    {  $_[0]->{'host'};   }
+sub port    {  $_[0]->{'port'};   }
+
+sub id
 {
-    $_[0]->{'proto'};
+    my $self = shift;
+    "$self->{'proto'}://$self->{'host'}:$self->{'port'}";     # URL like
 }
 
-sub host
-{
-    $_[0]->{'host'};
-}
-
-sub port
-{
-     $_[0]->{'port'};
-}
+# Managing the request queue
 
 sub add_request
 {
-    my($self,$req) = @_;
-    push(@{$self->{pending_req}}, $req);
+    my($self, $req, $pri) = @_;
+    if ($pri && $pri < 50) {
+	push(@{$self->{req_queue}}, $req);
+    } else {
+	unshift(@{$self->{req_queue}}, $req);
+    }
 }
+
+sub stop
+{
+    # stop all connections
+    # terminate all requests (generate fake response)
+    # both 'req_queue' and 'conns' should be empty when we finish
+}
+
+# Connection management
+
+
+sub conn_param
+{
+    my $self = shift;
+    # Let the UA params be overridden by per server params
+    my %param = ($self->{'ua'}->conn_param,
+		 %{$self->{'conn_param'}},
+		);
+
+    $param{ManagedBy} = $self;
+    $param{Host} = $self->{'host'};
+    $param{Port} = $self->{'port'};
+
+    %param;
+}
+
+
+sub create_connection
+{
+    my $self = shift;
+    my $conn_class = "LWP::Conn::\U$self->{'proto'}";
+    no strict 'refs';
+    unless (defined %{"$conn_class\::"}) {
+	eval "require $conn_class";
+	die if $@;
+    }
+    my $conn = $conn_class->new($self->conn_param);
+    push(@{$self->{conns}}, $conn) if $conn;
+}
+
+# Connection protocol
 
 sub get_request
 {
-    my($self) = shift;
-    shift(@{$self->{pending_req}});
+    my($self, $conn) = @_;
+    shift(@{$self->{req_queue}});
 }
 
-sub num_pending_requests
-{
-    my($self) = shift;
-    int(@{$self->{pending_req}});
-}
-
-sub num_connections
-{
-    $_[0]->{'num_connections'};
-}
-
-sub max_connections
+sub pushback_request
 {
     my $self = shift;
-    $self->{'max_connections'} || $self->{'ua'}->max_server_connections;
+    my $conn = shift;
+    unshift(@{$self->{req_queue}}, @_);
 }
 
-sub new_connection
+sub done_request
 {
-    my($self) = @_;
-    my $conn_class = "LWP::Connection::$self->{'proto'}";
-    no strict 'refs';
-    eval "require $conn_class" unless defined %{"conn_class\::"};
-    $conn_class->new($self);
 }
+
+sub connection_idle
+{
+}
+
+sub connection_closed
+{
+    my($self, $conn) = @_;
+    #XXX remove conn from $self->{conns}
+}
+
+sub as_string
+{
+    my $self = shift;
+    my @str;
+    push(@str, "$self\n");
+    require Data::Dumper;
+    for (sort keys %$self) {
+	my $str;
+	if ($_ eq "req_queue") {
+	    my @q;
+	    for (@{$self->{req_queue}}) {
+		my $id = sprintf "0x%08x", int($_);
+		my $method = $_->method || "<no method>";
+		my $url = $_->url || "<no url>";
+		push(@q, "$method $url ($id)");
+	    }
+	    $str = "\$req_queue = " . join("\n             ", @q) . "\n";
+	} elsif ($_ eq "ua") {
+	    $str = "\$ua = $self->{ua}\n";
+	} else {
+	    $str = Data::Dumper->Dump([$self->{$_}], [$_]);
+	}
+	$str =~ s/^/  /mg;  # indent
+	push(@str, $str);
+    }
+    join("", @str, "");
+
+}
+
 
 1;
