@@ -1,0 +1,7 @@
+HTTP/1.1 101 Switching Protocols
+Server: sendmail
+Connection: Upgrade
+Upgrade: SMTP
+
+220 furu.g.aas.no ESMTP Sendmail 8.7.6/8.6.12 ready at Thu, 2 Apr 1998 23:45:30 +0200
+221 furu.g.aas.no closing connection
