@@ -14,14 +14,16 @@ lib/LWP/MainLoop.pm
 lib/LWP/Request.pm
 lib/LWP/Server.pm
 lib/LWP/Sink.pm
+lib/LWP/Sink/Buffer.pm
 lib/LWP/Sink/HTML.pm
 lib/LWP/Sink/IO.pm
 lib/LWP/Sink/Monitor.pm
 lib/LWP/Sink/Tee.pm
-lib/LWP/Sink/_trans.pm
+lib/LWP/Sink/_Pipe.pm
 lib/LWP/Sink/base64.pm
 lib/LWP/Sink/deflate.pm
 lib/LWP/Sink/identity.pm
+lib/LWP/Sink/qp.pm
 lib/LWP/Sink/rot13.pm
 lib/LWP/StdSched.pm
 lib/LWP/UA_old.pm
