@@ -3,67 +3,86 @@ require LWP::Hooks;
 @ISA=qw(LWP::Hooks);
 
 use strict;
-use vars qw($DEBUG);
+use vars qw($DEBUG $VERSION);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
 
+use LWP::MainLoop qw(mainloop);
 
 require LWP::Server;
 require URI::Attr;
 
+sub new_plain
+{
+    my $class = shift;
+    my $ua =
+	bless {
+	       ua_uattr    => URI::Attr->new,
+	       ua_max_conn => 5,
+	       ua_servers  => {},
+	      }, $class;
+    $ua;
+}
 
 sub new
 {
-    my($class) = shift;
-    my $ua =
-	bless {
-	       conn_param => {},
-	       max_conn => 5,
-	       max_conn_per_server => 2,
-
-	       uattr   => URI::Attr->new,
-	       cookie_jar => undef,
-	       servers => {},
-	      }, $class;
-
-    $ua->add_hook("spool_request", \&setup_default_headers);
-    $ua->add_hook("spool_request", \&setup_date);
-    $ua->add_hook("spool_request", \&setup_auth);
-    $ua->add_hook("spool_request", \&setup_head_parser);
-    $ua->add_hook("spool_request", \&setup_proxy);
-
+    my $class = shift;
+    my $ua = $class->new_plain;
+    $ua->setup_default_handlers;
     $ua->agent("libwww-perl/ng-alpha ($^O)");
     $ua;
 }
 
+sub setup_default_handlers
+{
+    my $self = shift;
+    $self->add_hook("spool_request", \&_setup_default_headers);
+
+    eval { require HTML::HeadParser; };
+    unless ($@) {
+	$self->add_hook("spool_request", \&_setup_head_parser);
+    }
+
+    require LWP::UA::Proxy;
+    $self->add_hook("spool_request", \&LWP::UA::Proxy::spool_handler);
+
+    require LWP::Authen;
+    $self->add_hook("spool_request", \&LWP::Authen::spool_handler);
+}
+
+sub uri_attr
+{
+    my $self = shift;
+    @_ ? $self->{'ua_uattr'}->attr(@_) : $self->{'ua_uattr'};
+}
+
+sub uri_attr_plain
+{
+    my $self = shift;
+    $self->{'ua_uattr'}->attr_plain(@_);
+}
+
+sub uri_attr_update
+{
+    my $self = shift;
+    $self->{'ua_uattr'}->attr_update(@_);
+}
 
 sub agent
 {
     my $self = shift;
-    my $old = $self->{'agent'};
+    my $old = $self->{'ua_agent'};
     if (@_) {
-	my $agent = $self->{'agent'} = shift;
+	my $agent = $self->{'ua_agent'} = shift;
 	for ("http", "https") {
-	    $self->{'uattr'}->attr_update(SCHEME => "$_:")
+	    $self->uri_attr_update(SCHEME => "$_:")
 		->{'default_headers'}{'User-Agent'} = $agent;
 	}
-	$self->{'uattr'}->attr_update(SCHEME => "mailto:")
+	$self->uri_attr_update(SCHEME => "mailto:")
 	    ->{'default_headers'}{'X-Mailer'} = $agent;
-	$self->{'uattr'}->attr_update(SCHEME => "news:")
+	$self->uri_attr_update(SCHEME => "news:")
 	    ->{'default_headers'}{'X-Newsreader'} = $agent;
     }
     $old;
-}
-
-
-sub conn_param
-{
-    my $self = shift;
-    return %{ $self->{conn_param} } unless @_;
-    return $self->{conn_param}{$_[0]} if @_ == 1;
-    while (@_) {
-	my $k = shift;
-	my $v = shift;
-	$self->{conn_param}{$k} = $v;
-    }
 }
 
 
@@ -87,9 +106,9 @@ sub find_server
 	$netloc = "$proto:";
     }
 
-    my $server = $self->{servers}{$netloc};
+    my $server = $self->{ua_servers}{$netloc};
     unless ($server) {
-	$server = $self->{servers}{$netloc} =
+	$server = $self->{ua_servers}{$netloc} =
 	  LWP::Server->new($self, $proto, $host, $port);
     }
 }
@@ -102,6 +121,9 @@ sub spool
     for my $req (@_) {
 	bless $req, "LWP::Request" if ref($req) eq "HTTP::Request"; #upgrade
 	$req->managed_by($self);
+
+	# Some initial tests.  These could be made optional by putting
+	# them in a spool_request hook too.
 	unless ($req->method) {
 	    $req->gen_response(400, "Missing METHOD in request");
 	    next;
@@ -130,19 +152,29 @@ sub spool
     $self->reschedule if $spooled;
 }
 
+sub request
+{
+    my($self, $req) = @_;
+    my $res;
+    my $old_cb = $req->{done_cb};
+    $req->{done_cb} = sub { $res = $_[0]; &$old_cb(@_) if $old_cb };
+    $self->spool($req);
+    mainloop->one_event until $res || mainloop->empty();
+    $res;
+}
+
 
 sub response_received
 {
     my($self, $res) = @_;
-    print "RESPONSE\n";
-    print $res->as_string;
+    push(@{$self->{'ua_responses'}}, $res);
 }
 
 
 sub stop
 {
     my $self = shift;
-    foreach (values %{$self->{servers}}) {
+    foreach (values %{$self->{ua_servers}}) {
 	$_->stop;
     }
 }
@@ -151,12 +183,22 @@ sub stop
 sub reschedule
 {
     my $self = shift;
-    my $sched = $self->{'scheduler'};
+    my $sched = $self->{'ua_scheduler'};
     unless ($sched) {
 	require LWP::StdSched;
-	$sched = $self->{'scheduler'} = LWP::StdSched->new($self);
+	$sched = $self->{'ua_scheduler'} = LWP::StdSched->new($self);
     }
     $sched->reschedule($self);
+}
+
+sub max_conn
+{
+    my $self = shift;
+    my $old = $self->{'ua_max_conn'};
+    if (@_) {
+	$self->{'ua_max_conn'} = shift;
+    }
+    $old;
 }
 
 
@@ -164,79 +206,20 @@ sub delete
 {
     # must break circular references
     my $self = shift;
-    delete $self->{'servers'};
+    delete $self->{'ua_servers'};
 }
 
 
-sub setup_default_headers
+sub _setup_default_headers
 {
     my($self, $req) = @_;
-    for my $hash ($self->{'uattr'}->p_attr($req->url, "default_headers")) {
+    for my $hash ($self->uri_attr_plain($req->url, "default_headers")) {
 	for my $k (keys %$hash) {
 	    next if defined($req->header($k));
 	    $req->header($k => $hash->{$k});
 	}
     }
     0; # continue
-}
-
-sub setup_date
-{
-    my($self, $req) = @_;
-    # Clients SHOULD only send a Date header field in messages that
-    # include an entity-body, as in the case of the PUT and POST
-    # requests, and even then it is optional.
-    $req->date(time) if length ${ $req->content_ref };
-    0;
-}
-
-
-sub setup_auth
-{
-    my($self, $req) = @_;
-    my $realm = $self->{'uattr'}->p_attr($req->url, "realm");
-    return unless $realm;
-    my $realms = $self->{'uattr'}->p_attr($req->url, "realms");
-    # should we ensure that this is a SERVER attribute?
-    unless ($realms) {
-	warn "No REALMS registered for this server";
-	return;
-    }
-    if (my $auth = $realms->{$realm}) {
-	$auth->set_authorization($req);
-    } else {
-	warn "Don't know about the '$realm' realm";
-    }
-    0;
-}
-
-sub cookie_jar
-{
-    my $self = shift;
-    my $old = $self->{'cookie_jar'};
-    if (@_) {
-	if ($self->{'cookie_jar'} = shift) {
-	    $self->add_hook("spool_request", \&setup_cookie) unless $old;
-	} else {
-	    $self->remove_hook("spool_request", \&setup_cookie);
-	}
-    }
-    $old;
-}
-
-
-sub setup_cookie
-{
-    my($self, $req) = @_;
-    my $jar = $self->{'cookie_jar'} || return 0;
-    $jar->add_cookie_header($req);
-    $req->add_hook("response_done",
-		   sub {
-		       my($req, $res) = @_;
-		       $jar->extract_cookies($res);
-		       1;
-		   });
-    0;
 }
 
 
@@ -259,110 +242,11 @@ sub _response_data_hp
     }
 }
 
-sub setup_head_parser
+sub _setup_head_parser
 {
     my($self,$req) = @_;
-    require HTML::HeadParser;
     $req->add_hook("response_data", \&_response_data_hp);
     0;
-}
-
-
-sub setup_proxy
-{
-    my($self, $req) = @_;
-    my $proxy = $req->proxy;
-    unless ($proxy) {
-	$proxy = $self->{'uattr'}->p_attr($req->url, "proxy");
-	return unless $proxy;
-	$req->proxy($proxy);
-    }
-
-    # Set up Proxy-Authorization perhaps
-    my $realms = $self->{'uattr'}->p_attr($proxy, "proxy_realms");
-    return unless $realms && %$realms;
-
-    if (keys %$realms > 1) {
-	# there is multiple realms to choose from.  Select the
-	# right one, if there is such a thing.
-	my $realm = $self->{'uattr'}->p_attr($req->url, "proxy_realm");
-	if (my $auth = $realms->{$realm}) {
-	    $auth->set_proxy_authorization($req);
-	}
-    } else {
-	# there is only one realm defined for this proxy server,
-	# so we might as well use it.
-	my($auth) = values %$realms;
-	$auth->set_proxy_authorization($req);
-    }
-}
-
-
-sub no_proxy
-{
-    my($self, @no) = @_;
-    for (@no) {
-	$_ = ".$_" unless /^\./;
-	my $h = $self->{'uattr'}->attr_update("DOMAIN", "http://dummy.$_");
-	$h->{"proxy"} = "";
-    }
-}
-
-
-sub proxy
-{
-    my($self, $scheme, $url) = @_;
-    my $h = $self->{'uattr'}->attr_update("SCHEME", "$scheme:");
-    $h->{"proxy"} = $url;
-}
-
-
-sub env_proxy {
-    my ($self) = @_;
-    my($k,$v);
-    while(($k, $v) = each %ENV) {
-	$k = lc($k);
-	next unless $k =~ /^(.*)_proxy$/;
-	$k = $1;
-	if ($k eq 'no') {
-	    $self->no_proxy(split(/\s*,\s*/, $v));
-	}
-	else {
-	    $self->proxy($k, $v);
-	}
-    }
-}
-
-
-sub as_string
-{
-    my $self = shift;
-    my @str;
-    push(@str, "$self\n");
-    require Data::Dumper;
-    for (sort keys %$self) {
-	my $str;
-	if ($_ eq "servers") {
-	    my @s;
-	    for (sort keys %{$self->{servers}}) {
-		push(@s, "  $_ =>\n");
-		my $s = $self->{servers}{$_}->as_string;
-		$s =~ s/^/    /mg; # indent
-		push(@s, $s);
-	    }
-	    $str = join("", "\$servers = {\n", @s, "};\n");
-	} elsif ($_ eq "uattr") {
-	    my $s = $self->{uattr}->as_string;
-	    $s =~  s/^/    /mg; # indent
-	    $str = "\$uattr = {\n$s};\n";
-	} else {
-	    $str = Data::Dumper->Dump([$self->{$_}], [$_]);
-	}
-	$str =~ s/^/  /mg;  # indent
-	push(@str, $str);
-    }
-
-    join("", @str, "");
 }
 
 1;
