@@ -61,7 +61,7 @@ sub _set_authorization
 	$qop = "auth";
     }
     
-    my $uri = $req->url->full_path;
+    my $uri = $req->uri->path_query;
     my $nonce = $self->{nonce};  $nonce = "" unless defined $nonce;
     my $nc = sprintf "%08x", ++$self->{nonce_count};
     my $cnonce = sprintf "%x", rand(0xFFFFFF)+1;  # +1 ensures always TRUE
