@@ -48,6 +48,7 @@ sub new
 	    warn "Failed IO::Socket::INET ctor: $!\n";
 	    next;
 	}
+	bless $sock, "LWP::HConn";
 	unless (socket($sock, AF_INET, SOCK_STREAM, $TCP_PROTO)) {
 	    warn "Failed socket: $!\n";
 	    undef($sock);
@@ -69,7 +70,7 @@ sub new
 	}
 	unless (connect($sock, $addr)) {
 	    if ($! == &IO::EINPROGRESS) {
-		bless $sock, "LWP::HConn::Connecting";
+		$sock->state("Connecting");
 		mainloop->writable($sock);
 		return $sock;
 	    } else {
@@ -80,12 +81,24 @@ sub new
 	}
     }
     if ($sock) {
-        bless $sock, "LWP::HConn::Idle";
+        $sock->state("Idle");
 	$ {*$sock}{'lwp_rbuf'} = "";
 	mainloop->readable($sock);
 	$sock->activate;
     }
     $sock;
+}
+
+sub state
+{
+    my $self = shift;
+    my $old = ref($self);
+    $old =~ s/^LWP::HConn:*//;
+    if (@_) {
+	print STDERR "State trans: $old --> $_[0]\n" if $DEBUG;
+	bless $self, "LWP::HConn::$_[0]";
+    }
+    $old;
 }
 
 
@@ -180,7 +193,7 @@ sub writable
     my $self = shift;
     if (defined($self->peername)) {
 	mainloop->writable($self, undef);
-        bless $self, "LWP::HConn::Idle";
+        $self->state("Idle");
 	$self->activate;
     } else {
 	$self->_error("Can't connect: $!");
@@ -204,7 +217,7 @@ use LWP::EventLoop qw(mainloop);
 sub activate
 {
     my $self = shift;
-    bless $self, "LWP::HConn::Active" if $self->new_request;
+    $self->state("Active") if $self->new_request;
 }
 
 
@@ -307,23 +320,22 @@ sub check_rbuf
     $res->request($req);
     #print $res->as_string if $LWP::HConn::DEBUG;
 
-    # Determine how to find the end of message and bless into approprite
-    # class
+    # Determine how to find the end of message
     my $trans_enc;
     if ($req->method eq "HEAD" || $code =~ /^(?:1\d\d|[23]04)$/) {
-	bless $self, "LWP::HConn::ContLen";
+	$self->state("ContLen");
 	$ {*$self}{'lwp_cont_len'} = 0;
     } elsif ( ($trans_enc = $res->header("Transfer-Encoding"))) {
 	$self->_error("Unknown transfer encoding '$trans_enc'")
 	  if $trans_enc ne "chunked";
 	$res->remove_header("Transfer-Encoding");
-	bless $self, "LWP::HConn::Chunked";
+	$self->state("Chunked");
 	$ {*$self}{'lwp_chunked'} = -1;
     } else {
 	my $ct = $res->header("Content-Type") || "";
 	if ($ct =~ /^multipart\//) {
 	    if ($ct =~ /\bboundary\s*=\s*(.*)/) {
-		bless $self, "LWP::HConn::Multipart";
+		$self->state("Multipart");
 		$ {*$self}{'lwp_boundary'} = "\015\012--$1--\015\012"
 	    } else {
 		$self->_error("Multipart without boundary");
@@ -331,10 +343,10 @@ sub check_rbuf
 	} else {
 	    my $cont_len = $res->header("Content-Length");
 	    if (defined $cont_len) {
-		bless $self, "LWP::HConn::ContLen";
+		$self->state("ContLen");
 		$ {*$self}{'lwp_cont_len'} = $cont_len;
 	    } else {
-		bless $self, "LWP::HConn::EOF";
+		$self->state("UntilEOF");
 		# If we have pending requests, then we know we will never
 		# get a reply, so let's return them...
 		#XXX
@@ -349,7 +361,7 @@ sub end_of_response
 {
     my $self = shift;
     print STDERR "$self: End-Of-Response\n" if $LWP::HConn::DEBUG;
-    bless $self, "LWP::HConn::Active";
+    $self->state("Active");
     shift @{$ {*$self}{'lwp_req'}};  # get rid of current request
     $ {*$self}{'lwp_res'} = undef;
     $self->_error("DONE")
@@ -358,7 +370,7 @@ sub end_of_response
     if ($self->current_request) {
 	$self->check_rbuf;
     } else {
-	bless $self, "LWP::HConn::Idle";
+	$self->state("Idle");
     }
 }
 
@@ -470,7 +482,7 @@ sub check_rbuf
 
 
 
-package LWP::HConn::EOF;
+package LWP::HConn::UntilEOF;
 use base qw(LWP::HConn::Active);
 
 sub check_rbuf
