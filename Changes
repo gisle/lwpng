@@ -1,3 +1,20 @@
+1998-03-26   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.11
+
+   Added the testd/* daemon that makes it easy to generate various
+   responses in order to test HTTP client libraries.
+
+   Support chained transfer encodings.  deflate/base64/rot13/identity.
+
+   We had an infinite loop if a chunk header happened to be divided on
+   the wire.
+
+   LWP::Sink::identity should not close its sink if it was a CODE
+   reference.
+
+
+
 1998-03-25   Gisle Aas <aas@sn.no>
 
    Release alpha-0.10
