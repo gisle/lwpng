@@ -1,52 +1,221 @@
 package LWP::EventLoop;
 
-require Exporter;
-@ISA=qw(Exporter);
+use strict;
 
-@EXPORT=qw(MainLoop);
+use vars qw($VERBOSE);
+$VERBOSE=1;
 
-use Tk ();
-
-#my $top = new MainWindow;
-#$top->withdraw;
-
-$no = 0;
+sub new
+{
+    my $class = shift;
+    my $self =
+      bless
+      {
+       _r => undef,
+       _w => undef,
+       _e => undef,
+       fh => {},
+      }, $class;
+}
 
 sub readable
 {
-    my $f = shift;
-    Tk->fileevent($f, 'readable', @_);
-    $no++;
-}
-
-sub cancel_readable
-{
-    Tk->fileevent($_[0], 'readable', '');
-    $no--;
+    my $self = shift;
+    my $fh = shift || return;
+    my $callback = @_ ? shift : "readable";
+    $self->{fh}{$fh}[1] = $callback;
+    $self->_fh($fh);
+    $self->_vec("_r", 1);
 }
 
 sub writable
 {
-    my $f = shift;
-    Tk->fileevent($f, 'writable', @_);
-    $no++;
+    my $self = shift;
+    my $fh = shift || return;
+    my $callback = @_ ? shift : "writable";
+    $self->{fh}{$fh}[2] = $callback;
+    $self->_fh($fh);
+    $self->_vec("_w", 2);
 }
 
-sub cancel_writable
+sub timeout
 {
-     Tk->fileevent($_[0], 'writable', '');
-     $no--;
+    my $self = shift;
+    my $fh = shift;
+    my $sec = shift;
+    my $callback = @_ ? shift : "inactive";
+    if ($sec && defined($callback)) {
+	$self->{fh}{$fh}[4] = [$sec, $callback, time];
+    } else {
+	$self->{fh}{$fh}[4] = undef;
+    }
+    $self->_fh($fh);
 }
 
-sub after
+sub forget
 {
-    my($sec) = shift;
-    Tk->after($sec*1000, @_);
+    my($self, $fh) = @_;
+    return unless $fh;
+    delete $self->{fh}{$fh};
+    $self->_vec("_r", 1);
+    $self->_vec("_w", 2);
+    $self->_vec("_e", 3);
 }
 
-sub MainLoop
+sub _vec
 {
-    Tk::DoOneEvent(0) until $no == 0;
+    my($self, $cachebits, $col) = @_;
+    my $vec = "";
+    for (values %{$self->{fh}}) {
+	vec($vec, fileno($_->[0]), 1) = defined($_->[$col]) ? 1 : 0;
+    }
+    $self->{$cachebits} = $vec;
+}
+
+sub _fh
+{
+    my($self, $fh) = @_;
+    $self->{fh}{$fh}[0] = $fh;
+    my @callbacks = @{$self->{fh}{$fh}};
+    shift @callbacks;
+    delete $self->{fh}{$fh} unless grep defined,  @callbacks;
+}
+
+sub dump
+{
+    my $self = shift;
+    print "$self\n";
+    my $now = time();
+    for (values %{$self->{fh}}) {
+	my($fh,$r,$w,$e,$timeout) = @$_;
+	printf "  %-17s %2d", ref($fh), fileno($fh);
+	for ($r, $w, $e) {
+	    if (defined) {
+		if (ref($_) eq "CODE") {
+		    printf "  %-10s", "CODE";
+		} else {
+		    printf "  %-10s", $_;
+		}
+	    } else {
+		printf "  %-10s", "-";
+	    }
+	}
+	if ($timeout) {
+	    my @t = @$timeout;
+	    $t[2] = $now - $t[2];
+	    print "[@t]";
+	}
+	print "\n";
+    }
+    for ("_r", "_w", "_e") {
+	print "  $_: ";
+	if (defined $self->{$_}) {
+	    print unpack("b*", $self->{$_});
+	} else {
+	    print "undef";
+	}
+	print "\n";
+    }
+}
+
+sub empty
+{
+    my $self = shift;
+    my $e = scalar(%{$self->{fh}});
+    !$e;
+}
+
+sub one_event
+{
+    my $self = shift;
+    my $now = time;
+    my $timeout = 60;
+    for (values %{$self->{fh}}) {
+	my $timeout_spec = $_->[4];
+	next unless $timeout_spec;
+	my $timeout_sec = $timeout_spec->[0] - ($now - $timeout_spec->[2]);
+	if ($timeout_sec <= 0) {
+	    # timeout time is now
+	    $self->_callback($_->[0], $timeout_spec->[1]);
+	    $timeout_spec->[2] = $now;  # record activity
+	    return;
+	}
+	$timeout = $timeout_sec if $timeout_sec < $timeout;
+    }
+    if ($VERBOSE) {
+	print STDERR "select(";
+	print STDERR join(", ",
+			  map {
+			      my $v=$self->{$_};
+			      defined $v ? unpack("b*", $v) : "undef"
+			  } "_r", "_w", "_e");
+	if (defined($timeout)) {
+	    print STDERR ", $timeout";
+	} else {
+	    print STDERR ", undef";
+	}
+	print STDERR ") = ";
+    }
+    my($r,$w,$e);
+    my $nfound = select($r = $self->{_r},
+			$w = $self->{_w},
+			$e = $self->{_e},
+			$timeout);
+
+    if ($VERBOSE) {
+	if (defined $nfound) {
+	    print STDERR "$nfound\n";
+	} else {
+	    print STDERR "undef ($!)\n";
+	}
+    }
+
+    if ($nfound) {
+	for (values %{$self->{fh}}) {
+	    my $fileno = fileno $_->[0];
+	    my $active;
+	    if (defined($r) && vec($r, $fileno, 1)) {
+		$self->_callback($_->[0], $_->[1]);
+		$active++;
+	    }
+	    if (defined($w) && vec($w, $fileno, 1)) {
+		$self->_callback($_->[0], $_->[2]);
+		$active++;
+	    }
+	    if (defined($e) && vec($e, $fileno, 1)) {
+		$self->_callback($_->[0], $_->[3]);
+		$active++;
+	    }
+	    if ($active && $_->[4]) {
+		$_->[4][2] = time();
+	    }
+	}
+    }
+}
+
+sub _callback
+{
+    my($self, $fh, $cb) = @_;
+    print STDERR "_callback($fh, $cb)\n" if $VERBOSE;
+    my @args;
+    if (ref($cb) eq "ARRAY") {
+	@args = @$cb;
+	$cb = shift @args;
+    }
+    eval {
+	if (ref($cb) eq "CODE") {
+	    &$cb($fh, @args);
+	} else {
+	    $fh->$cb(@args);
+	}
+    };
+    warn $@ if $@;
+}
+
+sub run
+{
+    my $self = shift;
+    $self->one_event until $self->empty;
 }
 
 1;
