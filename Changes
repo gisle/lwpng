@@ -1,3 +1,16 @@
+1998-03-25   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.10
+
+   Added LWP::Sink modules.  Plan is to use them to implement stacked
+   transfer encodings and stuff like that.
+
+   LWP::Conn::HTTP beginning to support the TE header.
+
+   LWP::Conn::HTTP skip all 1xx responses.
+
+
+
 1998-03-23   Gisle Aas <aas@sn.no>
 
    Release alpha-0.09
