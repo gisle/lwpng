@@ -47,17 +47,27 @@ sub server
 
 sub spool
 {
-    my($self, $req, $pri) = @_;
+    my $self = shift;
     eval {
-	my $server = $self->server($req->url);
-	$server->add_request($req, $pri);
+	for my $req (@_) {
+	    my $server = $self->server($req->url);
+	    $req->managed_by($self);
+	    $server->add_request($req);
+	    print "$req spooled\n";
+	}
 	#$self->reschedule;
     };
     if ($@) {
 	print $@;
 	return;
     }
-    print "$req spooled\n";
+}
+
+sub response_received
+{
+    my($self, $res) = @_;
+    print "RESPONSE\n";
+    print $res->as_string;
 }
 
 sub stop
