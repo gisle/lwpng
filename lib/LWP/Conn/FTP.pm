@@ -29,9 +29,16 @@ sub new
     $port = $1 if $host =~ s/:(\d+)//;
     $port = delete $cnf{Port} || delete $cnf{PeerPort} || $port || 21;
 
+    # XXX Should really use non-blocking connect as done for HTTP
     my $sock = IO::Socket::INET->new(PeerAddr => $host,
 				     PeerPort => $port);
     return unless $sock;
+
+    {
+	require LWP::Conn::HTTP;
+	$sock->blocking(0);
+    }
+
     bless $sock, $class;
     
     *$sock->{'lwp_mgr'}  = $mgr;
@@ -234,7 +241,7 @@ sub response
     $mess =~ s/^\d+\s+//;
     $mess =~ s/^[\w\.]+\s+//;  # host name
     $mess =~ s/\s+ready\.?\s+$//;
-    $mess =~ s/\s+\(Version\s+/\// && $mess =~ s/\)//;
+    $mess =~ s/\s+\(Version\s+/\// && $mess =~ s/\)$//;
     *$self->{'lwp_server_product'} = $mess;
     $self->send_cmd("SYST" => "Syst");
 }
@@ -500,6 +507,8 @@ sub port
 	$self->send_cmd("PORT $port" => "Port");
 	bless $data, "LWP::Conn::FTP::Data::Listen";  # 4 level name - whow!!
 	mainloop->readable($data);
+	*$data->{'lwp_write'} = *$self->{'lwp_req'}->content_ref if $write;
+	# A little circular reference makes life more interesting...
 	*$data->{'lwp_ftp'} = $self;
 	*$self->{'lwp_data'} = $data;
     } else {
@@ -628,8 +637,9 @@ sub response
 {
     my($self, $r) = @_;
     if ($r eq "2") {
+	my $cmd = *$self->{'lwp_meth'} eq "PUT" ? "STOR" : "RETR";
 	my $file = *$self->{'lwp_file'};
-	$self->send_cmd("RETR $file" => "Retr");
+	$self->send_cmd("$cmd $file" => "Retr");
     } else {
 	$self->_error("PORT failed");
     }
@@ -745,6 +755,11 @@ sub readable
     if (my $data = $self->accept) {
 	mainloop->readable($data);
 	bless $data, "LWP::Conn::FTP::Data";
+	if (my $w = *$self->{'lwp_write'}) {
+	    *$data->{'lwp_write'} = $w;
+	    *$data->{'lwp_wbuf'}  = '';
+	    mainloop->writable($data);
+	}
 	my $ftp = *$self->{'lwp_ftp'};
 	*$data->{'lwp_ftp'} = $ftp;
 	*$ftp->{'lwp_data'} = $data;
@@ -765,10 +780,13 @@ sub close
 package LWP::Conn::FTP::Data;
 use base 'LWP::Conn::FTP::Data::Listen';
 
+use LWP::MainLoop qw(mainloop);
+
 sub readable
 {
     my $self = shift;
     my $buf = "";
+    mainloop->activity(*$self->{'lwp_ftp'});
     my $n = sysread($self, $buf, 2048);
     if ($n) {
 	print STDERR "Got $n bytes\n";
@@ -779,6 +797,44 @@ sub readable
 	} else {
 	    *$self->{'lwp_ftp'}->_error("Data connection error: $!");
 	}
+	$self->close;
+    }
+}
+
+sub writable
+{
+    my $self = shift;
+    #print "Writeable\n";
+    mainloop->activity(*$self->{'lwp_ftp'});
+    my $buf = \*$self->{'lwp_wbuf'};
+    unless (length $$buf) {
+	my $w = *$self->{'lwp_write'};
+	unless ($w) {
+	    *$self->{'lwp_ftp'}->data_done();
+	    $self->close;
+	    return;
+	}
+	$w = $$w if ref($$w);
+	if (ref($w) eq "CODE") {
+	    $$buf = &$w();
+	    unless (defined $buf and length $$buf) {
+		delete *$self->{'lwp_write'};
+		return;
+	    }
+	} else {
+	    $$buf = $$w;
+	    delete *$self->{'lwp_write'};
+	}
+	return unless length $$buf;
+    }
+    my $len = length($$buf);
+    $len = 2048 if $len > 2048;
+    my $n = syswrite($self, $$buf, $len);
+    if ($n) {
+	print "Wrote $n bytes\n";
+	substr($$buf, 0, $n) = '';
+    } else {
+	*$self->{'lwp_ftp'}->_error("Data connection error: $!");
 	$self->close;
     }
 }
