@@ -248,7 +248,7 @@ sub one_event   # or none
 	    $timeout_spec->[2] = $now;  # record activity
 	    return;
 	}
-	$timeout = $timeout_sec if $timeout_sec < $timeout;
+	$timeout = $timeout_sec if !$timeout || $timeout_sec < $timeout;
     }
     if ($DEBUG) {
 	print STDERR "select(";
