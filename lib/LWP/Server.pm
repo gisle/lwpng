@@ -201,6 +201,23 @@ sub pushback_request
     $self->activate_idles;
 }
 
+sub activate_connections
+{
+    my $self = shift;
+    my @iconns = @{$self->{idle_conns}};
+    my @conns = @{$self->{conns}};
+    my %seen;
+    # activate idle connections first
+    foreach (@iconns) {
+	$_->activate;
+	$seen{$_}++;
+    }
+    foreach (@conns) {
+	next if $seen{$_};
+	$_->activate;
+    }
+}
+
 sub activate_idles
 {
     my $self = shift;
