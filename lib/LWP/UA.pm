@@ -212,7 +212,7 @@ sub setup_cookie
 sub setup_proxy
 {
     my($self, $req) = @_;
-    return if $req->proxy;
+    return 1 if $req->proxy;
     my $proxy = $self->{'uattr'}->p_attr($req->url, "proxy");
     $req->proxy($proxy);
     1;
