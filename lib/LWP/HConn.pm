@@ -197,9 +197,12 @@ sub _error
     my($self, $msg) = @_;
     print STDERR "$self: $msg\n" if $DEBUG;
     mainloop->forget($self);
-    my $mgr = delete $ {*$self}{'lwp_mgr'};
     $self->close;
     
+    my $res = $ {*$self}{'lwp_res'};
+    $res->header("Client-Connection-Error" => $msg) if $res;
+
+    my $mgr = delete $ {*$self}{'lwp_mgr'};
     my $req = $ {*$self}{'lwp_req'};
     if ($req && @$req > 1) {
 	shift @$req;  # currect request never retried
