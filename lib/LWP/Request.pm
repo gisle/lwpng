@@ -32,6 +32,7 @@ sub new
     my $class = shift;
     my $self = $class->SUPER::new(@_);
     $self->add_hook("response_handler", \&auto_redirect);
+    $self->add_hook("response_handler", \&auto_auth);
     $self;
 }
 
@@ -40,8 +41,7 @@ sub clone
 {
     my $self = shift;
     my $clone = $self->SUPER::clone;
-    for (qw(priority proxy mgr data_cb done_cb
-            auto_redirect auto_auth)) {
+    for (qw(priority proxy mgr data_cb done_cb)) {
 	next unless exists $self->{$_};
 	$clone->{$_} = $self->{$_};
     }
@@ -115,33 +115,46 @@ sub auto_redirect
     my($self, $res) = @_;
     my $code = $res->code;
     return unless $code =~ /^30[12357]$/;
-    $res->push_header("Client-Warning" => "Kilroy was here");
     my $new = $self->clone;
-    if ($code == 303) {
-	$new->method("GET") unless $new->method eq "HEAD";
-    }
     my $method = $new->method;
+    if ($code == 303 && $method ne "HEAD") {
+	$method = "GET";
+	$new->method($method);
+    }
     return if $method ne "GET" &&
 	      $method ne "HEAD" &&
 	      !$self->redirect_ok($res);
-    my $url = (URI::URL->new($res->header('Location'), $res->base))->abs(undef,1);
-    if ($code == 305) {
-	$new->proxy($url);
+    my $loc = $res->header('Location');
+    $loc = (URI::URL->new($loc, $res->base))->abs(undef,1);
+
+    if ($code == 305) {  # RC_USE_PROXY
+	$new->proxy($loc);
+	my $ustr = $new->url->as_string;
+	my $pstr = $loc->as_string;
+	# check for loops
+	for (my $r = $res; $r; $r = $r->previous) {
+	    my $req = $r->request;
+	    my $pxy = $req->proxy || "";
+	    if ($req->url->as_string eq $ustr && $pxy eq $pstr) {
+		$res->push_header("Client-Warning" =>
+				  "Proxy redirect loop detected");
+		return;
+	    }
+	}
     } else {
-	$new->url($url);
+	$new->url($loc);
+	my $ustr = $loc->as_string;
+	# check for loops
+	for (my $r = $res; $r; $r = $r->previous) {
+	    if ($r->request->url->as_string eq $ustr) {
+		$res->push_header("Client-Warning" =>
+				  "Redirect loop detected");
+		return;
+	    }
+	}
     }
 
-    # check for loops
-    my $r = $res;
-    while ($r) {
-	#XXX must handle 305 redirect loops too...
-        if ($r->request->url->as_string eq $url->as_string) {
-	    $res->push_header("Client-Warning" =>
-			      "Redirect loop detected");
-	    return;
-	}
-	$r = $r->previous;
-    }
+    # New request is OK, spool it at somewhat high priority.
     $new->{'previous'} = $res;
     $new->priority(10) if $new->priority > 10;
     $self->{'mgr'}->spool($new);
@@ -151,6 +164,65 @@ sub auto_redirect
 sub redirect_ok
 {
     0;
+}
+
+sub auto_auth
+{
+    my($self, $res) = @_;
+    my $code = $res->code;
+    return unless $code =~ /^40[17]$/;
+    my $proxy = ($code == 407);
+
+    my $ch_header = $proxy ?  "Proxy-Authenticate" : "WWW-Authenticate";
+    my @challenge = $res->header($ch_header);
+    unless (@challenge) {
+	$res->header("Client-Warning" => 
+		     "Missing $ch_header header");
+	return;
+    }
+
+    require HTTP::Headers::Util;
+    for my $challenge (@challenge) {
+	$challenge =~ tr/,/;/;  # "," is used to separate auth-params!!
+	($challenge) = HTTP::Headers::Util::split_header_words($challenge);
+	my $orig_scheme = shift(@$challenge);
+	shift(@$challenge); # no value
+	my $scheme = uc($orig_scheme);
+	$challenge = { @$challenge };  # make rest into a hash
+
+	unless ($scheme =~ /^([A-Z]+(?:-[A-Z]+)*)$/) {
+	    $res->header("Client-Warning" => 
+			 "Bad authentication scheme name '$orig_scheme'");
+	    next;
+	}
+	$scheme = $1;  # untainted now
+	my $class = "LWP::Authen::$scheme";
+	$class =~ s/-/_/g;
+	
+	no strict 'refs';
+	unless (defined %{"$class\::"}) {
+	    # try to load it
+	    eval "require $class";
+	    if ($@) {
+		if ($@ =~ /^Can\'t locate/) {
+		    $res->push_header("Client-Warning" =>
+			   "Unsupport authentication scheme '$orig_scheme'");
+		} else {
+		    $res->push_header("Client-Warning" => $@);
+		}
+		next;
+	    }
+	}
+	my $done = $class->authenticate($self, $res, $proxy, $challenge);
+	return $done if $done;
+    }
+    $res->push_header("Client-Warning" => "Kilroy was here");
+    0;
+}
+
+sub get_upw
+{
+    ("gisle", "hemmelig");
 }
 
 
