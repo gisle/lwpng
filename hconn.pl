@@ -21,16 +21,16 @@ sub done
     print "\n";
 }
 
-sub progress
-{
-    my($self, $msg, $req_bytes, $req_of, $res_bytes, $res_of) = @_;
-    # Something that might update the progress bar or display the message
-}
+#sub progress
+#{
+#    my($self, $msg, $req_bytes, $req_of, $res_bytes, $res_of) = @_;
+#    # Something that might update the progress bar or display the message
+#}
 
 
 package MGR;
 
-@req = qw(/ / / /); # /nph-slowdata.cgi / /nph-slowdata.cgi  /not-found);
+@req = qw(/xxx /); # /nph-slowdata.cgi / /nph-slowdata.cgi  /not-found);
 
 sub new { bless {}, $_[0] }
 
@@ -66,25 +66,24 @@ sub connection_closed
 
 package main;
 
-use LWP::EventLoop qw(mainloop);
-
 $mgr = new MGR;
 
 #$LWP::HConn::DEBUG++;
 #$LWP::EventLoop::DEBUG++;
 
-$c1 = LWP::HConn->new(ManagedBy => $mgr,
-                      PeerAddr => "127.0.0.1",
-		      ReqPending => 3,
-		      ReqLimit   => 10,
-		      Timeout    => 8,
-		     );
+LWP::HConn->new(ManagedBy => $mgr,
+		PeerAddr => "127.0.0.1",
+		ReqPending => 3,
+		ReqLimit   => 10,
+		Timeout    => 8,
+	       );
 
 #$c2 = LWP::HConn->new("furu", 80, $mgr);
 
 #use Data::Dumper; print Dumper($c1, $c2);
 
-while (!mainloop->empty) {
-    #mainloop->dump;
-    mainloop->one_event;
+use LWP::MainLoop qw(empty one_event);
+
+while (!empty) {
+    one_event();
 }
