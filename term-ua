@@ -65,13 +65,13 @@ sub cmd
 	} elsif ($cmd eq "sched") {
 	    $ua->reschedule;
 	} elsif ($cmd =~ /^c\s+(\S+)/) {
-	    $ua->server($1)->create_connection;
+	    $ua->find_server($1)->create_connection;
 	} elsif ($cmd =~ /^cp\s+(.*)/) {
 	    $ua->conn_param(split(' ', $1));
 	} elsif ($cmd eq "s") {
 	    $ua->stop;
 	} elsif ($cmd =~ /^s\s+(\S+)/) {
-	    $ua->server($1)->stop;
+	    $ua->find_server($1)->stop;
 	} else {
 	    print "Unknown command '$cmd'\n";
 	}
