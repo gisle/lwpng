@@ -494,15 +494,15 @@ sub check_rbuf
 			die "No filter for TE '$enc': $@" if $@;
 		    }
 		    $filter = "$filter\::decode"->new(@$_);
-		    $te = $te ? $te->append($filter) : $filter;
-		    $te->append(LWP::Sink::Monitor->new($enc))
+		    $te = $te ? $te->push($filter) : $filter;
+		    $te->push(LWP::Sink::Monitor->new($enc))
 			if $LWP::Conn::HTTP::DEBUG;
 		}
 		if ($te) {
 		    # Just terminate the stream with a callback closure
 		    # that feeds the data to $req->response_data
-		    $te->append(LWP::Sink::identity->new);
-		    $te->append( sub { $req->response_data($_[0], $res); } );
+		    $te->push(LWP::Sink::identity->new);
+		    $te->push( sub { $req->response_data($_[0], $res); } );
 		    *$self->{'lwp_te'} = $te;
 		}
 	    };
