@@ -1,0 +1,15 @@
+#!/local/bin/perl
+
+# Test using the old interface
+
+require LWP::UA_old;
+require HTTP::Request;
+
+$req = HTTP::Request->new(GET => (shift || "http://localhost/"));
+$ua = new LWP::UA_old;
+
+$res = $ua->request($req);
+
+print $res->as_string;
+
+#print $res->request->as_string;
