@@ -1051,7 +1051,7 @@ enter the Connecting or Idle state, depending on what connect(2)
 returns.  We also register timeout callbacks, which makes sure
 that this connection instance looks after itself.
 
-=head1 LWP::Conn::FTP
+=head2 LWP::Conn::FTP
 
 The LWP::Conn::FTP module implements the FTP protocol for LWPng.  A
 single LWP::Conn::FTP instance represents a single command connection
