@@ -1,16 +1,24 @@
-This document is notes for a redesign of the protocol handling of LWP.
-The goal is to be able to support HTTP/1.1 and multiple connections
-and at the same time be able to support the old interfaces.  Some of
-the things that are not in conflict with the old LWP will be
-integrated directly.
+This document contains various notes for a redesign of the protocol
+handling of LWP.  The goal is to be able to support HTTP/1.1 and
+multiple connections and at the same time be able to support the old
+interfaces.  The old interface will be built on top of the new
+event-driven model. Some of the things that are not in conflict with
+the old LWP will be integrated directly as they mature.
 
-All communication will be based on IO::Socket or on the Net:: modules
-where they are applicable.  All timeout handling should be based on a
-central event-loop.  No more alarm calls.
+All communication will be based on IO::Socket::INET or on the Net::
+modules where they are applicable.  Perhaps we ought to build a
+Net::HTTP module?  All timeout handling should be based on a central
+event-loop.  No more alarm calls.  When Perl get an official
+event-loop we will use it and I believe that Nick is working on it
+together with Tk.  Using the same event-loop is also a requirement for
+happy Tk/LWP based applications in the future.
 
 There can be multiple connections to the same or different servers.
 Requests can be pipelined to HTTP/1.1 servers.
 
+Much of this work is among others inspired by Marc's LWP::ParallelUA.
+
+------------------------------------------------------------------
 
 LWP::UserAgent
 
@@ -19,6 +27,8 @@ LWP::UserAgent
     $scheduler
     $default_headers (UserAgent, From,....)
     $timeouts
+    $cookie_jar... (generalized to something that modifies/monitors
+          requests/responses???)
 
     $proxies
        # also something to support proxy authentication
@@ -27,11 +37,15 @@ LWP::UserAgent
     $ua->$scheduler->spool();
     
     # the old $ua->request ($ua->simple_request) interfaces will be
-    # emulated.
+    # emulated somehow.
+         $ua->$scheduler->spool();
+         LWP::EventLoop::wait_for_completion();
+         return $res;
 
 
 LWP::Request
-    # same as before, but also hold $ua->request parameters
+    # same as before, but also hold $ua->request parameters.  Should it
+    # then be a subclass?
     $arg       (undef, $file, \&callback)
     $size      (read size hint)
     $redirect  (redirect behaviour, scalar or callback)
@@ -43,26 +57,31 @@ LWP::Request
 
 LWP::Server
 
+    # This holds all the information that the UA needs to keep about
+    # the servers it communicates with.  This is the place to remember
+    # various state (not cookies) about authetication and capabilities
+    # of servers.
+    #
+    # There should be some support of making (some of) this information
+    # persistent between LWP runs.
+
     $netloc     'www.sn.no:8080'
-    $protocol   "HTTP/1.0", "HTTP/1.1", "FTP",...  # what do we know
+    $protocol   "HTTP/1.0", "HTTP/1.1", "FTP",...  # whatever
     $pipeline   bool
     $keep_alive bool
     $max_connections    # limit connections to this server
 
-    $last_request       time() (support nice robots)
+    $last_request       time() (support nice robots and such)
     $num_requests       # counter (don't really know why we want this)
 
     @pending_request
     @connections
 
-    # support authentication without
+    # support authentication without unnecessary round-trips
     %credentials
     %realms
 
-    $robot_rules
-
-        # There should be some support of making this information
-        # persistent.
+    $robot_rules        # if applicable
 
 
 LWP::Connection (subclassed for various protocols)
