@@ -892,7 +892,7 @@ socket is closed.  No method calls are allowed any more.
 
 The LWP::Conn::HTTP constructor takes the name of the server host and
 the port to connect to as arguments.  It creates a non-blocking socket
-and tries to connect to the specified server and will enter the
+and tries to connect to the specified server and will enter either the
 Connecting or Idle state depending on what connect(2) returns.  We
 also register timeout callbacks which makes this sure that this
 connection object looks after itself.
