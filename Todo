@@ -29,7 +29,6 @@
  * RobotUA
  * Caching support
  * Some applications
- * one_event(timeout), run(timeout)
 
  * Move to same eventloop as Tk uses.  There appears to be a problem because
    the Tk fileevent does not allow a socket to be both readable and writable
