@@ -7,4 +7,3 @@ lib/LWP/Server.pm
 lib/LWP/UA.pm
 t2.pl
 test.pl
-triv_get.pl
