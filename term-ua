@@ -35,6 +35,15 @@ use LWP::MainLoop qw(empty one_event readable);
     require LWP::Request;
     use base 'LWP::Request';
 
+    sub new2
+    {
+	my $class = shift;
+	my $self = $class->SUPER::new2(@_);
+	#$self->header("Connection" => "close");
+	#$self->protocol("HTTP/1.0");
+	$self;
+    }
+
     sub login
     {
 	my($self, $realm, $url, $proxy) = @_;
@@ -114,6 +123,7 @@ s              : stop all requests
 s <url>        : stop requests for this server
 p              : print state of UA
 c <url>        : set up connection to this host
+sched          : invoke scheduler manually
 cp <key> <val> : set connection parameters
 q              : quit
 
