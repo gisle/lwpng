@@ -75,7 +75,7 @@ sub readable
     my $self = shift;
     my $fh = shift || return;
     my $callback = @_ ? shift : "readable";
-    $self->{fh}{$fh}[1] = $callback;
+    $self->{fh}{int($fh)}[1] = $callback;
     $self->_fh($fh);
     $self->_vec("_r", 1);
 }
@@ -85,7 +85,7 @@ sub writable
     my $self = shift;
     my $fh = shift || return;
     my $callback = @_ ? shift : "writable";
-    $self->{fh}{$fh}[2] = $callback;
+    $self->{fh}{int($fh)}[2] = $callback;
     $self->_fh($fh);
     $self->_vec("_w", 2);
 }
@@ -97,9 +97,9 @@ sub timeout
     my $sec = shift;
     my $callback = @_ ? shift : "inactive";
     if ($sec && defined($callback)) {
-	$self->{fh}{$fh}[4] = [$sec, $callback, time];
+	$self->{fh}{int($fh)}[4] = [$sec, $callback, time];
     } else {
-	$self->{fh}{$fh}[4] = undef;
+	$self->{fh}{int($fh)}[4] = undef;
     }
     $self->_fh($fh);
 }
@@ -111,7 +111,7 @@ sub forget
     my $fh;
     for $fh (@_) {
 	next unless $fh;
-	delete $self->{fh}{$fh};
+	delete $self->{fh}{int($fh)};
     }
     $self->_vec("_r", 1);
     $self->_vec("_w", 2);
@@ -142,7 +142,7 @@ sub _vec
     }
     $self->{$cachebits} = $vec;
     if (@closed) {
-	print "Getting rid of closed handles: @closed\n";
+	print "1) Getting rid of closed handles: @closed\n";
 	$self->forget(@closed);
     }
 }
@@ -153,7 +153,7 @@ sub _check_closed
     my @closed = grep {!defined fileno($_)}
                     map { $_->[0] } values %{$self->{fh}};
     if (@closed) {
-	print "Getting rid of closed handles: @closed\n";
+	print "2) Getting rid of closed handles: @closed\n";
 	$self->forget(@closed);
     }
 }
@@ -161,10 +161,10 @@ sub _check_closed
 sub _fh
 {
     my($self, $fh) = @_;
-    $self->{fh}{$fh}[0] = $fh;
-    my @callbacks = @{$self->{fh}{$fh}};
+    $self->{fh}{int($fh)}[0] = $fh;
+    my @callbacks = @{$self->{fh}{int($fh)}};
     shift @callbacks;
-    delete $self->{fh}{$fh} unless grep defined,  @callbacks;
+    delete $self->{fh}{int($fh)} unless grep defined,  @callbacks;
 }
 
 sub dump
@@ -174,7 +174,7 @@ sub dump
     my $now = time();
     for (values %{$self->{fh}}) {
 	my($fh,$r,$w,$e,$timeout, $pending) = @$_;
-	printf "  %-17s %2d", ref($fh), fileno($fh);
+	printf "  %x %-17s %2d", int($fh), ref($fh), fileno($fh);
 	for ($r, $w, $e) {
 	    if (defined) {
 		if (ref($_) eq "CODE") {
@@ -287,7 +287,7 @@ sub one_event   # or none
 	    }
 	}
 	if (@closed) {
-	    print "Getting rid of closed handles: @closed\n";
+	    print "3) Getting rid of closed handles: @closed\n";
 	    $self->forget(@closed);
 	}
     } else {
