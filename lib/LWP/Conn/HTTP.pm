@@ -98,7 +98,6 @@ sub new
 	    if ($! == &IO::EINPROGRESS) {
 		$sock->state("Connecting");
 		mainloop->writable($sock);
-                mainloop->readable($sock);
 		return $sock;
 	    } else {
 		mainloop->forget($sock);
@@ -237,6 +236,7 @@ sub writable
     my $self = shift;
     if (defined($self->peername)) {
 	mainloop->writable($self, undef);
+        mainloop->readable($self);
         $self->state("Idle");
 	$self->activate;
     } else {
