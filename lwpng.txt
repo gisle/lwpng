@@ -8,7 +8,7 @@
 
 =Title LWPng - Adding HTTP/1.1 support to libwww-perl
 
-=Author Gisle Aas <aas@sn.no>
+=Author Gisle Aas <gisle@aas.no>
 
 =begin pc98submissions@perl.org
 
@@ -16,7 +16,7 @@
 
 Contact information:
 
-  Email:  aas@sn.no
+  Email:  gisle@aas.no
   Phone:  +47 5533 0252
 
   Smail:  Gisle Aas
@@ -146,8 +146,9 @@ Martijn suggested that it would be a good thing if the reusable
 components of this program were broken out into a library.  The result
 was the libwww-perl library for perl4 that Roy maintained [7,8].
 
-At one point both Gisle and Martijn had made their own modifications
-to Roy's library to better suit the possibilities that perl5 provided.
+At one point both Martijn and Gisle Aas (this article's author) had
+made their own separate modulifications of Roy's library to better
+suit the possibilities that perl5 provided.
 We joined forces and made several alpha releases together.
 Unfortunately Martijn had a little disagreement with his employer
 about the intellectual property rights to work done outside hours.
@@ -771,7 +772,7 @@ handlers and the protocol machinery are placed within this tree.
 
 Let's show a simple proxy configuration as an example.  We might want
 all HTTP request to go through our caching proxy, but not for request
-to servers within our local domain.  This can be express like this
+to servers within our local domain.  This can be expressed like this
 (assuming our local domain is I<.perl.com>):
 
   $ua->uri_attr_update(SCHEME=>"http:")->{proxy} = "http://proxy.perl.com";
@@ -1107,13 +1108,13 @@ disables pipelining.
 The LWPng script has been tested with the following combinations of
 the parameters:
 
-     MaxConn   ReqLimit   ReqPend
-   +---------+----------+----------
- A |    1          1         1
- B |    2          1         1
- C |    1        100         1
- D |    1        100         3
- E |    2        100         3
+           MaxConn   ReqLimit   ReqPend
+         +---------+----------+----------
+ LWPng-A |    1          1         1
+ LWPng-B |    2          1         1
+ LWPng-C |    1        100         1
+ LWPng-D |    1        100         3
+ LWPng-E |    2        100         3
 
 The LWP5 and LWPng-A tests should be comparable as the libraries would
 have to set up the same number of network connections.
@@ -1161,7 +1162,7 @@ We see that the use of persistent connections really did help.  The
 time used to download the page decreased from 21s to 15s (30%) and
 after adding pipelining it went down to 12.5s (additional 12%).  Using
 multiple connections to the server (B,E) did not do much to decrease
-download time.  We also observe that LWPng-D download time if fairly
+download time.  We also observe that LWPng-D download time is fairly
 close to the SOCK time.
 
 For the next test we downloaded the I<www.microsoft.com> front page
@@ -1177,7 +1178,7 @@ Ethernet.  The result were:
  SOCK)    0.78user 0.24system 0:01.15elapsed 88%CPU
 
 What happened here was that CPU became the bottleneck.  Again we see
-that LWPng use more CPU that LWP5 to achieve the same thing.
+that LWPng use more CPU than LWP5 to achieve the same thing.
 Persistent or parallel connections did nothing to help.  It would be
 interesting to redo this test after LWPng has been through a round of
 profiling and optimizations.
