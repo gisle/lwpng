@@ -1,0 +1,6 @@
+HTTP/1.0 200 OK
+Content-Type:
+Foo: bar
+
+This message contains an empty Content-Type header.  LWP-5.30 and worse
+used to have some problems with it.
