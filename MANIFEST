@@ -4,6 +4,7 @@ Makefile.PL
 README
 News
 Todo
+http11-bnf.txt
 lib/LWP/Authen/BASIC.pm
 lib/LWP/Conn/FILE.pm
 lib/LWP/Conn/HTTP.pm
@@ -12,6 +13,16 @@ lib/LWP/Hooks.pm
 lib/LWP/MainLoop.pm
 lib/LWP/Request.pm
 lib/LWP/Server.pm
+lib/LWP/Sink.pm
+lib/LWP/Sink/HTML.pm
+lib/LWP/Sink/IO.pm
+lib/LWP/Sink/Monitor.pm
+lib/LWP/Sink/Tee.pm
+lib/LWP/Sink/_trans.pm
+lib/LWP/Sink/base64.pm
+lib/LWP/Sink/deflate.pm
+lib/LWP/Sink/identity.pm
+lib/LWP/Sink/rot13.pm
 lib/LWP/StdSched.pm
 lib/LWP/UA_old.pm
 lib/LWP/UA.pm
