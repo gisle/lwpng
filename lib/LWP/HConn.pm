@@ -21,7 +21,7 @@ use vars qw($DEBUG);
 my $TCP_PROTO = (getprotobyname('tcp'))[2];
 use Carp ();
 use IO::Socket qw(AF_INET SOCK_STREAM inet_aton pack_sockaddr_in);
-use LWP::EventLoop qw(mainloop);
+use LWP::MainLoop qw(mainloop);
 
 use base qw(IO::Socket::INET);
 
@@ -217,7 +217,7 @@ sub _error
 package LWP::HConn::Connecting;
 use base qw(LWP::HConn);
 
-use LWP::EventLoop qw(mainloop);
+use LWP::MainLoop qw(mainloop);
 
 
 sub writable
@@ -244,8 +244,6 @@ sub inactive
 package LWP::HConn::Idle;
 use base qw(LWP::HConn);
 
-use LWP::EventLoop qw(mainloop);
-
 sub activate
 {
     my $self = shift;
@@ -258,7 +256,7 @@ sub activate
 package LWP::HConn::Active;
 use base qw(LWP::HConn);
 
-use LWP::EventLoop qw(mainloop);
+use LWP::MainLoop qw(mainloop);
 require HTTP::Response;
 
 
