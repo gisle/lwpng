@@ -119,6 +119,12 @@ sub forget_server
     delete $self->{ua_servers}{$sid};
 }
 
+sub servers
+{
+    my $self = shift;
+    values %{$self->{ua_servers}};
+}
+
 
 sub spool
 {
@@ -205,14 +211,6 @@ sub max_conn
 	$self->{'ua_max_conn'} = shift;
     }
     $old;
-}
-
-
-sub delete
-{
-    # must break circular references
-    my $self = shift;
-    delete $self->{'ua_servers'};
 }
 
 
