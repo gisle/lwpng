@@ -245,7 +245,12 @@ sub _response_data_hp
     my($req,$data,$res) = @_;
     my $hp = $req->{head_parser};
     unless ($hp) {
-	$req->{head_parser} = $hp = HTML::HeadParser->new($res);
+	if ($res->content_type eq "text/html") {	
+	    $req->{head_parser} = $hp = HTML::HeadParser->new($res);
+	} else {
+	    $req->remove_hook("response_data", \&_response_data_hp);
+	    return;
+	}
     }
     unless ($hp->parse($data)) {
 	# done
