@@ -9,6 +9,12 @@ require LWP::Version;
 use HTTP::Date qw(time2str str2time);
 use LWP::MediaTypes qw(guess_media_type);
 
+# Test to see if the system has getpwuid and getgrgid.
+eval { my $tmp = getpwuid($<); };
+my $has_getpwuid = ! $@;
+eval { my $tmp = getgrgid($(); };
+my $has_getgrgid = ! $@;
+
 sub new
 {
     my($class, %cnf) = @_;
@@ -87,8 +93,8 @@ sub get
 	my($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$filesize,
 	   $atime,$mtime,$ctime,$blksize,$blocks) = stat(FILE);
 
-	my $uname = getpwuid($uid) || $uid;
-	my $gname = getgrgid($gid) || $gid;
+	my $uname = ($has_getpwuid ? getpwuid($uid) : undef) || $uid;
+	my $gname = ($has_getgrgid ? getgrgid($gid) : undef) || $gid;
 
 	# far more than you ever wanted to know
 	$res->header("INode" => sprintf("[%04x]:%d", $dev, $ino)) if $ino;
