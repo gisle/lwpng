@@ -6,6 +6,8 @@ use vars qw(@ISA);
 require HTTP::Request;
 @ISA=qw(HTTP::Request);
 
+require URI::URL;
+
 # HTTP::Request attributes:
 #
 #    method
@@ -45,6 +47,7 @@ sub response_data
 	if (my $cl = $res->header('Content-Length')) {
 	    $percentage = sprintf "%.0f%%", 100 * $self->{received_bytes} / $cl;
 	}
+	# XXX also calculate average throughput...
 	$self->progress($percentage, $self->{received_bytes});
     }
 }
@@ -52,7 +55,11 @@ sub response_data
 sub progress
 {
     my($self, $percentage, $bytes) = @_;
-    print "$percentage\n" if $percentage;
+    if ($percentage) {
+	print "$percentage\n";
+    } else {
+	print "$bytes bytes received\n";
+    }
 }
 
 sub clone
@@ -74,15 +81,7 @@ sub done
 	$res->previous($prev);
 	$self->previous(undef);  # not stricly necessary
     }
-
     $res->request($self);
-
-    if ($self->{done_cb}) {
-	my $status = $self->{done_cb}->($res);
-	# the idea was that $status would indicate if we are going to
-	# continue with redirects etc.  Must think some more about this...
-	return if $status;
-    }
 
     if ($self->{auto_redirect} && $res->is_redirect) {
         my $referral = $self->clone;
@@ -91,7 +90,7 @@ sub done
         # Some servers erroneously return a relative URL for redirects,
         # so make it absolute if it not already is.
         my $referral_uri = (URI::URL->new($res->header('Location'),
-                                          $res->base))->abs();
+                                          $res->base))->abs;
         $referral->url($referral_uri);
 
         # Check for loop in the redirects
@@ -110,14 +109,21 @@ sub done
 	    $referral->previous($res);
 	    $referral->priority(10) if $referral->priority > 10;
 	    $self->{'mgr'}->spool($referral);
+	    return;
 	}
 	
-    } elsif ($self->{auth_cb}) {
+    } elsif ($self->{auth_cb} &&
+	     ($self->code == &HTTP::Status::RC_UNAUTHORIZED ||
+	      $self->code == &HTTP::Status::RC_PROXY_AUTHENTICATION_REQUIRED))
+    {
 
+    }
+
+    if ($self->{done_cb}) {
+	$self->{done_cb}->($self, $res);
     } else {
 	$self->{'mgr'}->response_received($res);
     }
-    
 }
 
 # Accessor functions for some simple attributes
