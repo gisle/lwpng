@@ -40,13 +40,14 @@ sub id
 
 sub add_request
 {
-    my($self, $req, $pri) = @_;
-    if ($pri && $pri < 50) {
+    my($self, $req) = @_;
+    my $pri = $req->priority;
+    if ($pri && $pri > 50) {
 	push(@{$self->{req_queue}}, $req);
     } else {
 	unshift(@{$self->{req_queue}}, $req);
     }
-    $self->{idle_conns}[0]->activate if @{$self->{idle_conns}};
+    $self->activate_idles;
 }
 
 sub stop
@@ -119,12 +120,16 @@ sub pushback_request
     my $conn = shift;
     print "PUSHBACK $conn @_\n";
     unshift(@{$self->{req_queue}}, @_);
+    $self->activate_idles;
 }
 
-sub done_request
+sub activate_idles
 {
-    my($self, $conn, $req) = @_;
-    print "DONE $conn $req\n";
+    my $self = shift;
+    my @iconns = @{$self->{idle_conns}};
+    foreach (@iconns) {
+	$_->activate;
+    }
 }
 
 sub remove_from_refarray
