@@ -1,0 +1,118 @@
+%!PS-Adobe-2.0 EPSF-1.2
+%%BoundingBox: -50 55 250 270
+%%Creator: Gisle Aas (Copyright 1998)
+
+/rrect {             % <dx> <dy> rrect -
+   2 dict begin
+      /dy exch def  /dx exch def
+      dx 0 rlineto 0 dy rlineto dx neg 0 rlineto closepath
+   end
+} def
+
+% Some handy aliases
+/M  /moveto       load def
+/L  /lineto       load def
+/RM /rmoveto      load def
+/RL /rlineto      load def
+/F  /fill         load def
+/S  /stroke       load def
+/CP /closepath    load def
+/LW /setlinewidth load def
+/SG /setgray      load def
+
+/SF    { exch findfont exch scalefont setfont         } def
+/cshow { dup stringwidth pop 2 div neg 0 rmoveto show } def
+/rshow { dup stringwidth pop       neg 0 rmoveto show } def
+
+% Some colors used
+/yellow    { 1 1 0.8 setrgbcolor } def
+/red       { 0.7 0 0 setrgbcolor } def
+/palered   { 1.0 0.8 0.8 setrgbcolor } def
+/palegreen { 0.8 1.0 0.8 setrgbcolor } def
+/paleblue  { 0.8 0.8 1.0 setrgbcolor } def
+
+/Helvetica 12 SF
+%3 setlinewidth
+
+/state {
+   gsave
+      cshow
+   grestore
+   gsave
+   0 4 rmoveto
+   currentpoint translate
+   2 0.8 scale
+   newpath 0 0 15 0 360 arc closepath
+   stroke
+   grestore
+
+} def
+
+100 250 M (Start) state
+166 225 M gsave /Helvetica 10 SF (Connecting) state grestore
+100 200 M (Idle) state
+100 150 M (Active) state
+
+  0 100 M (ContLen) state
+ 66 100 M (Chunked) state
+133 100 M (Multipart) state
+200 100 M (UntilEOF) state
+
+200 150 M (Closed) state
+
+/ahead {
+   gsave
+   translate rotate
+   0 0 M -8 -3 rlineto 0 6 rlineto closepath fill
+   grestore
+} def
+
+%red
+
+100 242 M 100 216 L stroke
+-90 100 216 ahead
+100 192 M 100 166 L stroke
+-90 100 166 ahead
+100 192 M 200 166 L stroke  %Idle --> Closed
+-18 200 166 ahead
+
+100 142 M   0 116 L stroke
+100 142 M  66 116 L stroke
+100 142 M 133 116 L stroke
+100 142 M 200 116 L stroke
+
+195 0 116 ahead
+219 66 116 ahead
+-39 133 116 ahead
+-15 200 116 ahead
+
+130 254 M 166 241 L stroke
+166 217 M 130 203 L stroke
+
+-18 166 241 ahead
+202 130 203 ahead
+
+% EOF --> close
+205 92 M
+210 65 240 65 240 130 curveto
+240 200 210 200 205 166 curveto
+stroke
+-100 205 166 ahead
+
+% ContLen --> Idle
+0 92 M
+-10 65 -40 65 -40 103 curveto
+-40 160 30 203 70 203 curveto
+stroke
+
+
+66 92 M
+56 65 6 60 -26 73 curveto
+stroke
+
+133 92 M
+123 55 6 60 -26 73 curveto
+stroke
+
+0 70 203 ahead
+
