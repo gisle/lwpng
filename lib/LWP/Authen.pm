@@ -8,12 +8,28 @@ use vars qw(@EXPORT_OK @AUTH_PREF);
 
 require HTTP::Headers::Auth;
 
-require Exporter;
-*import = \&Exporter::import;
-@EXPORT_OK=qw(auth_handler);
+
+sub spool_handler
+{
+    my($ua, $req) = @_;
+    my $realm = $ua->uri_attr_plain($req->url, "realm");
+    return unless $realm;
+    my $realms = $ua->uri_attr_plain($req->url, "realms");
+    # should we ensure that this is a SERVER attribute?
+    unless ($realms) {
+	warn "No REALMS registered for this server";
+	return;
+    }
+    if (my $auth = $realms->{$realm}) {
+	$auth->set_authorization($req);
+    } else {
+	warn "Don't know about the '$realm' realm";
+    }
+    0;
+}
 
 
-sub auth_handler
+sub response_handler
 {
     my($req, $res) = @_;
     my $proxy;
