@@ -182,7 +182,7 @@ sub readable
 {
     my $self = shift;
     my $buf = \ $ {*$self}{'lwp_rbuf'};
-    my $n = sysread($self, $$buf, 50, length($$buf));
+    my $n = sysread($self, $$buf, 200, length($$buf));
     if (!defined($n)) {
 	$self->_error("Bad read: $!");
     } elsif ($n == 0) {
@@ -194,84 +194,112 @@ sub readable
 	    substr($pbuf, 50) = "..." if length($pbuf) > 50;
 	    print "READ (", length($$buf), ") [$pbuf]\n";
 	}
-	my $res = $ {*$self}{'lwp_res'};
-	if ($res) {
-	    # XXX.... must be able to tell the end of the message
+	$self->check_rbuf;
+    }
+}
+
+
+sub check_rbuf
+{
+    my $self = shift;
+    my $buf = \ $ {*$self}{'lwp_rbuf'};
+    my $res = $ {*$self}{'lwp_res'};
+
+    # There are 4 ways to determine end of response
+    my $cont_len;
+    my $boundary;
+    my $chunked;
+    my $until_eof;
+
+    if ($res) {
+	$cont_len  = $ {*$self}{'lwp_cont_len'};
+	$boundary  = $ {*$self}{'lwp_boundary'};
+	$chunked   = $ {*$self}{'lwp_chunked'};
+	$until_eof = $ {*$self}{'lwp_until_eof'};
 	    
+    } else {
+	return unless length($$buf) >= 7;  # can't do anything before that
+	my($prot, $code);
+	if (!$$buf =~ m,^HTTP/1\.,) {
+	    ($prot, $code) = ("HTTP/0.9", 200);
+	    $res = HTTP::Response->new($code => "OK");
+	    $res->protocol($prot);
+	} elsif ($$buf =~ /\015?\012\015?\012/) {
+	    # all of the header received, process it...
+	    $$buf =~ s/^(.*?)\015?\012\015?\012//s or die;
+	    my @head = split(/\015?\012/, $1);
+	    my $mess;
+	    ($prot, $code, $mess) = split(" ", shift(@head), 3);
+	    $res = HTTP::Response->new($code, $mess);
+	    $res->protocol($prot);
+	    my($k, $v);
+	    for (@head) {
+		if (/^([^\s:]+)\s*:\s*(.*)/) {
+		    $res->push_header($k, $v) if $k;
+		    ($k, $v) = ($1, $2);
+		} elsif (/^\s+(.*)/) {
+		    warn "Bad header" unless $k;
+		    $v .= " $1";
+		} else {
+		    warn "Bad header\n";
+		}
+	    }
+	    $res->push_header($k, $v) if $k;
 	} else {
-	    return unless length($$buf) >= 7;  # can't do anything before that
-	    my($prot, $code);
-	    if (!$$buf =~ m,^HTTP/1\.,) {
-		($prot, $code) = ("HTTP/0.9", 200);
-		$res = HTTP::Response->new($code => "OK");
-		$res->protocol($prot);
-	    } elsif ($$buf =~ /\015?\012\015?\012/) {
-		# all of the header received, process it...
-		$$buf =~ s/^(.*?)\015?\012\015?\012//s or die;
-		my @head = split(/\015?\012/, $1);
-		my $mess;
-		($prot, $code, $mess) = split(" ", shift(@head), 3);
-		$res = HTTP::Response->new($code, $mess);
-		$res->protocol($prot);
-		my($k, $v);
-		for (@head) {
-		    if (/^([^\s:]+)\s*:\s*(.*)/) {
-			$res->push_header($k, $v) if $k;
-			($k, $v) = ($1, $2);
-		    } elsif (/^\s+(.*)/) {
-			warn "Bad header" unless $k;
-			$v .= " $1";
-		    } else {
-			warn "Bad header\n";
-		    }
-		}
-		$res->push_header($k, $v) if $k;
-	    } else {
-		return;
-	    }
-	    $ {*$self}{'lwp_res'} = $res;
-	    print $res->as_string;
-
-	    # Determine how to determine end of message
-	    my $req_method = "GET";  # XXX (should look at the request)
-	    my $cont_len;
-	    my $trans_enc;
-	    my $boundary;
-	    if ($req_method eq "HEAD" || $code =~ /^(?:1\d\d|[23]04)$/) {
-		$cont_len = 0;
-	    } elsif ( ($trans_enc = $res->header("Transfer-Encoding"))) {
-		$self->_error("Unknown transfer encoding '$trans_enc'")
-		  if $trans_enc ne "chunked";
-	    } else {
-		my $ct = $res->header("Content-Type") || "";
-		if ($ct =~ /^multipart\//) {
-		    if ($ct =~ /\bboundary\s*=\s*(.*)/) {
-			$boundary = $1;
-		    } else {
-			$self->_error("Multipart without boundary");
-		    }
-		} else {
-		    $cont_len = $res->header("Content-Length");
-		}
-	    }
-
-	    # If neither $cont_len, $trans_enc nor $boundary is defined
-	    # then we must read content until server closes the
-	    # connection.
-
-	    if ($HConn::DEBUG) {
-		if (defined $cont_len) {
-		    print "CONTENT IS $cont_len BYTES\n";
-		} elsif ($trans_enc) {
-		    print "CHUNKED\n";
-		} elsif ($boundary) {
-		    print "MULTIPART UNTIL --$boundary\n";
-		} else {
-		    print "CONTENT UNTIL EOF\n";
-		}
-	    }
-	    
+	    return;
 	}
+
+	$ {*$self}{'lwp_res'} = $res;
+	print $res->as_string if $HConn::DEBUG;
+
+	# Determine how to find the end of message
+	my $req_method = "GET";  # XXX (should look at the request)
+	my $trans_enc;
+	if ($req_method eq "HEAD" || $code =~ /^(?:1\d\d|[23]04)$/) {
+	    $cont_len = 0;
+	} elsif ( ($trans_enc = $res->header("Transfer-Encoding"))) {
+	    $self->_error("Unknown transfer encoding '$trans_enc'")
+	      if $trans_enc ne "chunked";
+	    $chunked = -1;
+	} else {
+	    my $ct = $res->header("Content-Type") || "";
+	    if ($ct =~ /^multipart\//) {
+		if ($ct =~ /\bboundary\s*=\s*(.*)/) {
+		    $boundary = "\015\012--$1--\015\012";
+		} else {
+		    $self->_error("Multipart without boundary");
+		}
+	    } else {
+		$cont_len = $res->header("Content-Length");
+		$until_eof++ unless defined($cont_len);
+	    }
+	} 
+    }
+
+    # We now have a response header object in $res and some data
+    # in $$buf, let's see if we can do something about the data.
+    if (defined $cont_len) {
+	my $data = substr($$buf, 0, $cont_len);
+	substr($$buf, 0, $cont_len) = '';
+	$cont_len -= length($data);
+	print STDERR "CL callback for ", length($data), " bytes\n";
+	unless ($cont_len) {
+	    # finished
+	    $ {*$self}{'lwp_res'} = undef;
+	    $self->check_rbuf if length($$buf);
+	}
+    } elsif ($chunked) {
+	print STDERR "Chunked $chunked\n";
+	# -1: must get chunk header (number of bytes) first
+	# -2: read footers
+	# >0: read this number of bytes before returning to -1
+    } elsif ($boundary) {
+	print STDERR "Until boundary\n";
+    } elsif ($until_eof) {
+	print STDERR "Old callback for ", length($$buf), " bytes\n";
+	$$buf = '';
+    } else {
+	die "This should not happen";
     }
 }
 
