@@ -12,6 +12,7 @@ bot/db.sql
 bot/dbclear
 bot/dblist
 bot/ngbot
+lib/LWP/Authen.pm
 lib/LWP/Authen/basic.pm
 lib/LWP/Authen/digest.pm
 lib/LWP/Conn.pm
@@ -40,6 +41,7 @@ lib/LWP/StdSched.pm
 lib/LWP/UA.pm
 lib/LWP/UA/Cookies.pm
 lib/LWP/UA/Proxy.pm
+lib/LWP/Version.pm
 lib/URI/Attr.pm
 old-ua
 t/after.t
