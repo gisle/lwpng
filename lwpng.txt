@@ -396,7 +396,7 @@ backwards compatibility, get one place to fix bugs and at the same
 time allow new code to not suffer from compatibility bloat.  It also
 works as validation of the generality of the new interfaces.
 
-The classes that have changed name are:
+The classes that have changed name and interfaces are:
 
 =over 2
 
@@ -482,7 +482,8 @@ The LWP::UA represents the main interface of the client library.  The
 main entry point is the spool() method.  All requests to be processed
 by the library enter through this "gate".  Before a request is handed
 over to some protocol module the LWP::UA will invoke any
-spool_handlers registered.  Handlers can be registered dynamically.
+I<spool_handlers> registered.  These handlers can be registered
+dynamically by the application.
 
 register handlers that will be triggered early as part of the spool
 process.  Handler can modify the requests on their way.  The handlers
@@ -494,6 +495,7 @@ cookies as example!).
    - date
    - authentication
    - proxy
+   - head_parser
    - cookies
    
 Some ideas for the future
