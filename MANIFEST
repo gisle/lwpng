@@ -1,9 +1,8 @@
 MANIFEST
 Makefile.PL
 design.txt
-lib/HConn.pm
-lib/LWP/Connection.pm
 lib/LWP/EventLoop.pm
+lib/LWP/HConn.pm
 lib/LWP/Server.pm
 lib/LWP/UA.pm
 hconn.pl

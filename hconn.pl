@@ -1,15 +1,21 @@
 use lib "./lib";
 
-use HConn;
+use LWP::HConn;
 
 package LWP::Request;
 
 require HTTP::Request;
 use base qw(HTTP::Request);
 
+sub receive_data
+{
+    # do something
+}
+
+
 package MGR;
 
-@req = qw(/nph-slowdata.cgi /not-found /nph-slowdata.cgi / /not-found);
+@req = qw(/ / / /not-found); #/slowdata.cgi /not-found /); # /nph-slowdata.cgi / /nph-slowdata.cgi  /not-found);
 
 sub new { bless {}, $_[0] }
 
@@ -24,7 +30,8 @@ sub get_request
 
 sub pushback_request
 {
-    my($self, $req, $conn) = @_;
+    my($self, $conn, @req) = @_;
+    print STDERR "PUSHBACK\n";
 }
 
 sub connection_idle
@@ -45,14 +52,14 @@ use LWP::EventLoop qw(mainloop);
 
 $mgr = new MGR;
 
-$c1 = HConn->new("127.0.0.1", 80, $mgr);
-$c2 = HConn->new("furu", 80, $mgr);
+$c1 = LWP::HConn->new("127.0.0.1", 80, $mgr);
+#$c2 = LWP::HConn->new("furu", 80, $mgr);
 
 use Data::Dumper;
 
 print Dumper($c1, $c2);
 
-$LWP::EventLoop::DEBUG++;
+#$LWP::EventLoop::DEBUG++;
 while (!mainloop->empty) {
     #mainloop->dump;
     mainloop->one_event;
