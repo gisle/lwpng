@@ -16,20 +16,18 @@ sub new
 
     my $self = bless
           {
-            ua  => $ua,
+            ua            => $ua,
 
-	    proto  => $proto,
-#	    proto_ver => undef,
-	    conn_class => $conn_class,
+	    proto         => $proto,
+#	    proto_ver     => undef,
+	    conn_class    => $conn_class,
 
-	    created => time(),
+	    created       => time(),
 	    request_count => 0,
 
-	    req_queue   => [],
-
-            conn_param => {},
-	    conns => [],
-	    idle_conns => [],
+	    req_queue     => [],
+	    conns         => [],
+	    idle_conns    => [],
 	  }, $class;
 
     if ($host) {
@@ -123,34 +121,28 @@ sub kill_queued_requests
 sub max_conn
 {
     my $self = shift;
-    my $old = $self->{max_conn};
-    $old = $self->{'ua'}{'max_conn_per_server'} unless defined $old;
-    if (@_) {
-	$self->{max_conn} = shift;
-    }
-    $old;
+    $self->{'ua'}->uri_attr_plain($self->id, 'max_conn_per_server') || 2;
 }
 
 sub conn_param
 {
     my $self = shift;
-    return $self->{conn_param}{$_[0]} if @_ == 1;
-    unless (@_) {
-	# Let the UA params be overridden by per server params
-	my %param = ($self->{'ua'}->conn_param,
-		     %{$self->{'conn_param'}},
-		    );
-	$param{ManagedBy} = $self;
-	$param{Host} = $self->{'host'};
-	$param{Port} = $self->{'port'};
-	return %param;
+    my %param;
+    for my $hash ($self->{'ua'}->uri_attr_plain($self->id, "conn_param")) {
+	while (my($k,$v) = each %$hash) {
+	    next if exists $param{$k};
+	    $param{$k} = $v;
+	}
     }
-    # set new value(s)
-    while (@_) {
-	my $k = shift;
-	my $v = shift;
-	$self->{conn_param}{$k} = $v;
+    # these are always overridden
+    $param{ManagedBy} = $self;
+    $param{Host} = $self->{'host'};
+    $param{Port} = $self->{'port'};
+
+    if (@_) {
+	return @param{@_};
     }
+    wantarray ? %param : \%param;
 }
 
 
@@ -191,7 +183,11 @@ sub get_request
 {
     my($self, $conn) = @_;
     my $req = shift(@{$self->{req_queue}});
-    $self->{'last_request_time'} = time if $req;
+    if ($req) {
+	my $time = time;
+	$self->{'last_request_time'} = time;
+	$req->sending_start($time);
+    }
     $req;
 }
 
@@ -268,35 +264,6 @@ sub connection_closed
 	warn "$conn was not registered";
     $self->create_connection
 	if !@{$self->{conns}} && @{$self->{req_queue}};
-}
-
-sub as_string
-{
-    my $self = shift;
-    my @str;
-    push(@str, "$self\n");
-    require Data::Dumper;
-    for (sort keys %$self) {
-	my $str;
-	if ($_ eq "req_queue") {
-	    my @q;
-	    for (@{$self->{req_queue}}) {
-		my $id = sprintf "0x%08x", int($_);
-		my $method = $_->method || "<no method>";
-		my $url = $_->url || "<no url>";
-		push(@q, "$method $url ($id)");
-	    }
-	    $str = "\$req_queue = " . join("\n             ", @q) . "\n";
-	} elsif ($_ eq "ua") {
-	    $str = "\$ua = $self->{ua}\n";
-	} else {
-	    $str = Data::Dumper->Dump([$self->{$_}], [$_]);
-	}
-	$str =~ s/^/  /mg;  # indent
-	push(@str, $str);
-    }
-    join("", @str, "");
-
 }
 
 
