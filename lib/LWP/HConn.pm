@@ -181,6 +181,12 @@ sub activate
 {
 }
 
+sub stop
+{
+    my $self = shift;
+    $self->_error("STOP");
+}
+
 # EventLoop callbacks
 sub writable { shift->_error("Writable connection"); }
 sub readable { shift->_error("Readable connection"); }
