@@ -1,0 +1,146 @@
+This document is notes for a redesign of the protocol handling of LWP.
+The goal is to be able to support HTTP/1.1 and multiple connections
+and at the same time be able to support the old interfaces.  Some of
+the things that are not in conflict with the old LWP will be
+integrated directly.
+
+All communication will be based on IO::Socket or on the Net:: modules
+where they are applicable.  All timeout handling should be based on a
+central event-loop.  No more alarm calls.
+
+There can be multiple connections to the same or different servers.
+Requests can be pipelined to HTTP/1.1 servers.
+
+
+LWP::UserAgent
+
+    %servers{"$host:$port"}
+          # need $port since we don't index the protocol
+    $scheduler
+    $default_headers (UserAgent, From,....)
+    $timeouts
+
+    $proxies
+       # also something to support proxy authentication
+
+    # the main route for adding requests are:
+    $ua->$scheduler->spool();
+    
+    # the old $ua->request ($ua->simple_request) interfaces will be
+    # emulated.
+
+
+LWP::Request
+    # same as before, but also hold $ua->request parameters
+    $arg       (undef, $file, \&callback)
+    $size      (read size hint)
+    $redirect  (redirect behaviour, scalar or callback)
+    $prot      (might override protocol choosen, make HTTP/1.0 request to
+                a HTTP/1.1 server or HTTP/1.1 request to an unknown server)
+    $proxy
+    $timeout
+
+
+LWP::Server
+
+    $netloc     'www.sn.no:8080'
+    $protocol   "HTTP/1.0", "HTTP/1.1", "FTP",...  # what do we know
+    $pipeline   bool
+    $keep_alive bool
+    $max_connections    # limit connections to this server
+
+    $last_request       time() (support nice robots)
+    $num_requests       # counter (don't really know why we want this)
+
+    @pending_request
+    @connections
+
+    # support authentication without
+    %credentials
+    %realms
+
+    $robot_rules
+
+        # There should be some support of making this information
+        # persistent.
+
+
+LWP::Connection (subclassed for various protocols)
+
+    $server
+    # These are attributes needed to support HTTP/1.1.
+    $socket
+    $current_request
+    @pending_responses
+    $current_response      $response (might be defined to be first of @pending)
+    $last_activity         time()
+    $pipeline              #send new request without waiting for response first
+    $keep_alive            #seconds to live while idle
+    $request_limit (max_request, decremented for each request)
+
+    # When a connection has been created it will have a reference to
+    # it's server.  It will then start eating of the @pending_request
+    # queue.  Various parameters govern how greedy it will be.
+
+
+LWP::Auth
+
+    # Knows about different authentications schemes.  Different subclasses
+    # for Basic/Digest/....
+        # will be loaded and invoked on demand.  Takes a response as
+        # parameter and will then return a response or a request.  If
+        # it is a request it will be rescheduled.  Perhaps we could
+        # handle redirects with the same kind of module.  Something
+        # which is invoked for any client errors or redirects.
+
+
+
+LWP::EventLoop
+   - register filehandles (mostly sockets) for readable/writeable callbacks
+   - timeout callbacks
+   - wrapper around Tk's MainLoop
+
+   $loop->loop_until($something);  # let things happen
+
+
+
+LWP::Scheduler
+
+   # I am not sure which one of these should be represented
+   @active_servers
+   @connections
+
+   $ua  # makes callbacks (circular references are not good to have)
+   $max_connections  # limit total number of connections from this client
+
+   # this might in fact be the $ua, but a separate scheduler class
+   # should make it easier to make subclasses that have a different
+   # scheduling policy
+
+   # These are called by connections when the corresponding event
+   # happens.  This might result in rescheduling.
+   $sched->no_more_pending($connection);  # but not closed (keep alive)
+   $sched->closed($connection);
+
+   $sched->spool($request);
+       # will lookup server (create one if it does not exists) and add
+       # this request as @pending_request (then call $sched->_sched)
+
+   $sched->_sched
+       # will pick some servers (with @pending_request) and create
+       # connections for them.
+
+   # The scheduler will also set up timer callbacks so that it will
+   # sometimes wakeup and kill of idle connections (keep-alives).
+          # perhaps the connections should take care of this
+          # themselves.  yes, I think so!
+
+   $sched->kill_server();  # kills all connections (and pending requests)
+                           # to the given server.
+   $sched->kill_all();
+
+
+LWP::Simple
+   # make it short-cut for simple HTTP request without redirect and
+   # when no proxies are present.  It should not even have to load
+   # all the other grummy stuff.
