@@ -59,7 +59,7 @@ sub new
 
         $ {*$sock}{'lwp_mgr'} = $mgr;
 	$ {*$sock}{'lwp_req_count'} = 0;
-	$ {*$sock}{'lwp_req_limit'} = 2;
+	$ {*$sock}{'lwp_req_limit'} = 1;
 	$ {*$sock}{'lwp_req_max_outstanding'} = 1;
 	
 	mainloop->timeout($sock, 8);
@@ -168,7 +168,7 @@ sub _error
     my($self, $msg) = @_;
     print STDERR "$self: $msg\n" if $DEBUG;
     mainloop->forget($self);
-    my $mgr = $ {*$self}{'lwp_mgr'};
+    my $mgr = delete $ {*$self}{'lwp_mgr'};
     $self->close;
     
     my $req = $ {*$self}{'lwp_req'};
@@ -371,7 +371,7 @@ sub end_of_response
     if ($self->last_request_sent && !$self->current_request) {
 	mainloop->forget($self);
 	$self->close;
-	$ {*$self}{'lwp_mgr'}->connection_closed($self);
+	(delete $ {*$self}{'lwp_mgr'})->connection_closed($self);
 	return;
     }
     $self->state("Active");
@@ -484,7 +484,17 @@ sub check_rbuf
     my $buf      = \ $ {*$self}{'lwp_rbuf'};
     my $res      =   $ {*$self}{'lwp_res'};
     my $boundary =   $ {*$self}{'lwp_boundary'};
-    die "NYI"
+
+    my $i = index($$buf, $boundary);
+    if ($i < 0) {
+	# boundary string not found
+	# XXX but we should try to return some of the data
+	return;
+    }
+    # boundary is found in data
+    my $data = substr($$buf, 0, $i + length($boundary));
+    substr($$buf, 0, length($data)) = '';
+    $res->request->response_data($data, $res);
 }
 
 
