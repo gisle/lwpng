@@ -1,6 +1,5 @@
-
 use Mysql;
-use URI::URL;
+use URI;
 use strict;
 
 use vars qw($dbh);
@@ -10,13 +9,14 @@ $dbh = Mysql->connect("", "ngbot", "aas") or die;
 sub new_link
 {
     my($uri, $ref_id, $type) = @_;
-    $uri = URI::URL->new($uri) unless ref($uri);
+    $uri = URI->new($uri) unless ref($uri);
     my $scheme = $uri->scheme || die "Not absolute URI";
     my $host   = $uri->host;
     $scheme = $dbh->quote(lc($scheme));
     $host   = $dbh->quote(lc($host));
     my $port   = $uri->port || 0;
-    my $abs_path = $dbh->quote($uri->full_path);
+    my $abs_path = $dbh->quote($uri->path_query);
+    $abs_path = "/" unless length($abs_path);
 
     my $server_id;
     my $sth = $dbh->query("select id from server where scheme = $scheme and host=$host and port = $port") or die $dbh->errmsg;
