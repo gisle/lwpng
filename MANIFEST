@@ -1,7 +1,8 @@
 MANIFEST
 Makefile.PL
 README
-design.txt
+News
+Todo
 lib/LWP/Conn/HTTP.pm
 lib/LWP/EventLoop.pm
 lib/LWP/MainLoop.pm
