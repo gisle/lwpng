@@ -32,7 +32,7 @@ sub flush
 sub close
 {
     my $self = shift;
-    if (my $sink = $self->{'sink'}) {
+    if (my $sink = delete $self->{'sink'}) {
 	return $sink->close;
     }
     1;
