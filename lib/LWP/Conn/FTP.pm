@@ -332,7 +332,7 @@ sub response
 }
 
 
-package LWP::Conn::Rein;
+package LWP::Conn::FTP::Rein;
 use base 'LWP::Conn::FTP';
 
 sub response
@@ -341,6 +341,9 @@ sub response
     if ($r eq "2") {
 	$self->send_cmd("USER " . *$self->{'lwp_user'} => "User");
     } else {
+	if (my $req = delete *$self->{'lwp_req'}) {
+	    *$self->{'lwp_mgr'}->pushback_request($req);
+	}
 	$self->error("Can't reinitialize");
     }
 }
@@ -418,9 +421,19 @@ sub activate
 	$self->send_cmd("DELE $file" => "Dele");
 
     } elsif ($method eq "RENAME") {
-	$self->gen_response(501, "Delete not implemented yet");
+	$self->gen_response(501, "RENAME not implemented yet");
+
     } elsif ($method eq "TRACE") {
-	$self->gen_response(501, "Trace not implemented yet");
+	require HTTP::Response;
+	my $req = delete *$self->{'lwp_req'};
+	my $res = HTTP::Response->new(200, "OK");
+	$res->date(time);
+	$res->server(*$self->{'lwp_server_product'});
+	$res->content_type("message/http");
+	$res->content($req->as_string);
+	$req->response_done($res);
+	$self->activate;
+
     } else {
 	$self->gen_response(501, "Method not implemented");
     }
