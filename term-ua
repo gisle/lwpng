@@ -16,9 +16,10 @@
 #
 
 
+use strict;
 use LWP::UA;
 $LWP::UA::DEBUG++;
-$ua = LWP::UA->new;
+my $ua = LWP::UA->new;
 
 $ua->conn_param(ReqLimit    => 3,
                 ReqPending  => 1,
@@ -32,6 +33,8 @@ require LWP::Conn::HTTP;
 
 use LWP::MainLoop qw(empty one_event readable);
 
+$| = 1;
+print "ua> ";
 readable(\*STDIN, \&cmd);
 
 while (!empty) {
@@ -72,9 +75,25 @@ sub cmd
 	    #$req->{'auto_redirect'}++;
 	    #$req->{'auto_auth'}++;
 	    $ua->spool($req);
+        } elsif ($cmd eq "?" || $cmd eq "help") {
+            print <<EOT;
+
+<method> <url> : spool request
+s              : stop all requests
+s <url>        : stop requests for this server
+p              : print state of UA
+c <url>        : set up connection to this host
+cp <key> <val> : set connection parameters
+q              : quit
+
+de             : toggle event loop debugging
+dc             : toggle connection debugging
+
+EOT
 	} else {
-	    print "Unknown command '$cmd'\n";
+	    print "Unknown command '$cmd'.  The command '?' list known commands\n";
 	}
     };
     print STDERR $@ if $@;
+    print "ua> ";
 }
