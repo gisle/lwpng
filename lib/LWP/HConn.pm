@@ -1,4 +1,12 @@
 package LWP::HConn; # HTTP Connection
+use base qw(IO::Socket::INET);
+
+# $Id$
+
+# Copyright 1997 Gisle Aas.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the same terms as Perl itself.
 
 # A hack that should work on Linux until we require IO-1.18, then it
 # should work everywhere
@@ -8,15 +16,12 @@ unless (defined &IO::EINPROGRESS) {
 
 use strict;
 use vars qw($DEBUG);
-$DEBUG=1;
 
 my $TCP_PROTO = (getprotobyname('tcp'))[2];
-
-
 use IO::Socket qw(AF_INET SOCK_STREAM inet_aton pack_sockaddr_in);
 use LWP::EventLoop qw(mainloop);
 
-use base qw(IO::Socket::INET);
+
 
 sub new
 {
@@ -82,9 +87,6 @@ sub new
     $sock;
 }
 
-sub activate
-{
-}
 
 sub new_request
 {
@@ -96,7 +98,7 @@ sub new_request
     my $mgr = $ {*$self}{'lwp_mgr'};
     my $req = $mgr->get_request($self);
     if ($req) {
-	print STDERR "$self: New-Request $req\n";
+	print STDERR "$self: New-Request $req\n" if $DEBUG;
 	my @rlines;
 	push(@rlines, $req->method . " " . $req->url->full_path . " HTTP/1.1");
 	$req->header("Host" => $req->url->netloc);
@@ -112,11 +114,13 @@ sub new_request
     return undef;
 }
 
+
 sub last_request_sent
 {
     my $self = shift;
     $ {*$self}{'lwp_req_count'} >= $ {*$self}{'lwp_req_limit'};
 }
+
 
 sub current_request
 {
@@ -125,6 +129,7 @@ sub current_request
     return if !$req || !@$req;
     $req->[0];
 }
+
 
 sub pending_requests
 {
@@ -135,25 +140,19 @@ sub pending_requests
 }
 
 
-sub writable
+sub activate
 {
-    shift->_error("Writable connection");
 }
 
-sub readable
-{
-    shift->_error("Readable connection");
-}
-
-sub inactive
-{
-    shift->_error("Inactive connection");
-}
+# EventLoop callbacks
+sub writable { shift->_error("Writable connection"); }
+sub readable { shift->_error("Readable connection"); }
+sub inactive { shift->_error("Inactive connection"); }
 
 sub _error
 {
     my($self, $msg) = @_;
-    print STDERR "$self: $msg\n";
+    print STDERR "$self: $msg\n" if $DEBUG;
     mainloop->forget($self);
     my $mgr = $ {*$self}{'lwp_mgr'};
     $self->close;
@@ -166,9 +165,14 @@ sub _error
     $mgr->connection_closed($self);
 }
 
+
+
+
 package LWP::HConn::Connecting;
 use base qw(LWP::HConn);
+
 use LWP::EventLoop qw(mainloop);
+
 
 sub writable
 {
@@ -181,6 +185,7 @@ sub writable
 	$self->_error("Can't connect: $!");
     }
 }
+
 
 sub inactive
 {
@@ -202,11 +207,14 @@ sub activate
 }
 
 
+
+
 package LWP::HConn::Active;
 use base qw(LWP::HConn);
 
 use LWP::EventLoop qw(mainloop);
 require HTTP::Response;
+
 
 sub writable
 {
@@ -228,6 +236,7 @@ sub writable
     }
 }
 
+
 sub readable
 {
     my $self = shift;
@@ -248,10 +257,12 @@ sub readable
     }
 }
 
+
 sub server_closed_connection
 {
     shift->_error("EOF");
 }
+
 
 sub check_rbuf
 {
@@ -332,10 +343,11 @@ sub check_rbuf
     $self->check_rbuf if length $$buf;
 }
 
+
 sub end_of_response
 {
     my $self = shift;
-    print STDERR "$self: End-Of-Response\n";
+    print STDERR "$self: End-Of-Response\n" if $LWP::HConn::DEBUG;
     bless $self, "LWP::HConn::Active";
     shift @{$ {*$self}{'lwp_req'}};  # get rid of current request
     $ {*$self}{'lwp_res'} = undef;
@@ -348,6 +360,9 @@ sub end_of_response
 	bless $self, "LWP::HConn::Idle";
     }
 }
+
+
+
 
 package LWP::HConn::ContLen;
 use base qw(LWP::HConn::Active);
@@ -369,6 +384,9 @@ sub check_rbuf
 	$self->end_of_response;
     }
 }
+
+
+
 
 package LWP::HConn::Chunked;
 use base qw(LWP::HConn::Active);
@@ -433,10 +451,23 @@ sub check_rbuf
 }
 
 
+
+
 package LWP::HConn::Multipart;
 use base qw(LWP::HConn::Active);
 
-sub check_rbuf { die "NYI" }
+sub check_rbuf
+{
+    my $self = shift;
+    my $buf      = \ $ {*$self}{'lwp_rbuf'};
+    my $res      =   $ {*$self}{'lwp_res'};
+    my $boundary =   $ {*$self}{'lwp_boundary'};
+    die "NYI"
+}
+
+
+
+
 
 package LWP::HConn::EOF;
 use base qw(LWP::HConn::Active);
