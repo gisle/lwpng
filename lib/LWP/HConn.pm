@@ -195,12 +195,17 @@ sub inactive { shift->_error("Inactive connection"); }
 sub _error
 {
     my($self, $msg) = @_;
-    print STDERR "$self: $msg\n" if $DEBUG;
+    print STDERR "HConn-Error: $msg\n" if $DEBUG;
     mainloop->forget($self);
     $self->close;
     
     my $res = *$self->{'lwp_res'};
-    $res->header("Client-Connection-Error" => $msg) if $res;
+    if ($res) {
+	$res->header("Client-Orig-Status" => $res->status_line);
+	$res->code(600); # XXX
+	$res->message($msg);
+	$res->request->done($res);
+    }
 
     my $mgr = delete *$self->{'lwp_mgr'};
     my $req = *$self->{'lwp_req'};
@@ -364,7 +369,7 @@ sub check_rbuf
 
     if ($code == 100) {
 	print STDERR "100 Continue\n" if $LWP::HConn::DEBUG;
-	# XXX: should we store $res anywhere or just forget it?
+	# XXX: should we store $res anywhere or just forget about it?
 	return;
     }
 
@@ -378,12 +383,16 @@ sub check_rbuf
     if ($req->method eq "HEAD" || $code =~ /^(?:1\d\d|[23]04)$/) {
 	$self->state("ContLen");
 	*$self->{'lwp_cont_len'} = 0;
+	$self->end_of_response;
+	return;
     } elsif ( ($trans_enc = $res->header("Transfer-Encoding"))) {
-	return $self->_error("Unknown transfer encoding '$trans_enc'")
-	  if $trans_enc ne "chunked";
-	$res->remove_header("Transfer-Encoding");
+	if ($trans_enc ne "chunked") {
+	    $self->_error("Unknown transfer encoding '$trans_enc'");
+	    return;
+	}
+	$res->remove_header("Transfer-Encoding");  # XXX or perhaps not?
 	$self->state("Chunked");
-	*$self->{'lwp_chunked'} = -1;
+	*$self->{'lwp_chunked'} = -1; # expect chunk size next
     } else {
 	my $ct = $res->header("Content-Type") || "";
 	if ($ct =~ /^multipart\//) {
@@ -398,10 +407,14 @@ sub check_rbuf
 	    if (defined $cont_len) {
 		$self->state("ContLen");
 		*$self->{'lwp_cont_len'} = $cont_len;
+		unless ($cont_len) {
+		    $self->end_of_response;
+		    return;
+		}
 	    } else {
 		$self->state("UntilEOF");
 		# If we have pending requests, then we know we will never
-		# get a reply, so let's return them...
+		# get a reply, so let's return them to the mgr...
 		my $req = *$self->{'lwp_req'};
 		if (@$req > 1) {
 		    my $mgr = *$self->{'lwp_mgr'};
@@ -478,7 +491,6 @@ sub check_rbuf
     # >0: read this number of bytes before returning back to -1
     # -2: read footers (after 0 header)
     while (length ($$buf)) {
-	#print STDERR "CHUNKED $chunked\n";
 	if ($chunked > 0) {
 	    # read $chunked bytes of data (throw away 2 last bytes "CRLF")
 	    my $data = substr($$buf, 0, $chunked);
@@ -492,38 +504,64 @@ sub check_rbuf
 
 	} elsif ($chunked == -1) {
 	    # read a new chunk header
-	    #print "BUF [$$buf]\n";
-	    return unless $$buf =~ s/^([^\012]*)\015?\012//;
-	    $chunked = hex($1) + 2;  # XXXXX + 2 (CRLF)
-	    $chunked = -2 if $chunked == 2;
+	    if ($$buf =~ s/^([^\012]*)\015?\012//) {
+		my $chunk_size = $1;
+		unless ($chunk_size =~ /^([0-9A-Fa-f]+)\s*(;|$)/) {
+		    $self->_error("Bad chunk size line '$chunk_size'");
+		    return;
+		}
+		if (length($1) > 7) {
+		    $self->_error("Chunk too big '$chunk_size'");
+		    return;
+		}
+		$chunked = hex($1) + 2;  # XXX + 2 (CRLF)
+		$chunked = -2 if $chunked == 2;
+	    }
 	} elsif ($chunked == -2) {
 	    # read footer
-	    return unless $$buf =~ /^\015?\012/m;  # need a blank line
+	    return unless $$buf =~ /^\015?\012/m;
+	    # must have a blank line somewhere before we begin
+
 	    local($_);
-	    #print "BUF [$$buf]\n";
+	    my($k, $v);
 	    while ($$buf =~ s/^([^\012]*)\012//) {
 		$_ = $1;
 		s/\015$//;
-		#print "FOOTER: $_\n";
-		my($k, $v);
 		if (length($_) == 0) {
 		    $res->push_header($k, $v) if $k;
 		    $self->end_of_response;
+		    return;
 		} elsif (/^([^\s:]+)\s*:\s*(.*)/) {
 		    $res->push_header($k, $v) if $k;
 		    ($k, $v) = ($1, $2);
 		} elsif (/^\s+(.*)/) {
-		    warn "Bad chunked trailer (no key for continuation)"
-		        unless $k;
+		    unless ($k) {
+			$self->_error("Bad chunked trailer (cont)");
+			return;
+		    }
 		    $v .= " $1";
 		} else {
-		    warn "Bad chunked trailer: $_\n";
+		    $self->_error("Bad chunked trailer '$_'");
+		    return;
 		}
 	    }
 	} else {
-	    die "This should not happen";
+	    die "This should never happen (\$chunked=$chunked)";
 	}
 	*$self->{'lwp_chunked'} = $chunked;   # remember to next time
+
+	if ($LWP::HConn::DEBUG) {
+	    print STDERR "Chunked state: ";
+	    if ($chunked == -1) {
+		print STDERR "Expect chunk header line\n";
+	    } elsif ($chunked == -2) {
+		print STDERR "Expect trailers\n";
+	    } elsif ($chunked > 0) {
+		print STDERR "Expect $chunked data bytes\n";
+	    } else {
+		print STDERR "??? ($chunked)\n";
+	    }
+	}
     }
 }
 
