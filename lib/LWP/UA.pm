@@ -25,8 +25,9 @@ sub new
 	      }, $class;
 
     $ua->add_hook("spool_request", \&setup_default_headers);
+    $ua->add_hook("spool_request", \&setup_auth);
     $ua->add_hook("spool_request", \&setup_proxy);
-    #$ua->agent("libwww-perl/ng");
+    $ua->agent("libwww-perl/ng");
 
     $ua;
 }
@@ -178,6 +179,25 @@ sub setup_default_headers
 }
 
 
+sub setup_auth
+{
+    my($self, $req) = @_;
+    my $realm = $self->{'uattr'}->p_attr($req->url, "realm");
+    return unless $realm;
+    my $realms = $self->{'uattr'}->p_attr($req->url, "realms");
+    # should we ensure that this is a SERVER attribute?
+    unless ($realms) {
+	warn "No REALMS registered for this server";
+	return;
+    }
+    if (my $auth = $realms->{$realm}) {
+	$auth->set_authorization($req);
+    } else {
+	warn "Don't know about the '$realm' realm";
+    }
+    0;
+}
+
 sub cookie_jar
 {
     my $self = shift;
@@ -271,10 +291,10 @@ sub as_string
 		push(@s, $s);
 	    }
 	    $str = join("", "\$servers = {\n", @s, "};\n");
-=com
 	} elsif ($_ eq "uattr") {
-	    $str = "\$uattr = ...\n";
-=cut
+	    my $s = $self->{uattr}->as_string;
+	    $s =~  s/^/    /mg; # indent
+	    $str = "\$uattr = {\n$s};\n";
 	} else {
 	    $str = Data::Dumper->Dump([$self->{$_}], [$_]);
 	}
