@@ -260,7 +260,7 @@ sub _error
 		$mgr->connection_closed($self);
 	    } else {
 		$mgr->connection_closed($self);
-		$cur_req->gen_response(590, "No response", $msg);
+		$cur_req->give_response(590, "No response", $msg);
 	    }
 	}
     } else {
@@ -314,7 +314,7 @@ sub connect_failed
     my($self, $msg, $param) = @_;
     my $mgr = shift @$param;
     while (my $req = $mgr->get_request($self)) {
-	$req->gen_response(590, $msg);
+	$req->give_response(590, $msg);
     }
     $self->state("Closed");
     $mgr->connection_closed($self);
@@ -338,7 +338,6 @@ package LWP::Conn::HTTP::Active;
 use base qw(LWP::Conn::HTTP);
 
 use LWP::MainLoop qw(mainloop);
-require HTTP::Response;
 
 sub activate
 {
@@ -379,13 +378,15 @@ sub check_rbuf
     my $self = shift;
     my $buf = \ *$self->{'lwp_rbuf'};
 
+    my $req = $self->current_request;
+
     my($res, $prot, $code);
     my $magic       = substr("HTTP/1.", 0, length($$buf));
     my $first_bytes = substr($$buf, 0, length($magic));
 
     if ($first_bytes ne $magic) {
 	($prot, $code) = ("HTTP/0.9", 200);
-	$res = HTTP::Response->new($code => "OK");
+	$res = $req->new_response($code => "OK");
 	$res->protocol($prot);
 
     } elsif ($$buf =~ /\015?\012\015?\012/) {
@@ -395,7 +396,7 @@ sub check_rbuf
 	my @head = split(/\015?\012/, $2);
 	my $mess;
 	($prot, $code, $mess) = split(" ", shift(@head), 3);
-	$res = HTTP::Response->new($code, $mess);
+	$res = $req->new_response($code, $mess);
 	$res->protocol($prot);
 	my $err;
 	$code = "" unless defined($code);
@@ -418,7 +419,7 @@ sub check_rbuf
 	if ($err) {
 	    # something bad in the headers, fallback on HTTP/0.9
 	    ($prot, $code) = ("HTTP/0.9", 200);
-	    $res = HTTP::Response->new($code => "OK");
+	    $res = $req->new_response($code => "OK");
 	    $res->protocol($prot);
 	    $res->header("Client-Warning" => $err);
 	    $$buf = "$head$$buf";
@@ -427,8 +428,6 @@ sub check_rbuf
     } else {
 	return;
     }
-
-    my $req = $self->current_request;
 
     if ($code == 101) {  # SWITCHING PROTOCOL
 	# XXX Should check for pipelining

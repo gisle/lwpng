@@ -1,6 +1,5 @@
 package LWP::Conn::FILE;
 use strict;
-require HTTP::Response;
 require LWP::Version;
 
 # Ideally, we should make this implementation shareable with
@@ -30,7 +29,7 @@ sub new
 	    # generate redirect to ftp serveer
 	    my $loc = $url->as_string;
 	    $loc =~ s/^\w+:/ftp:/;
-	    $req->gen_response(301, "Use ftp instead", {Location => $loc});
+	    $req->give_response(301, "Use ftp instead", {Location => $loc});
 	    next;
 	}
 
@@ -42,7 +41,7 @@ sub new
 
 	} elsif ($method eq "PUT") {
 	    if ($req->header("Content-Range")) {
-		$req->gen_response(506, "Don't handle partial content updates yet");
+		$req->give_response(506, "Don't handle partial content updates yet");
 		next;
 	    }
 	    put($req, $path);
@@ -50,13 +49,13 @@ sub new
 	} elsif ($method eq "DELETE") {
 	    # XXX must really handle If-XXX headers
 	    if (unlink($path)) {
-		$req->gen_response(204, "OK");
+		$req->give_response(204, "OK");
 	    } else {
-		$req->gen_response(errno_status(), "$!");
+		$req->give_response(errno_status(), "$!");
 	    }
 
 	} elsif ($method eq "TRACE") {  # Just for fun!
-	    my $res = HTTP::Response->new(200, "OK");
+	    my $res = $req->new_response(200, "OK");
 	    $res->date(time);
 	    $res->server($LWP::Version::PRODUCT_TOKEN);
 	    $res->content_type("message/http");
@@ -64,7 +63,7 @@ sub new
 	    $req->response_done($res);
 
 	} else {
-	    $req->gen_response(405, "Bad method '$method'");
+	    $req->give_response(405, "Bad method '$method'");
 	}
     }
 
@@ -84,7 +83,7 @@ sub get
 
     local(*FILE);
     if (sysopen(FILE, $path, 0)) {
-	my $res = HTTP::Response->new(200, "OK");
+	my $res = $req->new_response(200, "OK");
 	my $now = time;
 
 	$res->date($now);
@@ -209,20 +208,20 @@ sub get
 	$req->response_done($res)
 
     } else {
-	$req->gen_response(errno_status(), "$!");
+	$req->give_response(errno_status(), "$!");
     }
 }
 
 sub dir
 {
     my($req, $path, $dir, $send_content) = @_;
-    $req->gen_response(501, "Directory reading", $path); #NYI
+    $req->give_response(501, "Directory reading", $path); #NYI
 }
 
 sub put
 {
     my($req, $path) = @_;
-    $req->gen_response(501, "File updating", $path); #NYI
+    $req->give_response(501, "File updating", $path); #NYI
 }
 
 sub errno_status

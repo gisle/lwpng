@@ -40,8 +40,6 @@ use IO::Socket ();
 use LWP::MainLoop qw(mainloop);
 use strict;
 
-require HTTP::Response;
-
 use vars qw($DEBUG @ISA);
 @ISA=qw(IO::Socket::INET);
 
@@ -108,7 +106,7 @@ sub _error
     }
     *$self->{'lwp_mgr'}->connection_closed($self);
     if (my $req = delete *$self->{'lwp_req'}) {
-	$req->gen_response(590, $msg);
+	$req->give_response(590, $msg);
     }
 }
 
@@ -236,14 +234,14 @@ sub login_info
     ($user, $pass, $acct);
 }
 
-sub gen_response
+sub give_response
 {
     my($self, $code, $mess, $more) = @_;
     my $req = delete *$self->{'lwp_req'};
     if (ref($more) || !defined($more)) {
 	$more->{Server} = *$self->{'lwp_server_product'};
     }
-    $req->gen_response($code, $mess, $more);
+    $req->give_response($code, $mess, $more);
     $self->activate;
 }
 
@@ -269,7 +267,7 @@ sub connect_failed
     my($self, $msg, $param) = @_;
     my $mgr = shift @$param;
     while (my $req = $mgr->get_request($self)) {
-	$req->gen_response(590, $msg);
+	$req->give_response(590, $msg);
     }
     $mgr->connection_closed($self);
 }
@@ -361,7 +359,7 @@ sub cant_login
     $mess =~ s/^\d+\s+//;
     chomp($mess);
     $self->state("Outlogged");
-    $self->gen_response(401, $mess,
+    $self->give_response(401, $mess,
 			{"WWW-Authenticate" => 'Basic realm="FTP"',
 			});
     $self->activate;
@@ -494,11 +492,11 @@ sub activate
 	$self->send_cmd("DELE $file" => "Dele");
 
     } elsif ($method eq "RENAME") {
-	$self->gen_response(501, "RENAME not implemented yet");
+	$self->give_response(501, "RENAME not implemented yet");
 
     } elsif ($method eq "TRACE") {
 	my $req = delete *$self->{'lwp_req'};
-	my $res = HTTP::Response->new(200, "OK");
+	my $res = $req->new_response(200, "OK");
 	$res->date(time);
 	$res->server(*$self->{'lwp_server_product'});
 	$res->content_type("message/http");
@@ -507,7 +505,7 @@ sub activate
 	$self->activate;
 
     } else {
-	$self->gen_response(501, "Method not implemented");
+	$self->give_response(501, "Method not implemented");
     }
 }
 
@@ -526,7 +524,7 @@ sub file_trans
     *$self->{'lwp_meth'} = $method;
     *$self->{'lwp_file'} = $file;
 
-    my $res = HTTP::Response->new(200, "OK");
+    my $res = *$self->{'lwp_req'}->new_response(200, "OK");
     $res->date(time);
     $res->server(*$self->{'lwp_server_product'});
     # XXX we should guess content_type and such here
@@ -645,11 +643,11 @@ sub response
     $mess =~ s/^\d+\s+//;
     chomp($mess);
     if ($r eq "2") {
-	$self->gen_response(204, $mess);
+	$self->give_response(204, $mess);
     } elsif ($code eq "550") {
-	$self->gen_response(404, $mess);
+	$self->give_response(404, $mess);
     } else {
-	$self->gen_response(400, $mess);
+	$self->give_response(400, $mess);
     }
 }
 
@@ -702,7 +700,7 @@ sub response
 	if (lc($self->message) =~ /or directory/) {
 	    delete(*$self->{'lwp_data'})->close;
 	    $self->state("Ready");
-	    $self->gen_response(404);
+	    $self->give_response(404);
 	} else {
 	    # It might still be a directory, try to list it
 	    my $file = *$self->{'lwp_file'};
@@ -792,7 +790,7 @@ sub response
     } elsif ($code eq "550") {
 	delete(*$self->{'lwp_data'})->close;
 	$self->state("Ready");
-	$self->gen_response(404);
+	$self->give_response(404);
     } else {
 	$self->error("LIST");
     }
