@@ -85,7 +85,7 @@ namespace.  They also have variations suffixed with ::encode and
 
 Perhaps I<LWP::Sink> should provide an interface to load sink
 subclasses on demand and return references to them.  Similar to how
-URI::URL works.
+URI works.
 
 
 =head1 COPYRIGHT
