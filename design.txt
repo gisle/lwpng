@@ -2,21 +2,22 @@ This document contains various notes for a redesign of the protocol
 handling of LWP.  The goal is to be able to support HTTP/1.1 and
 multiple connections and at the same time be able to support the old
 interfaces.  The old interface will be built on top of the new
-event-driven model. Some of the things that are not in conflict with
-the old LWP will be integrated directly as they mature.
+event-driven model.
 
 All communication will be based on IO::Socket::INET or on the Net::
 modules where they are applicable.  Perhaps we ought to build a
-Net::HTTP module?  All timeout handling should be based on a central
-event-loop.  No more alarm calls.  When Perl get an official
-event-loop we will use it and I believe that Nick is working on it
-together with Tk.  Using the same event-loop is also a requirement for
-happy Tk/LWP based applications in the future.
+Net::HTTP module to deal with basic HTTP communication?  All timeout
+handling should be based on a central event-loop.  No more alarm
+calls.  When Perl get an official event-loop we will use it and I
+believe that Nick is working on it together with Tk.  Using the same
+event-loop is also a requirement for happy Tk/LWP based applications
+in the future.
 
 There can be multiple connections to the same or different servers.
 Requests can be pipelined to HTTP/1.1 servers.
 
-Much of this work is among others inspired by Marc's LWP::ParallelUA.
+Marc's LWP::ParallelUA already do a lot of what has been planed.  This
+is a much more abitious rewrite plan for LWP.
 
 ------------------------------------------------------------------
 
@@ -25,10 +26,20 @@ LWP::UserAgent
     %servers{"$host:$port"}
           # need $port since we don't index the protocol
     $scheduler
+
     $default_headers (UserAgent, From,....)
     $timeouts
-    $cookie_jar... (generalized to something that modifies/monitors
-          requests/responses???)
+    $cookie_jar... 
+          # Might be generalized to something that modifies/monitor
+          # requests/responses???)
+          #   - a list of request hook objects and
+          #   - a list of response hooks objects (objects that can
+          # modify a request on the way out or a response before
+          # it is delivered to the user.  These hook objects can
+          # also extract information in order to use them for
+          # later requests/responses.  Default headers, cookies,
+          # and autentication info and proxying decisions
+          # can all be implemented by these hooks.
 
     $proxies
        # also something to support proxy authentication
@@ -37,15 +48,16 @@ LWP::UserAgent
     $ua->$scheduler->spool();
     
     # the old $ua->request ($ua->simple_request) interfaces will be
-    # emulated somehow.
-         $ua->$scheduler->spool();
+    # emulated somehow.  Something like this perhaps?
+         $ua->$scheduler->spool($req);
          LWP::EventLoop::wait_for_completion();
          return $res;
 
 
 LWP::Request
-    # same as before, but also hold $ua->request parameters.  Should it
-    # then be a subclass?
+    # same as HTTP::Request, but also hold $ua->request parameters.
+    # Should it then be a subclass or perhaps we should encapsulate
+    # a HTTP::Request with this additional info.
     $arg       (undef, $file, \&callback)
     $size      (read size hint)
     $redirect  (redirect behaviour, scalar or callback)
@@ -74,8 +86,8 @@ LWP::Server
     $last_request       time() (support nice robots and such)
     $num_requests       # counter (don't really know why we want this)
 
-    @pending_request
-    @connections
+    @pending_request    # a queue of things to do
+    @connections        # the active things
 
     # support authentication without unnecessary round-trips
     %credentials
@@ -87,6 +99,7 @@ LWP::Server
 LWP::Connection (subclassed for various protocols)
 
     $server
+
     # These are attributes needed to support HTTP/1.1.
     $socket
     $current_request
@@ -100,6 +113,8 @@ LWP::Connection (subclassed for various protocols)
     # When a connection has been created it will have a reference to
     # it's server.  It will then start eating of the @pending_request
     # queue.  Various parameters govern how greedy it will be.
+
+    Class methods to kill all connections (user hit the big red button)
 
 
 LWP::Auth
@@ -117,9 +132,12 @@ LWP::Auth
 LWP::EventLoop
    - register filehandles (mostly sockets) for readable/writeable callbacks
    - timeout callbacks
-   - wrapper around Tk's MainLoop
+   - a start could be wrapper around Tk's MainLoop
+       (I tried this but it looks like Tk don't like to have the
+        same handle readable and writable at the same time.  This makes
+        it almost useless for HTTP/1.1.)
 
-   $loop->loop_until($something);  # let things happen
+   $loop->loop_until($something);  # let things happen for a while
 
 
 
@@ -157,9 +175,3 @@ LWP::Scheduler
    $sched->kill_server();  # kills all connections (and pending requests)
                            # to the given server.
    $sched->kill_all();
-
-
-LWP::Simple
-   # make it short-cut for simple HTTP request without redirect and
-   # when no proxies are present.  It should not even have to load
-   # all the other grummy stuff.
