@@ -474,9 +474,9 @@ sub check_rbuf
 		$self->_error("Too long TE chain");
 		return;
 	    }
-	    # must set up stream *$self->{'lwp_te'}
+	    # must set up stream of LWP::Sink objects that will decode
+	    # the transfer encodings applied by the server.
 	    eval {
-		print STDERR "Must set up @trans_enc\n";
 		require LWP::Sink::identity;
 		require LWP::Sink::Monitor if $LWP::Conn::HTTP::DEBUG;
 		my $te;
@@ -486,23 +486,25 @@ sub check_rbuf
 		    my $enc = lc(shift @$_);
 		    $enc =~ /^([a-z][a-z0-9]*)$/ or die "Bad TE '$enc'";
 		    $enc = $1; # untaint
-		    #next if $enc eq "identity";
+		    next if $enc eq "identity";
 		    my $filter = "LWP::Sink::$enc";
 		    no strict 'refs';
 		    unless (defined %{"$filter\::"}) {
 			eval "require $filter";
-			if ($@) {
-			    die "No filter for TE '$enc': $@";
-			}
+			die "No filter for TE '$enc': $@" if $@;
 		    }
 		    $filter = "$filter\::decode"->new(@$_);
 		    $te = $te ? $te->append($filter) : $filter;
 		    $te->append(LWP::Sink::Monitor->new($enc))
 			if $LWP::Conn::HTTP::DEBUG;
 		}
-		$te->append(LWP::Sink::identity->new);
-		$te->append( sub { $req->response_data($_[0], $res); } );
-		*$self->{'lwp_te'} = $te;
+		if ($te) {
+		    # Just terminate the stream with a callback closure
+		    # that feeds the data to $req->response_data
+		    $te->append(LWP::Sink::identity->new);
+		    $te->append( sub { $req->response_data($_[0], $res); } );
+		    *$self->{'lwp_te'} = $te;
+		}
 	    };
 	    if ($@) {
 		$self->_error($@);
