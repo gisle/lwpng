@@ -18,7 +18,7 @@ sub reschedule
     my @idle;
     my @start;
 
-    while (my($netloc, $server) = each %{$ua->{servers}}) {
+    while (my($netloc, $server) = each %{$ua->{ua_servers}}) {
 	my($req,$conn,$iconn, $max_conn) = $server->c_status;
 	if ($req && $conn) {
 	    # Let's see if any of the existing connections can
@@ -44,7 +44,7 @@ sub reschedule
 	push(@start, [$sconn, $server]) if $sconn;
     }
 
-    my $conn_limit = $ua->{'max_conn'};
+    my $conn_limit = $ua->max_conn;
     unless (!$conn_limit) {
 	# There is no global limit to care about, so just start all we have
 	for (@start) {
