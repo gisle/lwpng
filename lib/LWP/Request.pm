@@ -27,7 +27,7 @@ require URI::URL;
 #   (previous)
 #
 
-sub new
+sub new2
 {
     my $class = shift;
     my $self = $class->SUPER::new(@_);
@@ -45,6 +45,7 @@ sub clone
 	next unless exists $self->{$_};
 	$clone->{$_} = $self->{$_};
     }
+    $clone->copy_hooks_from($self, "response_handler");
     $clone;
 }
 
@@ -124,7 +125,7 @@ sub auto_redirect
     return if $method ne "GET" &&
 	      $method ne "HEAD" &&
 	      !$self->redirect_ok($res);
-    my $loc = $res->header('Location');
+    my $loc = $res->header('Location') || return;
     $loc = (URI::URL->new($loc, $res->base))->abs(undef,1);
 
     if ($code == 305) {  # RC_USE_PROXY
@@ -154,7 +155,7 @@ sub auto_redirect
 	}
     }
 
-    # New request is OK, spool it at somewhat high priority.
+    # New request is OK, spool it
     $new->{'previous'} = $res;
     $new->priority(10) if $new->priority > 10;
     $self->{'mgr'}->spool($new);
