@@ -3,6 +3,7 @@ package LWP::Request;
 use strict;
 use vars qw(@ISA);
 
+require LWP::Version;
 require HTTP::Request;
 require LWP::Hooks;
 @ISA=qw(HTTP::Request LWP::Hooks);
@@ -81,7 +82,7 @@ sub gen_response
     require HTTP::Response;
     my $res = HTTP::Response->new($code, $message);
     $res->date(time);
-    $res->server("libwww-perl/ng");
+    $res->server($LWP::Version::PRODUCT_TOKEN);
     if ($more) {
 	if (ref($more)) {
 	    while (my($k,$v) = each %$more) {
