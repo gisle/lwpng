@@ -32,6 +32,18 @@ require URI::URL;
 #
 
 
+sub clone
+{
+    my $self = shift;
+    my $clone = $self->SUPER::clone;
+    for (qw(priority proxy mgr data_cb done_cb
+            want_progress_report auto_redirect auto_auth)) {
+	next unless exists $self->{$_};
+	$clone->{$_} = $self->{$_};
+    }
+    $clone;
+}
+
 sub response_data
 {
     my $self = shift;
@@ -64,18 +76,7 @@ sub progress
     }
 }
 
-sub clone
-{
-    my $self = shift;
-    my $clone = $self->SUPER::clone;
-    for (qw(priority proxy mgr data_cb done_cb)) {
-	next unless exists $self->{$_};
-	$clone->{$_} = $self->{$_};
-    }
-    $clone;
-}
-
-sub done
+sub response_done
 {
     my($self, $res) = @_;
 
@@ -135,7 +136,7 @@ sub gen_response
     require HTTP::Response;
     my $res = HTTP::Response->new($code, $message);
     $res->date(time);
-    $res->server("libwww-perl");
+    $res->server("libwww-perl/ng");
     if ($more) {
 	if (ref($more)) {
 	    while (my($k,$v) = each %$more) {
@@ -152,7 +153,7 @@ sub gen_response
 	    if $res->is_error;
     }
     
-    $self->done($res);
+    $self->response_done($res);
 }
 
 # Accessor functions for some simple attributes
