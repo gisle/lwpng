@@ -1,0 +1,323 @@
+
+This is supposed to be an article about libwww-perl-6 for the Perl
+conference in august 1998.
+
+=pod
+
+Title: LWPng ...
+
+Author: Gisle Aas <aas@sn.no>
+
+=head1 Introduction
+
+This article describe a redesign of the libwww-perl library in order
+to provide support for writing HTTP/1.1 clients that can manage
+multiple persistent connections to servers.
+
+=head1 A short history of HTTP
+
+HTTP is a simple protocol based on the request/response paradigm.  A
+client establishes a connection with a server and sends a request
+message to the server.  The server then returns a response message.
+
+HTTP started out as an extremely simple protocol where the client
+connected to a server, sent a line with "GET <name>" and the server
+returned the <name> resource and closed the connection.  This version
+of the protocol has afterwards been dubbed HTTP/0.9.
+
+The next revision gave us HTTP/1.0, which is still what is deployed in
+most servers and clients today [ref].  It adds a protocol version
+number to the request line from the client and adds MIME-like messages
+for both the request from the client and the response from the server.
+This makes it possible to add extra information about
+request/responses and to carry meta-information about the content of
+these messages.  Responses now also start with a status line with a
+status code that encode the overall outcome of the request.
+
+The next step was/is HTTP/1.1 which tries to fix some of the
+shortcommings of the HTTP/1.0 protocol [ref]. One simple but important
+change is that the Host header is now mandatory which make it possible
+to serve multiple domains from a single server without allocating a
+new IP-address to each.  Another change is support for partial
+content.  The support for caching and proxies has also been much
+clarified and improved on.  There is also a standard mechanism of
+switching away from HTTP/1.1 to some other (hopefully more suitable)
+protocol on the wire.
+
+The most important change is the introduction of persistent
+connections.  This means that more than one request/response exchange
+can take place on a single TCP connection between a client and a
+server.  This improves performance and generally interacts much better
+with how TCP works underneath.  This also means that the peers must be
+able to tell the extent of the messages on the wire. In HTTP/1.0 the
+only way to do this was by using the Content-Length header and by
+closing the connection (which was only an option for the server).  Use
+of the Content-Length header is not appropriate when the length of the
+message can not be determined in advance.  HTTP/1.1 introduce two new
+ways to delimit messages; the chunked transfer encoding and the self
+delimiting multipart content types.  The chunked transfer encoding
+means that the message is broken into chunks of arbitrary sizes and
+that each chunk is preceded by a line specifying the number of bytes
+in the chunk.  The multipart types use a special boundary bytepattern
+as a delimiter for the messages.
+
+With persistent connections one can improve performance even more by
+the use of a technique called "pipelining".  This means that the
+client sends multiple requests down the connections without waiting
+for the response of the first request before sending the second.  This
+can have a dramatic effect on the thoughput for high latency
+links. [NOTE-pipelining-970624]
+
+Some of the HTTP/1.1 features are also deployed in HTTP/1.0 clients
+and servers.  Persistent connections can sometimes be used with
+HTTP/1.0 if the clients sends a "Connection: Keep-Alive" header.  Most
+of todays HTTP/1.0 clients send the Host header which is mandatory in
+HTTP/1.1.
+
+HTTP/NG is an attempt to take a more radical approach.  Making the
+protocol binary in order not to waste bytes on long human readable
+headers and support multiplexing over a single network connection.  It
+is not clear whether this is such a big win. [ref]
+
+=head1 History of libwww-perl
+
+The libwww-perl project started on the first WWW conference in Geneva
+where Martijn Koster discussed MOMspider with Roy Fielding and
+suggested that it would be a nice thing if the reuseable components of
+this program was broken out into a library.  The result was the
+libwww-perl library for perl 4 that Roy maintained for some time (and
+still does).
+
+At one point both Gisle and Martijn had made each own modulifications
+of Roy's library to better suit the possibilities that perl5 provided.
+We joined forces and made several alpha releases together.  Martijn
+had a little unagreement about rights to library souce code with his
+employer (which at that time was Nexor in UK).  This was the main
+reason Gisle ended up as the maintainer of the package.
+
+[Something about how we got stuck with the LWP:: module name.  It was
+pointed out early that this could be confused with what some
+implementations of threads was called, but nobody could come up with a
+better name so it stuck.  One of the last messages on this matter was
+<"6362 Tue Jul 18 09:59:46 1995"@mhs-relay.ac.uk> where Martijn 
+concludes that "OK, so we all agree lwp stinks :-)".
+
+At 1996-05-26 we made the first non-beta release of libwww-perl.  It
+was called release 5.00 because it was for perl5 and in order to make
+some room for Roy to maintain libwww-perl for perl4 which at that time
+was (and still is) called libwww-perl-0.40.
+
+In the two years that has passed since that time lots of bugs has been
+fixed and some features added, but nothing radical has happened.  It
+seemed hard to extend it into decent support for HTTP/1.1 without a
+more radical restructuring of how the basic protocol services was
+implemented.
+
+One important work that inspired the rewrite described here was Marc
+Langheinrich's ParallelUserAgent implementation.  It extended
+libwww-perl with the possibility to access multiple servers (or have
+multiple connections to the same server) at the same time. [ref]
+
+In the november 1997 I started on a rewrite of how the basic services
+provided by libwww-perl worked.  The goal was to provide full HTTP/1.1
+client support and at the same time make the library both more
+flexible and (optionally) more lightweith.  Nothing much happened
+until march 1998, but then I finally got tuits enough to start working
+on this again and it is now quite useable.  This work is currently
+distributed under the name LWPng, but is expected to become
+libwww-perl-6 when the beta phase is over.
+
+
+=head1 A short introduction to libwww-perl-5
+
+The libwww-perl library is based on HTTP style communication.  The
+main model is that all requests through any protocol module are forced
+into an HTTP straightjacket. This makes things very easy, consistent,
+and nice.  This model is also what libwww-perl has inherited and has
+in common with w3c-libwww [ref].
+
+LWP provide an object oriented model of HTTP style messages that are
+passed between servers and clients.  The I<HTTP::Request> class
+models the message sent from a client to a server.  The
+I<HTTP::Response> class models the message send back from a server to
+a client.  On their way between a client to a server these messages
+are converted to the actual protocol on the wire which will depend on
+what kind of server we are accessing.  Instances of the
+I<LWP::UserAgent> class are created by client applications and have
+the role as the interface between the application and a network of
+accessible servers.  The I<LWP::UserAgent> provide the request()
+method that accepts an I<HTTP::Request> object as argument and will
+(eventually) return a I<HTTP::Response> object when the corresponding
+server returns an answer.
+
+The canonical example of LWP client usage looks like this:
+
+  use LWP::UserAgent;
+  my $ua = new LWP::UserAgent;
+
+  my $req = HTTP::Request->new(GET => 'http://www.linpro.no/lwp/');
+  $req->header(Accept => 'text/html');
+
+  # send request, get response
+  my $res = $ua->request($req);
+
+  # check the outcome
+  if ($res->is_success) {
+     print $res->content;
+  } else {
+     print "Error: " . $res->status_line . "\n";
+  }
+
+The I<HTTP::Daemon> class provide the corresponding interface for
+server applications.  Through instances of this class a server
+application will get hold of a connection to a client and will be able
+received I<HTTP::Request> objects from this connection and send back
+I<HTTP::Reponse> objects.  Since the client and server interface use
+the same message objects it is trivial to write proxy[ref] type of
+applications [reference to Randals proxy for WebTechniques].
+
+[Feature list?]
+
+
+=head1 LWPng design
+
+
+
+Some design goals/guidelines
+
+   - high level (still based on passing HTTP::Request and HTTP::Reponse
+     objects around)
+   - efficient (use and underlying implementation)
+   - expose event loop
+   - optional features should add minimal penalty to applications
+     that don't use them.  Wide range of HTTP client applications.
+   - make most features optional
+   - generalizations (from,agent methods can be generalized to the
+     fact that one should be able to set up default headers that are
+     added to requests spooled).
+   - minimal bounds/ties between modules.  should be able to use just
+     what you want.  indicidual modules should be usable in other
+     context than LWP.
+   - easy things should be easy.  hard things possible.
+   - support a wide range of applications
+   - no signal handling/no alarms to do timeout.
+   - happy coexistence with Tk
+   - backwards compatibility
+
+
+
+=head1 Event driven programming
+
+A prerequisite for supporting the HTTP persistent connections that
+HTTP/1.1 requires, is to be able to handle both reading and writing
+from multiple network connections at the same time.  One would also
+like to manage idle connections with some timeout and to notice
+when/if the server decide to close the connections.  This basically
+requires the adoption of an event driven model or a model based on
+separate threads of control.  I have chosen to go for the event driven
+model.  The thread support is still new to Perl and will not work
+everywhere when available.  An event-driven framwork will still work
+with threaded Perls, but not the other way around.
+
+[Mention problems with event oriented programming.  Must explicitly
+store lot of state between invocations of the event handlers.
+Handlers must be written to return quickly.  With an threaded
+environment the state can be embedded as the natural flow the program,
+but one will experience new problems related to synchronization and
+protecting agains races.]
+
+Let's investigate what impact the event driven framework has on the
+programming model.  The basic model for sending requests and receving
+respones in LWP5 used to be:
+
+  $res = $ua->request($req);   # return when response is available
+  if ($res->is_success) {
+      #...
+  }
+
+With the new event driven framework it becomes:
+
+  $ua->spool($req1);   # returns immediately
+  $ua->spool($req2);   # can send multiple request in parallel
+  #...
+
+  mainloop->run;       # return when all connections are gone
+
+Request objects are created and then handed off to the $ua which will
+queue them up for processing.  As you can see, there is no longer any
+natural place to test the outcome of the requests since the spool()
+method returns before the response is available.  What happen is that
+the requests live their own lives and they will be notified (though a
+method call) when the corresponding responses are available.  The
+application programmer will have to set up event handlers (in the
+requests) that react to these events.
+
+Luckily, this does not mean that all old programs must be rewritten.
+The following show one way to emulate something very close to the old
+behaviour:
+
+  my $res;
+  my $req = LWP::Request->new(GET => $url);
+  # set up a handler to be invoked when the response is available.
+  $req->{done_cb} = sub { $res = shift; };
+
+  $ua->spool($req);
+  mainloop->one_event until $res;  # runs until response is available
+
+  if ($res->is_success) {
+      #...
+  }
+
+and this will in fact be used to emulate the old $ua->request() and
+$ua->simple_request() interfaces.  The goal is to be able to
+eventually be completely backwards compatible with the LWP5 modules.
+
+The examples above use the event loop implementation provided by the
+LWP::EventLoop class.  [Disuess other event loops in Perl modules.
+The one provided by Tk.  Grahams Event.  EventServer.  And chances for
+getting a standard eventloop mechanism adopted by the Perl core.  Tcl
+have done this.]
+
+
+=head1 main classes
+
+lwp::request
+
+lwp::ua
+
+spool() method.
+
+register handlers that will be triggered early as part of the spool
+process.  The handlers can abort the request or spool other requests.
+
+lwp::request response handlers and callbacks.
+
+uri::attr
+
+LWP::Conn object interface.  How these can be used on their own
+without the rest of the library.
+
+LWP::Conn::HTTP design. Cool.  The flexibility of Perl continue too
+suprise me.
+
+Perhaps we need a redisign to be able to support HTTPS?  Don't let the
+LWP::Conn:HTTP object be the actual handle, but use a member object
+instance insted.
+
+streams/sink
+
+process arbitrary sized objects and make the result
+available for further processing as early as possible.
+
+
+=head1 Some benchmarks
+
+How well does it perform piplining.  Compare it with LWP5 and
+w3c-libwww perhaps.
+
+
+=head1 Conclusions
+
+
+
+=cut
