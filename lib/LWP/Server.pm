@@ -4,6 +4,14 @@ use strict;
 sub new
 {
     my($class, $ua, $proto, $host, $port) = @_;
+
+    die "Bad proto" unless $proto =~ /^([a-zA-Z0-9\+\-\.]+)$/;
+    my $conn_class = uc($1);  # untaint as well
+    $conn_class =~ s/\+/_PLUS_/g;
+    $conn_class =~ s/\./_DOT_/g;
+    $conn_class =~ s/\-/_MINUS_/g;
+    $conn_class = "LWP::Conn::$conn_class";
+
     bless { ua  => $ua,
 
 	    proto  => $proto,
@@ -11,6 +19,8 @@ sub new
 
 	    host => $host,
 	    port => $port,
+
+	    conn_class => $conn_class,
 
 #	    created => time(),
 #	    last_active => time(),
@@ -32,7 +42,13 @@ sub port    {  $_[0]->{'port'};   }
 sub id
 {
     my $self = shift;
-    "$self->{'proto'}://$self->{'host'}:$self->{'port'}";     # URL like
+    if (my $host = $self->{'host'}) {
+	if (my $port = $self->{'port'}) {
+	    return "$self->{'proto'}://$host:$port";
+	}
+	return "$self->{'proto'}://$host";
+    }
+    return "$self->{'proto'}:";
 }
 
 sub status
@@ -67,12 +83,7 @@ sub stop
     for (@conns) {
 	$_->stop;
     }
-    # terminate all requests (generate fake response)
-    require HTTP::Response;
-    while (@{$self->{req_queue}}) {
-	my $req = shift @{$self->{req_queue}};
-	$req->done(HTTP::Response->new(601, "No response"));
-    }
+    $self->kill_queued_requests;
 }
 
 sub stop_idle
@@ -83,6 +94,20 @@ sub stop_idle
 	$_->stop;
     }
 }
+
+sub kill_queued_requests
+{
+    my($self, $code, $message, $more) = @_;
+    if (!$code) {
+	$code = 590;
+	$message = "No response";
+    }
+    while (@{$self->{req_queue}}) {
+	my $req = shift @{$self->{req_queue}};
+	$req->gen_response($code, $message, $more);
+    }
+}
+
 
 # Connection management
 
@@ -123,14 +148,22 @@ sub conn_param
 sub create_connection
 {
     my $self = shift;
-    my $conn_class = "LWP::Conn::\U$self->{'proto'}";
+    print "Create connection: ", $self->id, "....\n";
+    my $conn_class = $self->{'conn_class'};
     no strict 'refs';
     unless (defined %{"$conn_class\::"}) {
 	eval "require $conn_class";
-	die if $@;
+	if ($@) {
+	    $self->kill_queued_requests(590, "No handler for '$self->{'proto'}' scheme", $@);
+	    return;
+	}
     }
     my $conn = $conn_class->new($self->conn_param);
-    push(@{$self->{conns}}, $conn) if $conn;
+    if ($conn) {
+	push(@{$self->{conns}}, $conn);
+    } else {
+	$self->kill_queued_requests(590, "Can't connect to $self->{'host'}: $!");
+    }
 }
 
 # Connection protocol
