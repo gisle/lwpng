@@ -1,3 +1,33 @@
+=begin todo
+
+Non-blocking connect (common base class for both HTTP and FTP)
+
+Base class like Net::Cmd make some of this code reusable for SMTP
+and NNTP.
+
+Access files relative to current directory after login.  This is how
+RFC 1738 says that ftp: URLs should be interpreted.  This is now how
+popular browsers do it.  They interpret the first "/" of the URL-path
+literally.  Option for enabling this behaviour??
+
+Is there a better way to implement HEAD???  Currently we do RETR and
+then send ABOR on the first 1xx reponse.
+
+Set IdleTimeout when we go Idle.
+
+Use CWD to locate directory when server is not UNIX.  RFC1738 says
+that there is no general reliable way to get to another directory once
+this is done, i.e. one must disconnect after this.
+
+Implement ;type=a perhaps
+
+If file name ends with "/" assume that it is a directory and skip RETR
+(go for LIST right away.)
+
+=end todo
+
+=cut
+
 package LWP::Conn::FTP;
 
 # $Id$
@@ -35,6 +65,7 @@ sub new
     return unless $sock;
 
     {
+	# Interim solution to make it non-blocking...
 	require LWP::Conn::HTTP;
 	$sock->blocking(0);
     }
@@ -45,7 +76,7 @@ sub new
     *$sock->{'lwp_type'} = "";
     *$sock->{'lwp_rbuf'} = "";
     *$sock->{'lwp_rlim'} = delete $cnf{ReqLimit} || 4;
-    my $timeout = delete $cnf{Timeout} || 60;
+    my $timeout = delete $cnf{Timeout} || 5*60;
     *$sock->{'lwp_timeout'} = $timeout;
     *$sock->{'lwp_idletimeout'} = delete $cnf{IdleTimeout} || $timeout;
 
@@ -64,7 +95,7 @@ sub new
 sub state
 {
     my($self, $state) = @_;
-    #print "STATE: $state\n" if $DEBUG;
+    print "STATE: $state\n" if $DEBUG && $DEBUG > 1;
     my $class = "LWP::Conn::FTP::$state";
     bless $self, $class;
 }
@@ -533,36 +564,6 @@ sub port
     }
 }
 
-sub data
-{
-    my $self = shift;
-    #return if *$self->{'lwp_meth'} eq "HEAD";
-
-    eval {
-	*$self->{'lwp_req'}->response_data($_[0], *$self->{'lwp_res'});
-    };
-    if ($@) {
-	# Initiate ABRT
-	$self->abort
-    }
-}
-
-sub data_done
-{
-    my($self, $code) = @_;
-    print "DATA DONE\n";
-    if (++*$self->{'lwp_done'} == 2 || ($code && $code eq "426")) {
-	#print "The second one...\n";
-	my $req = delete *$self->{'lwp_req'};
-	my $res = delete *$self->{'lwp_res'};
-	$req->response_done($res);
-
-	# Start with next request
-	$self->state("Ready");
-	$self->activate;
-    }
-}
-
 use Socket qw(MSG_OOB);
 
 sub abort
@@ -575,7 +576,6 @@ sub abort
 	$data->close;
     }
 }
-
 
 package LWP::Conn::FTP::Size;
 use base 'LWP::Conn::FTP';
@@ -665,6 +665,11 @@ sub response
 package LWP::Conn::FTP::Trans;
 use base 'LWP::Conn::FTP::Ready';
 
+sub activate
+{
+    # ignore
+}
+
 sub response
 {
     my($self, $r, $code) = @_;
@@ -682,17 +687,15 @@ sub response
 	# XXX catch except
 	$self->abort if *$self->{'lwp_meth'} eq "HEAD";
     } elsif ($r eq "2") {
-	# we are done.  Must sync with data_done callback
-	$self->state("Ready");
+	# we are done.  Must sync with closing of data connection
 	$self->data_done($code);
     } elsif ($code eq "426") {  # transfer aborted
 	*$self->{'lwp_res'}->header("Abort" => $self->message);
-	$self->state("Ready");
 	$self->data_done($code);
     } elsif ($code eq "550") {  # no such file
 	if (lc($self->message) =~ /or directory/) {
-	    $self->state("Ready");
 	    delete(*$self->{'lwp_data'})->close;
+	    $self->state("Ready");
 	    $self->gen_response(404);
 	} else {
 	    # It might still be a directory, try to list it
@@ -707,8 +710,68 @@ sub response
     }
 }
 
+sub data
+{
+    my $self = shift;
+    #return if *$self->{'lwp_meth'} eq "HEAD";
+
+    eval {
+	*$self->{'lwp_req'}->response_data($_[0], *$self->{'lwp_res'});
+    };
+    if ($@) {
+	# Initiate ABRT
+	$self->abort
+    }
+}
+
+sub data_really_done
+{
+    my $self = shift;
+    my $req = delete *$self->{'lwp_req'};
+    my $res = delete *$self->{'lwp_res'};
+    $req->response_done($res);
+
+    # Start with next request
+    $self->state("Ready");
+    $self->activate;
+}
+
+sub data_done
+{
+    my($self, $code) = @_;
+    if ($code && $code eq "426") {
+	$self->data_really_done;
+    } else {
+	$self->state("TransWait");
+    }
+}
+
+package LWP::Conn::FTP::TransWait;
+use base 'LWP::Conn::FTP::Trans';
+
+sub activate {}
+
+sub data_done
+{
+    my $self = shift;
+    $self->data_really_done;
+}
+
+sub response
+{
+    my $self = shift;
+    my($r, $code) = @_;
+    if ($code eq "225" || $code eq "226") {
+	# ABOR command successful ignored
+	$self->data_really_done;
+	return;
+    }
+    $self->SUPER::response(@_);
+}
+
+
 package LWP::Conn::FTP::List;
-use base 'LWP::Conn::FTP::Ready';
+use base 'LWP::Conn::FTP::Trans';
 
 sub response
 {
@@ -719,10 +782,10 @@ sub response
 	# XXX catch except
     } elsif ($r eq "2") {
 	# we are done.  Must sync with data_done callback
-	$self->state("Ready");
 	$self->data_done($self->message);
     } elsif ($code eq "550") {
 	delete(*$self->{'lwp_data'})->close;
+	$self->state("Ready");
 	$self->gen_response(404);
     } else {
 	$self->error("LIST");
@@ -770,6 +833,8 @@ sub readable
 {
     my $self = shift;
     if (my $data = $self->accept) {
+	print "FTP DATA ACCEPT\n" if $LWP::Conn::FTP::DEBUG &&
+	                             $LWP::Conn::FTP::DEBUG > 2;
 	mainloop->readable($data);
 	bless $data, "LWP::Conn::FTP::Data";
 	if (my $w = *$self->{'lwp_write'}) {
@@ -806,7 +871,8 @@ sub readable
     mainloop->activity(*$self->{'lwp_ftp'});
     my $n = sysread($self, $buf, 2048);
     if ($n) {
-	print STDERR "Got $n bytes\n";
+	print "FTP DATA READ $n bytes\n" if $LWP::Conn::FTP::DEBUG &&
+	                                    $LWP::Conn::FTP::DEBUG > 2;
 	*$self->{'lwp_ftp'}->data($buf);
     } else {
 	if (defined $n) {
@@ -848,7 +914,8 @@ sub writable
     $len = 2048 if $len > 2048;
     my $n = syswrite($self, $$buf, $len);
     if ($n) {
-	print "Wrote $n bytes\n";
+	print "FTP DATA WRITE $n bytes\n" if $LWP::Conn::FTP::DEBUG &&
+	                                     $LWP::Conn::FTP::DEBUG > 2;
 	substr($$buf, 0, $n) = '';
     } else {
 	*$self->{'lwp_ftp'}->_error("Data connection error: $!");
