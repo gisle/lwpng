@@ -106,9 +106,13 @@ sub timeout
 
 sub forget
 {
-    my($self, $fh) = @_;
-    return unless $fh;
-    delete $self->{fh}{$fh};
+    my $self = shift;
+    return unless @_;
+    my $fh;
+    for $fh (@_) {
+	next unless $fh;
+	delete $self->{fh}{$fh};
+    }
     $self->_vec("_r", 1);
     $self->_vec("_w", 2);
     $self->_vec("_e", 3);
@@ -127,10 +131,31 @@ sub _vec
 {
     my($self, $cachebits, $col) = @_;
     my $vec = "";
+    my @closed;
     for (values %{$self->{fh}}) {
-	vec($vec, fileno($_->[0]), 1) = 1 if defined $_->[$col];
+	my $fileno = fileno($_->[0]);
+	if (defined $fileno) {
+	    vec($vec, $fileno, 1) = 1 if defined $_->[$col];
+	} else {
+	    push(@closed, $_->[0]);
+	}
     }
     $self->{$cachebits} = $vec;
+    if (@closed) {
+	print "Getting rid of closed handles: @closed\n";
+	$self->forget(@closed);
+    }
+}
+
+sub _check_closed
+{
+    my $self = shift;
+    my @closed = grep {!defined fileno($_)}
+                    map { $_->[0] } values %{$self->{fh}};
+    if (@closed) {
+	print "Getting rid of closed handles: @closed\n";
+	$self->forget(@closed);
+    }
 }
 
 sub _fh
@@ -193,7 +218,7 @@ sub one_event   # or none
 {
     my $self = shift;
     my $now = time;
-    my $timeout = 60;
+    my $timeout = 10;
     for (values %{$self->{fh}}) {
 	my $timeout_spec = $_->[4];
 	my $pending = $_->[5];
@@ -246,13 +271,27 @@ sub one_event   # or none
 
     if ($nfound) {
 	# Add callbacks to the pending array, which will be invoked the
-	# next time one_event() runs
+	# next time one_event() runs.
+	my @closed;
 	for (values %{$self->{fh}}) {
 	    my $fileno = fileno $_->[0];
-	    push(@{$_->[5]}, $_->[1]) if defined($r) && vec($r, $fileno, 1);
-	    push(@{$_->[5]}, $_->[2]) if defined($w) && vec($w, $fileno, 1);
-	    push(@{$_->[5]}, $_->[3]) if defined($e) && vec($e, $fileno, 1);
+	    if (defined $fileno) {
+		push(@{$_->[5]}, $_->[1])
+		   if defined($r) && vec($r, $fileno, 1);
+		push(@{$_->[5]}, $_->[2])
+		   if defined($w) && vec($w, $fileno, 1);
+		push(@{$_->[5]}, $_->[3])
+		   if defined($e) && vec($e, $fileno, 1);
+	    } else {
+		push(@closed, $_->[0]);
+	    }
 	}
+	if (@closed) {
+	    print "Getting rid of closed handles: @closed\n";
+	    $self->forget(@closed);
+	}
+    } else {
+	$self->_check_closed();
     }
 }
 
