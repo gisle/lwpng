@@ -23,23 +23,20 @@ sub new
 sub spool
 {
     my($self, $req) = @_;
-    my $url = $req->url;
+    my $url = $req->url;   # XXX: proxy....
     my $proto = $url->scheme;
     $proto = "nntp" if $proto eq "news";  # hack
     my $host = $url->host;
     my $port = $url->port;
-    my $netloc = "$host:$port";
+    my $netloc = "$proto://$host:$port";
 
     my $server = $self->{servers}{$netloc};
     unless ($server) {
 	$server = $self->{servers}{$netloc} =
 	  LWP::Server->new($self, $proto, $host, $port);
-    } elsif ($server->proto ne $proto) {
-	warn "Bad proto for existing server";
-	return;
     }
     $server->add_request($req);
-    $self->reschedule;
+    #$self->reschedule;
     print "$req spooled\n";
 }
 
