@@ -1,3 +1,17 @@
+1998-04-20   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.16
+
+   Getting rid of some unconditional debug printouts.
+
+   LWP::EventLoop->one_event and LWP::EventLoop->run now both take
+   an optional timeout argument.
+
+   Added some documentation to a few modules: LWP::EventLoop, LWP::MainLoop,
+   LWP::Sink, URI::Attr, LWP::Conn
+
+
+
 1998-04-07   Gisle Aas <aas@sn.no>
 
    Release alpha-0.15
