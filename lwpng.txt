@@ -120,10 +120,12 @@ HTTP/1.0 if the clients sends a "Connection: Keep-Alive" header.  Most
 of todays HTTP/1.0 clients send the Host header.
 
 HTTP/NG is still a research project and is an attempt to take a more
-radical approach [6].  The main "features" is making the protocol binary
-in order not to waste bytes on long human readable headers and direct
-support for multiplexing over a single network connection.  It is not
-clear whether this is such a big win.
+radical approach [6].  The main "features" is making the protocol
+binary in order not to waste bytes on long human readable headers and
+direct support for multiplexing over a single network connection.  It
+is not clear that this will be a big enough win that the world ever
+will move away from the HTTP/1.X protocol.
+
 
 =head1 History of libwww-perl
 
@@ -142,13 +144,13 @@ about the intelectual property rights to work done outside hours,
 and to safeguard LWP's continued availability to the Perl community he
 asked Gisle to take over maintenance of the package.
 
-The C<LWP::> module name was introduced by Martijn in one of the
-alpha releases.  It was early pointed out that this name could be
-confused with what some implementations of threads called themselves,
-but no better name alternatives emerged.  The last messages on this
-matter was <"6362 Tue Jul 18 09:59:46 1995"@mhs-relay.ac.uk> where
-Martijn concluded that "OK, so we all agree LWP stinks :-)".  The name
-stuck.
+The C<LWP::> module name was introduced by Martijn in one of the alpha
+releases.  It was early pointed out that this name could be confused
+with what some implementations of threads called themselves, but no
+better name alternatives emerged.  The last mailing list messages on
+this matter was <"6362 Tue Jul 18 09:59:46 1995"@mhs-relay.ac.uk>
+where Martijn concluded that "OK, so we all agree LWP stinks :-)".
+The name stuck.
 
 On 1996-05-26 we made the first non-beta release of libwww-perl.  It
 was called release 5.00 because it was for perl5 and in order to make
@@ -235,7 +237,7 @@ Features of libwww-perl include:
 =item *
 
 Support for http, https, gopher, ftp, file,
-mailto and news within the HTTP framework.
+data, mailto and news within the HTTP framework.
 
 =item *
 
@@ -750,7 +752,7 @@ called at all for a given request.
 The default implementation of response_data() will run any
 I<response_data> hooks and will call the registered data callback
 function if it exists.  If no data callback function is defined, then
-data is simple appended to the content of the response message.
+data is simply appended to the content of the response message.
 
 The response_done() callback method is invoked when the whole response
 has been received.  It is guaranteed that it will be invoked exactly
@@ -838,7 +840,7 @@ EventLoop.  The rest of its interface to the outside world is though a
 single manager object.  There is a simple well defined interface that
 the manager must implement.  Though this interface it must return
 request to be performed and it is told about the overall state of the
-connection and when the connection dies.  This allosw a single manager
+connection and when the connection dies.  This allows a single manager
 to manage several connection objects.
 
 This simple interface makes it easy to use the HTTP::Conn
@@ -862,6 +864,7 @@ pattern is described like this:
 This is usually achieved by having the main object (the connection)
 maintain a reference to some state object that represents the current
 state.  All state specific methods are then delegated to this state
+object, and state changes involve updating the reference to the state
 object.
 
 For libwww-perl, Perl's dynamic approach to object orientation came
@@ -960,60 +963,92 @@ connections that do not tear down the command socket after each
 request.
 
 
-
 =head1 Some benchmarks
 
-How well does it perform pipelining.  Compare it with LWP5 and
-w3c-libwww perhaps.
+LWPng is still alpha software, so it might be a bit premature to do
+serious benchmarking of it.  There has really not yet been any work
+on trying to optimize the library for speed, since we are still
+focusing on getting the programming interface defined, but it might be
+interresting to see how we are doing so far.
 
-Our test is a simple script that fetch a single HTML page, parse it
-and then fetch all images referenced.  This is similar to what a
-graphical browser whould have to do to load a page.  We meassure
-downloading using the Unix 'time' command which report elapsed real
-time as well as how much CPU time is used.
+The test below is based on a simple script that fetch a single HTML
+page, parse it and then fetch all images referenced.  This is similar
+to what a graphical browser whould have to do to load a page.  We
+measure the complete downloading time using the Unix 'time' command
+which report elapsed real time as well as how much CPU time is used.
+We don't go into deeper detail such as looking at the number of TCP
+packets generated or the number of system calls invoked.
 
-Since lwpng is still alpha software where we currently have only
-worked on getting the programming interfaces as we want.  No
-optimizations of the code has been tried so it does not make much
-sense to do more elaborate tests at this point.
+These tests results have been made on a 90Mhz i586 running RedHat
+Linux 4.  We have used perl5.004_04, libwww-perl-5.32 and
+lwpng-alpha-0.20.  The tests are:
 
-[Look at the number of TCP packets generated and the number of system
-calls invoked.]
+=over 3
 
-[...]
+=item LWP5
 
-lwpng-alpha-0.20
-libwww-perl-5.32
+The page fetcher script using the old libwww-perl-5 library.  The
+script will fetch the HTML page and the images in sequence and create
+a new connection for each resource.
 
-a) LWP5
-b) LWPng - 1 conn,   1 req, 1 pend
-c) LWPng - 1 conn, 100 req, 1 pend
-d) LWPng - 1 conn, 100 req, 3 pend
-e) LWPng - 2 conn, 100 req, 3 pend
-f) IO::Socket, handcoded download over a single connection
+=item LWPng
+
+The page fetcher script using the new LWPng interface.  The script
+will start fetching the images as soon as the corresponding part of
+the HTML document has been received.
+
+How the LWPng library behaves depend on various parameters.  C<MaxConn>
+is the number of parallel connections we can have to a single server.
+C<ReqLimit> sets a limit on the number of requests we will send on a
+single connection.  Setting this value to 1 effectively disables persistent
+connections.  C<ReqPend> sets a limit on the number of requests we can
+have outstanding on a connection before we must wait for a response.
+Setting this value to 1 effectively disables pipelining.
+
+The script has been tested with the
+following combinations of the parameters:
+
+     MaxConn   ReqLimit   ReqPend
+   +---------+----------+----------
+ A |    1          1         1
+ B |    2          1         1
+ C |    1        100         1
+ D |    1        100         3
+ E |    2        100         3
+
+=item SOCK
+
+A simplifed version of page fetcher script that just hard-code
+downloading of the specified URLs over a single persistent
+IO::Socket::INET connection.  All requests are written using a single
+print and then we read the responses until the server close the
+connection.  The numbers for this test should indicate an upper limit
+on the downloading speed we can hope to achieve with Perl.
+
+=back
 
 gran --> furu [get-page-lwp5 http://furu/ 5], 3 images
 
-a) 0.94user 0.31system 0:02.49elapsed 50%CPU
-b) 2.61user 0.23system 0:03.61elapsed 78%CPU
-c) 2.38user 0.31system 0:03.57elapsed 75%CPU
-d) 2.36user 0.26system 0:03.49elapsed 74%CPU
-e) 2.30user 0.25system 0:03.22elapsed 79%CPU
-f) 0.28user 0.05system 0:01.40elapsed 23%CPU
+ LWP5)    0.94user 0.31system 0:02.49elapsed 50%CPU
+ LWPng-A) 2.61user 0.23system 0:03.61elapsed 78%CPU
+ LWPng-C) 2.38user 0.31system 0:03.57elapsed 75%CPU
+ LWPng-D) 2.36user 0.26system 0:03.49elapsed 74%CPU
+ LWPng-E) 2.30user 0.25system 0:03.22elapsed 79%CPU
+ SOCK)    0.28user 0.05system 0:01.40elapsed 23%CPU
 
 furu --> www.microsoft.com, [17 images]
 
-a) 3.86user 0.30system 0:21.07elapsed 19%CPU
-b) 6.25user 0.39system 0:22.98elapsed 28%CPU
-b) 6.17user 0.38system 0:21.85elapsed 29%CPU
-c) 5.66user 0.40system 0:17.20elapsed 35%CPU
-c) 5.70user 0.37system 0:16.56elapsed 36%CPU
-d) 5.58user 0.38system 0:13.82elapsed 43%CPU
-d) 5.55user 0.39system 0:13.92elapsed 42%CPU
-e) 5.62user 0.45system 0:13.46elapsed 45%CPU
-e) 5.87user 0.33system 0:13.09elapsed 47%CPU
-f) 0.72user 0.08system 0:10.65elapsed 7%CPU
-f) 0.73user 0.10system 0:10.89elapsed 7%CPU
+ LWP5)    3.86user 0.30system 0:21.07elapsed 19%CPU
+ LWPng-A) 6.25user 0.39system 0:22.98elapsed 28%CPU
+ LWPng-A) 6.17user 0.38system 0:21.85elapsed 29%CPU
+ LWPng-C) 5.66user 0.40system 0:17.20elapsed 35%CPU
+ LWPng-C) 5.70user 0.37system 0:16.56elapsed 36%CPU
+ LWPng-D) 5.58user 0.38system 0:13.82elapsed 43%CPU
+ LWPng-D) 5.55user 0.39system 0:13.92elapsed 42%CPU
+ LWPng-E) 5.62user 0.45system 0:13.46elapsed 45%CPU
+ LWPng-E) 5.87user 0.33system 0:13.09elapsed 47%CPU
+ SOCK)    0.72user 0.08system 0:10.65elapsed 7%CPU
+ SOCK)    0.73user 0.10system 0:10.89elapsed 7%CPU
 
 =head1 Conclusions
 
@@ -1064,7 +1099,7 @@ Nielsen, Gettys, Baird-Smith, Prud'hommeaux, Lie, Lilley. W3C, 1997.
 
 =item [6]
 
-HTTP/NG
+<http://www.w3c.org/Protocols/HTTP-NG/>
 
 =item [7]
 
