@@ -55,6 +55,7 @@ my $ua = MyUA->new;
 $ua->env_proxy;
 $ua->uri_attr_update("SCHEME", "http:")->
     {default_headers}{From} = 'libwww-perl@ics.uci.edu';
+$ua->uri_attr_update("SCHEME", "ftp:")-> {max_conn_per_server} = 1;
 
 
 print "ua> ";
