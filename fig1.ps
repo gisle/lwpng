@@ -1,0 +1,121 @@
+%!PS-Adobe-2.0 EPSF-1.2
+%%BoundingBox: -10 50 160 210
+%%Creator: Gisle Aas (Copyright 1998)
+
+/rrect {             % <dx> <dy> rrect -
+   2 dict begin
+      /dy exch def  /dx exch def
+      dx 0 rlineto 0 dy rlineto dx neg 0 rlineto closepath
+   end
+} def
+
+% Some handy aliases
+/M  /moveto       load def
+/L  /lineto       load def
+/RM /rmoveto      load def
+/RL /rlineto      load def
+/F  /fill         load def
+/S  /stroke       load def
+/CP /closepath    load def
+/LW /setlinewidth load def
+/SG /setgray      load def
+
+/SF    { exch findfont exch scalefont setfont         } def
+/cshow { dup stringwidth pop 2 div neg 0 rmoveto show } def
+/rshow { dup stringwidth pop       neg 0 rmoveto show } def
+
+% Some colors used
+/yellow    { 1 1 0.8 setrgbcolor } def
+/red       { 0.7 0 0 setrgbcolor } def
+/palered   { 1.0 0.8 0.8 setrgbcolor } def
+/palegreen { 0.8 1.0 0.8 setrgbcolor } def
+/paleblue  { 0.8 0.8 1.0 setrgbcolor } def
+
+/arrowdict 14 dict def
+arrowdict begin
+  /mtx matrix def
+end
+
+/arrow {              % This routine is borrowed from the
+                      % "PostScript Language - Tutorial & Cookbook"
+   arrowdict begin
+      /hl exch def
+      /ht exch 2 div def
+      /t  exch 2 div def
+      /hy exch def
+      /hx exch def
+      /ty exch def
+      /tx exch def
+
+      /dx hx tx sub def
+      /dy hy ty sub def
+      /al dx dx mul dy dy mul add sqrt def
+      /angle dy dx atan def
+      /base al hl sub def
+
+      /savematrix mtx currentmatrix def
+
+      tx ty translate
+      angle rotate
+
+      0 t neg moveto
+      base t neg lineto
+      base ht neg lineto
+      al 0 lineto
+      base ht lineto
+      base t lineto
+      0 t lineto
+      closepath
+
+      savematrix setmatrix
+   end
+} def
+
+/farrow {
+   arrow gsave paleblue fill grestore stroke
+} def
+
+
+/Helvetica-Bold 12 SF
+
+
+ 0 90 M 150 20 rrect stroke  % eventloop
+
+86 133 M
+gsave 0.8 setlinewidth
+[1 1] {
+   gsave
+   70 20 rrect gsave 1 setgray fill grestore stroke
+   grestore
+   -3 -3 rmoveto
+} forall
+grestore
+
+80 127 M  70 20 rrect gsave 1 setgray fill grestore stroke  % lwp::conn
+80 160 M  70 40 rrect stroke  % lwp
+50 140 M  20 60 rrect stroke  % lwp::ua
+ 0 130 M  40 70 rrect gsave 0.9 setgray fill grestore stroke  % appl
+
+75 95 M (EventLoop) cshow
+115 132 M (LWP::Conn) cshow
+115 175 M (LWP) cshow
+
+gsave
+   0 200 translate -90 rotate
+   30 55 M (LWP::UA) cshow
+   35 15 M (Application) cshow
+grestore
+
+40 60 M ((G)UI) cshow
+110 60 M (network) cshow
+
+0.5 setlinewidth
+
+40 73 40 89 10 20 8 farrow
+110 73 110 89 10 20 8 farrow
+38 180 49 180 8 16 6 farrow
+68 180 79 180 8 16 6 farrow
+115 145 115 159 8 16 6 farrow
+20 108 20 129 10 20 8 farrow
+115 108 115 126 10 20 8 farrow
+
