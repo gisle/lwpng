@@ -118,7 +118,7 @@ bytes in the chunk.  The multipart types use a special boundary byte
 pattern as a delimiter for the messages.
 
 With persistent connections one can improve performance even more by
-the use of a technique called "pipelining".  This means that the
+the use of a technique called I<pipelining>.  This means that the
 client sends multiple requests down the connections without waiting
 for the response of the first request before sending the second and so
 on.  This can have a dramatic effect on the throughput for high latency
@@ -186,10 +186,9 @@ client support and at the same time make the library both more
 flexible and (optionally) more lightweight.  Little happened until
 March 1998, but then I finally got the opportunity and tuits enough to
 start working on this project almost full time.  The software is, at
-the time of writing, quite usable and is distributed under the name
-LWPng.  It is available on CPAN [11].
-It is expected to be renamed as libwww-perl-6.00 when its beta
-phase is over.
+the time of writing, quite usable.  It is distributed under the name
+I<LWPng> and is available on CPAN [11]. It is expected to be renamed
+as libwww-perl-6.00 when its beta phase is over.
 
 
 =head1 A short introduction to libwww-perl-5
@@ -216,6 +215,8 @@ I<LWP::UserAgent> provides the request() method that accepts an
 I<HTTP::Request> object as an argument and will (eventually) return an
 I<HTTP::Response> object when the corresponding server returns an
 answer.
+
+[[fig1.ps]]
 
 The canonical example of LWP client usage looks like this:
 
@@ -292,7 +293,7 @@ Coexistence with the Tk modules
 It became evident that a redesign of the underlying protocol modules
 and the main interfaces was needed in order to support HTTP/1.1
 clients properly. The major shift was that we now wanted to be able to
-transparently support multiple persistent connections to the servers
+transparently support multiple persistent connections to the servers,
 and that we wanted these connections to be used efficiently (i.e. we
 should be able to support pipelining too).
 
@@ -588,8 +589,8 @@ to various limits on the number of connections to create.
 
 HTTP concepts like chained Transfer-Encoding or Content-Encoding
 suggest that we need a way to transform the message content back to
-its original form.  Since we also want to be able to handle arbitrary
-sized content and to want be able to make the content available to the
+its original form.  Since we want to be able to handle arbitrary
+sized content and we want to be able to make the content available to the
 application as early as possible, a stream-based organization of
 transformation modules is useful.  LWP::Sinks that can accept data,
 do something with it, and then send it off to some other sink can be
@@ -601,7 +602,7 @@ Transformers can be linked together to form stream pipelines.
 =item LWP::EventLoop
 
 The event loop class has been mentioned before.  It is basically just
-a wrapper around the select system call.  File handlers can be
+a wrapper around the C<select()> system call.  File handlers can be
 registered and the event loop will make appropriate callbacks when a
 handle becomes readable or writable.  Timer events can also be
 registered.  One handy feature for LWPng is that you can set timeouts
@@ -641,7 +642,7 @@ It knows how to run any handlers registered.
 
 If no handler signaled that the request has been handled, then
 it knows how to dynamically load a protocol module by looking at the scheme
-of the URL and to pass the requests to it.
+part of the URL and to pass the requests to it.
 
 =item 4.
 
@@ -832,8 +833,8 @@ register handlers and callback functions.  The last option is probably
 to be preferred.
 
 There are two other attributes in LWP::Request worth mentioning here;
-The $req->proxy field is simply the name of the proxy to send
-the request to and the $req->priority field can be used to make some
+the $req->proxy field is simply the name of the proxy to send
+the request to, and the $req->priority field can be used to make some
 requests more important than others.
 
 Again, the handlers allow more features to be optional and ensure
@@ -854,7 +855,7 @@ the URL or proxy setting and then respool it with the UA.
 This is a handler that deals with "401 Unauthorized" or "407 Proxy
 authentication required" responses.  It tries to dynamically load the
 LWP::Authen module that corresponds to the authentication scheme (only
-Basic and Digest are currently provided), and then lets the loaded
+I<Basic> and I<Digest> are currently provided), and then lets the loaded
 module deal with asking the user for a user name and a password and with
 setting up the C<Authorization> or C<Proxy-Authorization> header in a
 copy of the request.  If all works well the new request is respooled with
@@ -897,9 +898,9 @@ control to the event loop after starting things off (using
 C<mainloop-E<gt>run> as shown in examples above).
 
 The following figure shows how the application relates to the library
-and the major call paths.
+and the major call paths involved.
 
-[[fig1.ps]]
+[[fig2.ps]]
 
 An LWP::Conn object looks after itself based on the socket and timer
 callbacks that it registers with the event loop.  It obtain its
@@ -939,8 +940,9 @@ manager is really quite simple.  This makes it easy for applications
 with special needs to use any of the LWP::Conn implementations in
 isolation without the rest of the library.  All the application has
 to do is to provide an object that implements the 5 methods that make
-up the manager interface.  Internally the library instances of the
-LWP::Server class usually act as connection managers.
+up the manager interface.  For normal use we send requests through
+the LWP::UA, and the library will internally use LWP::Server objects
+as connection managers.
 
 
 =head2 LWP::Conn::HTTP
@@ -993,8 +995,9 @@ somebody calls the activate() method.  We must also monitor the
 network connection so that we notice if the server decides to close it
 before we do.
 
-If the activate() method is invoked, then we try to obtain a new
-request to send.  If this succeeds, then we switch to the Active state.
+If the activate() method is invoked, then we try to obtain a new request to
+send ($mgr->get_request).  If this succeeds, then we switch to the Active
+state.
 
 =item Active
 
@@ -1039,7 +1042,7 @@ socket is closed.  No method calls are allowed any more.
 The following picture illustrates the state transitions that take
 place:
 
-[[state.ps]]
+[[fig3.ps]]
 
 The LWP::Conn::HTTP constructor takes the name of the server host and
 the port to connect to as arguments.  It creates a non-blocking socket
