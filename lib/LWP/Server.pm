@@ -7,20 +7,20 @@ sub new
     bless { ua  => $ua,
 
 	    proto  => $proto,
-	    proto_ver => undef,
+#	    proto_ver => undef,
 
 	    host => $host,
 	    port => $port,
 
-	    created => time(),
-	    last_active => undef,
+#	    created => time(),
+#	    last_active => undef,
 
 	    req_queue   => [],
 	    pending_req => 0,
 
             conn_param => {},
 	    conns => [],
-	    idle_conns => 0,
+	    idle_conns => [],
 	  }, $class;
 }
 
@@ -46,13 +46,23 @@ sub add_request
     } else {
 	unshift(@{$self->{req_queue}}, $req);
     }
+    $self->{idle_conns}[0]->activate if @{$self->{idle_conns}};
 }
 
 sub stop
 {
+    my $self = shift;
     # stop all connections
+    my @conns = @{$self->{conns}};  # iterate over a copy
+    for (@conns) {
+	$_->stop;
+    }
     # terminate all requests (generate fake response)
-    # both 'req_queue' and 'conns' should be empty when we finish
+    require HTTP::Response;
+    while (@{$self->{req_queue}}) {
+	my $req = shift @{$self->{req_queue}};
+	$req->done(HTTP::Response->new(601, "No response"));
+    }
 }
 
 # Connection management
@@ -61,16 +71,23 @@ sub stop
 sub conn_param
 {
     my $self = shift;
-    # Let the UA params be overridden by per server params
-    my %param = ($self->{'ua'}->conn_param,
-		 %{$self->{'conn_param'}},
-		);
-
-    $param{ManagedBy} = $self;
-    $param{Host} = $self->{'host'};
-    $param{Port} = $self->{'port'};
-
-    %param;
+    return $self->{conn_param}{$_[0]} if @_ == 1;
+    unless (@_) {
+	# Let the UA params be overridden by per server params
+	my %param = ($self->{'ua'}->conn_param,
+		     %{$self->{'conn_param'}},
+		    );
+	$param{ManagedBy} = $self;
+	$param{Host} = $self->{'host'};
+	$param{Port} = $self->{'port'};
+	return %param;
+    }
+    # set new value(s)
+    while (@_) {
+	my $k = shift;
+	my $v = shift;
+	$self->{conn_param}{$k} = $v;
+    }
 }
 
 
@@ -92,6 +109,7 @@ sub create_connection
 sub get_request
 {
     my($self, $conn) = @_;
+    print "GET_REQUEST $conn\n";
     shift(@{$self->{req_queue}});
 }
 
@@ -99,21 +117,53 @@ sub pushback_request
 {
     my $self = shift;
     my $conn = shift;
+    print "PUSHBACK $conn @_\n";
     unshift(@{$self->{req_queue}}, @_);
 }
 
 sub done_request
 {
+    my($self, $conn, $req) = @_;
+    print "DONE $conn $req\n";
 }
+
+sub remove_from_refarray
+{
+    my($self, $arr, $ref) = @_;
+    for my $i (0 .. @$arr - 1) {
+	if (int($arr->[$i]) == int($ref)) {
+	    splice(@$arr, $i, 1);
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+sub connection_active
+{
+    my($self, $conn) = @_;
+    print "ACTIVE $conn\n";
+    $self->remove_from_refarray($self->{idle_conns}, $conn);
+}
+
 
 sub connection_idle
 {
+    my($self, $conn) = @_;
+    print "IDLE $conn\n";
+    if ($self->remove_from_refarray($self->{idle_conns}, $conn)) {
+	warn "$conn was already in idle_conns";
+    }
+    push(@{$self->{idle_conns}}, $conn);
 }
 
 sub connection_closed
 {
     my($self, $conn) = @_;
-    #XXX remove conn from $self->{conns}
+    print "CLOSED $conn\n";
+    $self->remove_from_refarray($self->{idle_conns}, $conn);
+    $self->remove_from_refarray($self->{conns}, $conn) or
+	warn "$conn was not registered";
 }
 
 sub as_string
