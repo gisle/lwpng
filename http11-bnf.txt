@@ -1,3 +1,5 @@
+; <draft-ietf-http-v11-spec-rev-03> 1998-03-13
+
 OCTET             = <any 8-bit sequence of data>
 CHAR		  = <any US-ASCII character (octets 0 - 127)>
 UPALPHA		  = <any US-ASCII uppercase letter "A".."Z">
