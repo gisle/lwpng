@@ -1,3 +1,20 @@
 The program 'httpd' is the test daemon.  Once started it will write
-it's location to the file URL and will start to server all the files
-within this directory asis.
+it's location to the file './URL' and will start to serve all the
+files within this directory asis.  It also makes noice on STDOUT.
+
+Only the first segment of the path given in the URL is used to select
+the file.  The query part of the URL can be used to influence how the
+content is written back to the client.
+
+   w=<n>  : how many milli-seconds to wait between each write.  The
+            default is to not wait.
+
+   cs=<n> : what chunk-size should we use when copying data from the
+            file.  The default is 8k.
+
+   line=1 : send each line separately
+
+   cr=1   : send each line separately, and terminate header lines
+            with CRLF
+
+
