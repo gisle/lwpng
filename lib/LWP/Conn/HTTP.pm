@@ -34,7 +34,7 @@ sub new
     my $mgr = delete $cnf{ManagedBy} ||
       Carp::croak("'ManagedBy' is mandatory");
     my $host =   delete $cnf{Host} || delete $cnf{PeerAddr} ||
-      Carp::croak("'Host' is mandatory");
+      Carp::croak("'Host' is mandatory for HTTP");
     my $port;
     $port = $1 if $host =~ s/:(\d+)//;
     $port = delete $cnf{Port} || delete $cnf{PeerPort} || $port || 80;
