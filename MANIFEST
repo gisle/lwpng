@@ -6,11 +6,11 @@ News
 Todo
 http11-bnf.txt
 bot/README
+bot/addlink
 bot/db.pl
 bot/db.sql
 bot/dbclear
 bot/dblist
-bot/new_link
 bot/ngbot
 lib/LWP/Authen/basic.pm
 lib/LWP/Authen/digest.pm
