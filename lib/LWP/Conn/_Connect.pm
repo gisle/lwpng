@@ -201,6 +201,22 @@ sub try_next_address
     $self->connect_failed($msg, delete *$self->{'lwp_opaque'});
 }
 
+# These two methods might be called by the manager
+sub activate
+{  # ignore
+}
+
+sub stop
+{
+    my $self = shift;
+    delete *$self->{'lwp_other_addrs'};
+    delete *$self->{'lwp_timeout'};
+    mainloop->forget($self);
+    $self->close;
+    bless $self, delete *$self->{'lwp_connected_class'};
+    $self->connect_failed("Stopped", delete *$self->{'lwp_opaque'});
+}
+
 1;
 
 __END__
