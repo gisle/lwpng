@@ -58,6 +58,8 @@ sub new
 	$addrtype = AF_INET;
 	$addrs[0] = inet_aton($host);
     } else {
+	# XXX might want a state for handling non-blocking
+	# gethostbyname, perhaps by using the Net::DNS module.
 	(undef, undef, $addrtype, undef, @addrs) = gethostbyname($host);
 	die "Bad address type '$addrtype'" if @addrs && $addrtype != AF_INET;
     }
@@ -94,8 +96,12 @@ sub new
 	    my($port, $addr) = unpack_sockaddr_in($addr);
 	    print STDERR "Connecting ", inet_ntoa($addr), ":$port...\n";
 	}
-	unless (connect($sock, $addr)) {
+	if (connect($sock, $addr)) {
+	    last;
+	} else {
 	    if ($! == &IO::EINPROGRESS) {
+		# XXX Perhaps we need some way of checking the other
+		# addresses in @addrs if this one fail.
 		$sock->state("Connecting");
 		mainloop->writable($sock);
 		return $sock;
