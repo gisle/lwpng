@@ -636,7 +636,7 @@ It provides the spool() method, and when it is invoked...
 
 =item 2.
 
-It knows how to run any handlers registered.
+it knows how to run any handlers registered.
 
 =item 3.
 
