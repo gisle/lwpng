@@ -4,17 +4,11 @@
 
  * Complete LWP5 compatibility
  * Finish the authentication hooks (digest)
+ * Looks like the scheduler creates too many connections.
  * LWP::Conn::HTTP improvements
      - bundling of multiple request in a single syswrite() when
-       pipelining.
-     - minimize headers for second and following requests
-     - look for Connection: close in request.  If so,
-       make it the last one on this connection.
-     - look for Connection: close in responses.  If one is seen,
-       pushback all pipelined requests and make sure no new are
-       set up.  Need a method to stop new requests on _this_
-       connection.
-     - retry request if used connection closes (only for request# > 1)
+       pipelining is likely to improve performance.
+     - minimize headers for second and following requests.
      - know about idempotent methods
      - always pass response data through sinks?
      - support HTTP/1.0 Keep-Alive? (more meaningful for a server)
@@ -35,10 +29,9 @@
  * RobotUA
  * Caching support
  * Some applications
- * one_event(timeout)
+ * one_event(timeout), run(timeout)
 
  * Move to same eventloop as Tk uses.  There appears to be a problem because
    the Tk fileevent does not allow a socket to be both readable and writable
-   at the same time.  And Grahams Event.pm does not work with current IO
-   modules.
+   at the same time.  Grahams Event.pm does not work with current IO modules.
    
