@@ -8,6 +8,7 @@ http11-bnf.txt
 lib/LWP/Authen.pm
 lib/LWP/Authen/basic.pm
 lib/LWP/Authen/digest.pm
+lib/LWP/Conn.pm
 lib/LWP/Conn/FILE.pm
 lib/LWP/Conn/HTTP.pm
 lib/LWP/EventLoop.pm
