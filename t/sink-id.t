@@ -2,6 +2,8 @@ print "1..2\n";
 
 use strict;
 
+open(STDERR, ">&STDOUT") || die "Can't dup stdout";
+
 use LWP::Sink::Tee;
 use LWP::Sink::Buffer;
 use LWP::Sink::Monitor;
