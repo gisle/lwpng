@@ -51,7 +51,6 @@ fig1.ps
 fig2.ps
 fig3.ps
 readline-interface
-old-ua
 t/after.t
 t/bad-req.t
 t/sink-base64.t
