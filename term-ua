@@ -16,6 +16,16 @@ $ua->conn_param(ReqLimit    => 10,
 
 $ua->env_proxy;
 
+#require LWP::Authen::basic;
+#$ua->{'uattr'}->attr_update("DIR", "http://localhost/foo/")->{realm}="Foo";
+#$ua->{'uattr'}->attr_update("DIR", "http://localhost/")->{realm}="Bar";
+#$ua->{'uattr'}->attr_update("SERVER", "http://localhost/")->{realms}{"Foo"} = LWP::Authen::basic->new("gisle", "aas");
+#$ua->{'uattr'}->attr_update("SERVER", "http://localhost/")->{realms}{"Bar"} = LWP::Authen::basic->new("gisle", "aas2");
+#$ua->{'uattr'}->attr_update("SERVER", "http://localhost/")->{proxy_realms}{"Foo"} = LWP::Authen::basic->new("tor", "per");
+#$ua->{'uattr'}->attr_update("DOMAIN", "http://furu.g.aas.no/")->{proxy} = "http://localhost";
+$ua->{'uattr'}->attr_update("SCHEME", "http:")->{default_headers}{From} = 'libwww-perl@ics.uci.edu';
+
+
 require LWP::Conn::HTTP;
 
 use LWP::MainLoop qw(empty one_event readable);
@@ -52,9 +62,9 @@ sub cmd
     my $n = sysread(STDIN, $cmd, 512);
     chomp($cmd);
     eval {
-	if ($cmd eq "Q") {
+	if ($cmd eq "q") {
 	    exit;
-	} elsif ($cmd eq "q") {
+	} elsif ($cmd eq "Q") {
 	    my $ans = lc(prompt("really quit? "));
 	    exit if $ans eq "y" or $ans eq "yes";
 	} elsif ($cmd eq "p") {
