@@ -313,35 +313,58 @@ sub check_rbuf
     my $self = shift;
     my $buf = \ *$self->{'lwp_rbuf'};
 
-    return unless length($$buf) >= 7;  # can't do anything before that
-
     my($res, $prot, $code);
-    if (!$$buf =~ m,^HTTP/1\.,) {
+    my $magic       = substr("HTTP/1.", 0, length($$buf));
+    my $first_bytes = substr($$buf, 0, length($magic));
+
+    if ($first_bytes ne $magic) {
 	($prot, $code) = ("HTTP/0.9", 200);
 	$res = HTTP::Response->new($code => "OK");
 	$res->protocol($prot);
+
     } elsif ($$buf =~ /\015?\012\015?\012/) {
-	# all of the header received, process it...
-	$$buf =~ s/^(.*?)\015?\012\015?\012//s or die;
-	my @head = split(/\015?\012/, $1);
+	# all of the headers received, process it...
+	$$buf =~ s/^((.*?)\015?\012\015?\012)//s or die;
+	my $head = $1;
+	my @head = split(/\015?\012/, $2);
 	my $mess;
 	($prot, $code, $mess) = split(" ", shift(@head), 3);
 	$res = HTTP::Response->new($code, $mess);
 	$res->protocol($prot);
+	my $err;
+	$code = "" unless defined($code);
+	$err = "Bad status code '$code'" unless $code =~ /^\d+$/;
 	my($k, $v);
 	for (@head) {
+	    last if $err;
 	    if (/^([^\s:]+)\s*:\s*(.*)/) {
 		$res->push_header($k, $v) if $k;
 		($k, $v) = ($1, $2);
 	    } elsif (/^\s+(.*)/) {
-		warn "Bad header" unless $k;
+		$err = "Bad header (continuation)" unless $k;
 		$v .= " $1";
 	    } else {
-		warn "Bad header\n";
+		$err = "Bad header line '$_'";
 	    }
 	}
 	$res->push_header($k, $v) if $k;
+
+	if ($err) {
+	    # something bad in the headers, fallback on HTTP/0.9
+	    ($prot, $code) = ("HTTP/0.9", 200);
+	    $res = HTTP::Response->new($code => "OK");
+	    $res->protocol($prot);
+	    $res->header("Client-Warning" => $err);
+	    $$buf = "$head$$buf";
+	}
+
     } else {
+	return;
+    }
+
+    if ($code == 100) {
+	print STDERR "100 Continue\n" if $LWP::HConn::DEBUG;
+	# XXX: should we store $res anywhere or just forget it?
 	return;
     }
 
@@ -356,7 +379,7 @@ sub check_rbuf
 	$self->state("ContLen");
 	*$self->{'lwp_cont_len'} = 0;
     } elsif ( ($trans_enc = $res->header("Transfer-Encoding"))) {
-	$self->_error("Unknown transfer encoding '$trans_enc'")
+	return $self->_error("Unknown transfer encoding '$trans_enc'")
 	  if $trans_enc ne "chunked";
 	$res->remove_header("Transfer-Encoding");
 	$self->state("Chunked");
@@ -368,7 +391,7 @@ sub check_rbuf
 		$self->state("Multipart");
 		*$self->{'lwp_boundary'} = "\015\012--$1--\015\012"
 	    } else {
-		$self->_error("Multipart without boundary");
+		return $self->_error("Multipart without boundary");
 	    }
 	} else {
 	    my $cont_len = $res->header("Content-Length");
