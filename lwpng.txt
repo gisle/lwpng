@@ -3,7 +3,7 @@
 # conference in August 1998.
 
 # Note that figures should be included at the location of the
-# [[xxx.ps]] markers in this text.
+# [[figX.ps]] markers in this text.
 
 
 =Title LWPng - Adding HTTP/1.1 support to libwww-perl
@@ -210,7 +210,7 @@ have to be HTTP).
 
 Instances of the I<LWP::UserAgent> class are created by client
 applications and serve as the interface between the
-application and a network of accessible servers.  The
+application and a network of accessible servers (see figure below).  The
 I<LWP::UserAgent> provides the request() method that accepts an
 I<HTTP::Request> object as an argument and will (eventually) return an
 I<HTTP::Response> object when the corresponding server returns an
