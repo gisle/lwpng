@@ -17,8 +17,8 @@ unless (defined &IO::EINPROGRESS) {
 
 use strict;
 use vars qw($DEBUG);
-use vars qw($OFFER_DEFLATE_TE);
-$OFFER_DEFLATE_TE = 1;
+use vars qw(@TE);
+@TE = qw(deflate base64 rot13);
 
 my $TCP_PROTO = (getprotobyname('tcp'))[2];
 use Carp ();
@@ -162,9 +162,9 @@ sub new_request
 	} else {
 	    push(@conn_header, "close")
 		if *$self->{'lwp_req_count'} == *$self->{'lwp_req_limit'};
-	    if ($OFFER_DEFLATE_TE) {
+	    if (@TE) {
 		push(@conn_header, "TE");
-		$req->push_header(TE => "deflate");
+		$req->push_header(TE => join(", ", @TE));
 	    }
 	}
 	$req->header("Connection" => join(", ", @conn_header)) if @conn_header;
@@ -455,11 +455,13 @@ sub check_rbuf
 	$self->end_of_response;
 	return;
     } elsif (my(@trans_enc) = $res->header("Transfer-Encoding")) {
+	require HTTP::Headers::Util;
+	@trans_enc = HTTP::Headers::Util::split_header_words(@trans_enc);
 	if (@trans_enc > 1) {
 	    $self->_error("Multiple transfer encodings");
 	    return;
 	}
-	my $trans_enc = $trans_enc[0];
+	my $trans_enc = $trans_enc[0][0];
 	if ($trans_enc ne "chunked") {
 	    $self->_error("Unknown transfer encoding '$trans_enc'");
 	    return;
