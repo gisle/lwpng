@@ -1,6 +1,6 @@
 use lib "./lib";
 
-use LWP::HConn;
+use LWP::Conn::HTTP;
 
 package LWP::Request;
 
@@ -71,17 +71,17 @@ package main;
 
 $mgr = new MGR;
 
-$LWP::HConn::DEBUG++;
+$LWP::Conn::HTTP::DEBUG++;
 #$LWP::EventLoop::DEBUG++;
 
-LWP::HConn->new(ManagedBy => $mgr,
+LWP::Conn::HTTP->new(ManagedBy => $mgr,
 		PeerAddr => "127.0.0.1",
 		ReqPending => 1,
 		ReqLimit   => 10,
 		Timeout    => 60,
 	       );
 
-#$c2 = LWP::HConn->new("furu", 80, $mgr);
+#$c2 = LWP::Conn::HTTP->new("furu", 80, $mgr);
 
 #use Data::Dumper; print Dumper($c1, $c2);
 
