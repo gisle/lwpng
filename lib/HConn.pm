@@ -50,7 +50,7 @@ sub new
 	# $sock->blocking(0);  # require IO-1.18
         $ {*$sock}{'lwp_mgr'} = $mgr;
 	$ {*$sock}{'lwp_req_count'} = 0;
-	$ {*$sock}{'lwp_req_limit'} = 10;
+	$ {*$sock}{'lwp_req_limit'} = 2;
 	$ {*$sock}{'lwp_req_max_outstanding'} = 1;
 	
 	mainloop->timeout($sock, 8);
@@ -198,9 +198,7 @@ use LWP::EventLoop qw(mainloop);
 sub activate
 {
     my $self = shift;
-    if ($self->new_request) {
-	bless $self, "HConn::Active";
-    }
+    bless $self, "HConn::Active" if $self->new_request;
 }
 
 
@@ -218,14 +216,13 @@ sub writable
     if (!defined($n) || $n == 0) {
 	$self->_error("Bad write: $!");
     } else {
-	print STDERR "WROTE $n bytes\n";
+	print STDERR "WROTE $n bytes\n" if $HConn::DEBUG;
 	if ($n < length($$buf)) {
 	    substr($$buf, 0, $n) = "";  # get rid of this
 	} else {
 	    # request sent
 	    delete $ {*$self}{'lwp_wbuf'};
-	    # XXX: if we pipeline, we might at this place get another
-	    # request from the mgr and start sending it.
+	    # try to start a new one?
 	    mainloop->writable($self, undef) unless $self->new_request;
 	}
     }
@@ -235,11 +232,11 @@ sub readable
 {
     my $self = shift;
     my $buf = \ $ {*$self}{'lwp_rbuf'};
-    my $n = sysread($self, $$buf, 5, length($$buf));
+    my $n = sysread($self, $$buf, 512, length($$buf));
     if (!defined($n)) {
 	$self->_error("Bad read: $!");
     } elsif ($n == 0) {
-	$self->_error("EOF");
+	$self->server_closed_connection;
     } else {
 	if ($HConn::DEBUG) {
 	    my $pbuf = $$buf;
@@ -249,6 +246,11 @@ sub readable
 	}
 	$self->check_rbuf;
     }
+}
+
+sub server_closed_connection
+{
+    shift->_error("EOF");
 }
 
 sub check_rbuf
@@ -352,7 +354,7 @@ sub check_rbuf
 	# >0: read this number of bytes before returning back to -1
 	# -2: read footers (after 0 header)
 	while (length ($$buf)) {
-	    print STDERR "CHUNKED $chunked\n";
+	    #print STDERR "CHUNKED $chunked\n";
 	    if ($chunked > 0) {
 		# read $chunked bytes of data (throw away 2 last bytes "CRLF")
 		my $data = substr($$buf, 0, $chunked);
