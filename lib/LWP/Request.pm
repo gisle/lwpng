@@ -114,9 +114,9 @@ sub done
 	    return;
 	}
 	
-    } elsif ($self->{auto_auth} &&
-	     ($self->code == &HTTP::Status::RC_UNAUTHORIZED ||
-	      $self->code == &HTTP::Status::RC_PROXY_AUTHENTICATION_REQUIRED))
+    } elsif (0 && $self->{auto_auth} &&
+	     ($res->code == &HTTP::Status::RC_UNAUTHORIZED ||
+	      $res->code == &HTTP::Status::RC_PROXY_AUTHENTICATION_REQUIRED))
     {
 	#XXX NYI
 
