@@ -1,3 +1,27 @@
+1998-04-07   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.15
+
+   LWP::Conn::HTTP: If a request have a Connection: header with the
+   "close" token, then always make it the last request on this
+   connection.
+
+   LWP::Conn::HTTP: If the server sends a "Connection: close" header
+   then inhibit further pipelining.
+
+   Automatically retry non-first request on a connection if the server
+   closes the connection without sending any response.
+
+   Improved the scheduler.  It could previously create too many
+   connections.  It now also tries to activate existing connections
+   if we have queued requests.
+
+   LWP::Conn::HTTP: will emulate IO::Handle->blocking if you use
+   older versions of the IO modules and you have working fcntl().
+   This means that we now always use non-blocking sockets.
+
+
+
 1998-04-06   Gisle Aas <aas@sn.no>
 
    Release alpha-0.14
