@@ -7,6 +7,11 @@ multiple connections within a single client program.  It was also a
 prerequisite for supporting HTTP/1.1 features like persistent
 connections and pipelining.
 
+This note assume that you are familiar with the concepts and programming
+interface of the previous versions of the libwww-perl modules (refered to as
+"LWP5" below).  LWPng will probably become LWP6 when it is ready for general
+use.
+
 
 =head1 HTTP/1.1
 
@@ -19,15 +24,18 @@ The HTTP/1.1 protocol use the same basic message format as earlier
 versions of the protocol and HTTP/1.1 clients/servers can easily adopt
 to peers which only know about the older versions of the protocol.
 HTTP/1.1 adds some new methods, some new status codes, and some new
-headers.  One important change is that the Host header is now
-mandatory.  Other changes is support for partial content and that the
-support for caching and proxies has been much improved on.  There is
+headers (it also eliminates some old unused or broken headers).
+One important change is that the Host header is now
+mandatory which make it possible to serve multiple domains from a single
+server without allocating a new IP-address to each.
+Another change is support for partial content.  The
+support for caching and proxies has also been much improved on.  There is
 also a standard mechanism of switching from HTTP/1.1 to some other
-(more suitable) protocol on the wire.
+(hopefully more suitable) protocol on the wire.
 
-The most important change with HTTP/1.1 is the introduction of
+IMHO, the most important change with HTTP/1.1 is the introduction of
 persistent connections.  This means that more than one
-request/response exchange takes place on a single TCP connection
+request/response exchange can take place on a single TCP connection
 between a client and a server.  This improves performance and
 generally interacts much better with how TCP works underneath.  This
 also means that the peers must be able to tell the extent of the
@@ -52,9 +60,18 @@ links. [NOTE-pipelining-970624]
 
 =head1 Event driven programming model
 
+A prerequisite for any sensible support for HTTP persistent connections is
+to be able to handle both reading and writing at the same time.  You would
+also like to manage idle connections with some timeout.  This requires the
+adoption of an event driven model or a model based on separate threads of
+control.  I have chosen to use the event driven model.  Another benefit
+from this is that we are able to support multiple parallel connections for
+free and that it is supposed to integrate much easier with GUI toolkits like
+Tk.
+
 Let's investigate what impact the event driven framework has on the
 programming model.  The basic model for sending requests and receving
-respones used to be:
+respones in LWP5 used to be:
 
   $res = $ua->request($req);   # return when response is available
   if ($res->is_success) {
@@ -94,12 +111,15 @@ behaviour:
 
 and this will in fact be used to emulate the old $ua->request() and
 $ua->simple_request() interfaces.  The goal is to be able to
-completely backwards compatible with the current LWP modules.
+completely backwards compatible with the LWP5 modules.
 
+
+
+=head1 CLASSES
 
 =head2 LWP::Request
 
-As you can see from the examples above we use the class name
+As you can see from the example above we use the class name
 LWP::Request (as opposed to HTTP::Request) for the requests created.
 LWP::Request is a subclass of HTTP::Request, thus it have all the same
 methods and attributes as HTTP::Request and then some more.  The most
@@ -111,24 +131,26 @@ invoked as the response is received:
 
 The response_data() callback method is invoked repeatedly as parts of
 the content of the response becomes available.  The first time it is
-invoked, then $res will be a reference to a HTTP::Response object with
-response code and headers initialized, and empty content.  The default
-implementation of response_data just appends the data passed to the
+invoked is right after the headers in the response message has been parsed.
+At this point $res will be a reference to a HTTP::Response object with
+response code and headers initialized, but the message content will be empty.
+The default implementation of response_data() just appends the data passed to the
 content of the $res object.  It also supports a registered callback
 function ('data_cb') that will be invoked if defined.
 
 The response_done() callback method is invoked when the whole response
 has been received.  It is guaranteed that it will be invoked exactly
-once for each request spooled (even if it fails.)  The default
+once for each request spooled (even for requests that fails.)  The default
 implementation will set up the $res->request and $res->previous links
-and will automatically handle redirects and unauthorized responses by
-respooling a slightly modified copy of the original requests.  It also
+and will handle redirects and unauthorized responses by automatically
+respooling a (slightly) modified copy of the original requests.  It also
 supports a registered callback function ('done_cb') that will invoked
 if defined, but only for the last response in case of redirect chains.
 
 As an application programmer you can either subclass LWP::Request, to
 provide your own versions of response_data() and response_done(), or
-you can just register callback functions.
+you can just register callback functions.  The last option is probably to be
+prefered.
 
 The LWP::Request object also provide a few more attributes that might
 be of interest.  The $req->priority is a number that can be used to
@@ -138,7 +160,8 @@ priority happens to be 99.
 
 The $req->proxy attribute tells us if we are going to pass the request
 to an proxy server instead of the server implied by the URL.  If
-$req->proxy is TRUE, then it should be the URL of the proxy.
+$req->proxy is TRUE, then it should be the URL of the proxy to send the
+request too.
 
 
 =head2 LWP::MainLoop
@@ -146,11 +169,11 @@ $req->proxy is TRUE, then it should be the URL of the proxy.
 The event oriented framework is based on a single common object
 provided by the LWP::MainLoop module that will watch external IO
 descriptors (sockets) and timers.  When events occur, then registered
-functions are called and these will call other event handling
-functions and so on.
+functions are called and these might in turn call other event handling
+functions at a higher level and so on.
 
 In order for this to work, the mainloop object needs to be in control
-when nothing else happens and you especially when you expect protocol
+when nothing else happens and especially when you expect some kind of protocol
 handling to take place.  This is achieved by repeatedly calling the
 mainloop->one_event method until we are satisfied.  Each call will
 wait until the next event is available, then invoke the corresponding
@@ -185,19 +208,98 @@ commands from the terminal.
 
   }
 
-Currently LWPng use its own private event loop implementation.  The
-plan is to adopt the event loop implementation used by the Tk
-extention.  This should allow happies mixing of Tk and LWPng.
+Currently LWPng use its own private event loop implementation.  The plan is
+to adopt the event loop implementation used by the Tk extention, or more
+precisely Perl will hopefully get a standard event loop that both Tk and
+LWPng can use. This should allow applications that happily mix the Tk and
+LWPng modules.
 
 
 =head2 LWP::UA
 
+The LWP::UA represent the main programmer interface towards the network. (We
+currently use a different name for this object than LWP5 because we are not
+providing a backwards compatible interface yet.  Besides, you would probably
+like to be able to have both LWP5 and LWPng insta lled side by side for some
+time still.)
+
+The main interface to the LWP::UA object is the following methods.
+
  $ua->spool
  $ua->reschedule
  $ua->stop
+ 
+The $ua->spool() takes one or more LWP::Request object references as
+argument and arrange for these request to be sent to the servers specified
+by the URL attribute of the requests.
 
-The following 'connection parameters' can be adjusted.  You can set
-them both at the global level and for each individual server.
+The $ua->reschedule is usually called automatically as requests are spooled.
+It will invoke the scheduler whose task is to determinte when and how many
+connections are set up to the different servers we want to communicate with.
+The scheduler can also deside to kill idle connections.  The scheduler is a
+separate entity because you should be able to replace when you want a
+different scheduling policy.
+
+The $ua->stop method will propagate too all active and idle connections and
+kill them.  All currently spooled request will return with an error.
+
+
+The LWP::UA maintains a structure that makes it possible to attach
+attributes to the URL name space at various hierarchal levels.  This is
+implemented by an object of the URI::Attr class.  The main function of this
+object is too look up attributes that apply to a given URL. The following
+attribute names are currently used:
+
+=over 12
+
+=item default_headers
+
+The default_headers attribute is a hash that is used to initialize static
+default values for the given headers in requests spooled.  More specific
+values take precedence over less specific.  This is how both User-Agent and
+From headers are added to the requests now.
+
+=item realms
+
+At the server level we maintain a hash of authentication objects indexed by
+"realm".  Authentication objects are able to initialize the Authorization
+header in a request.
+
+=item realm
+
+At the path level we can assign the attribute "realm".  This is used to look
+up one of the authentication objects in the server level realms hash.  This
+effectively assigns the given as the top of some protection space named by
+the realm value.
+
+=item proxy
+
+Set which proxy to use for the URLs.
+
+=item proxy_realms
+
+Same as "realms" by only applies when the server is accessed as a proxy.
+
+=item proxy_realm
+
+You can assign parts of the URL space to different proxy "realms".  This
+only make sence when the proxy attribute is used.
+
+=back
+
+Explain spool request hooks...  All modification to requests as they are
+spooled are handled by "spool_request" hooks that can be installed and
+deinstalled as you please.  The hook can also complete the handling of a
+request without any real spooling taking place. For instance a cache check
+hook could return a response right away if it was available.  If it was not
+available in the cache it could register hooks on the request object that
+would update the cache as the response came back.  Other possibilities are
+hooks that adds some headers or that block some part of the URL space.
+
+The LWP::UA also maintain a set of 'connection parameters' that can be
+adjusted.  The parameters can be set for individual servers or globally.
+Individual settings override the global ones.  Not all connections types
+care about all of them.
 
 =over 12
 
@@ -424,3 +526,10 @@ a living object.  That became handy in this situation.
 Using classes to describe states also allows a natural description
 (and implementation) of substates that behaves like it's base-state
 for some events but modify the behaviour for others.
+
+
+=head1 AUTHOR
+
+Copyright 1997-1998 Gisle Aas.
+
+$Id$
