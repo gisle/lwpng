@@ -29,7 +29,7 @@ Contact information:
 The I<libwww-perl> library (often abbreviated LWP) is a collection of
 Perl modules which provides a simple and consistent programming
 interface to the World-Wide Web.  The library is currently in use for
-a wide range of Web applications.
+a wide range of Web applications [0].
 
 This article describes a redesign of the libwww-perl library in order
 to provide support for writing HTTP/1.1 clients.  The new library
@@ -38,8 +38,8 @@ to the servers it communicates with.  The redesign is based on the
 adoption of an event driven framework.  Requests are registered with
 the library and will receive callback events as the responses come
 back from the server(s).  The library try to match the registered
-requests with the the persistent connections it has available or by
-creating new connections when necessary.
+requests with the the persistent connections it has available and will
+create new connections when necessary.
 
 
 
@@ -71,17 +71,16 @@ returned the <name> resource and closed the connection.  This version
 of the protocol has afterwards been dubbed HTTP/0.9.
 
 The next revision gave us HTTP/1.0, which is still what is deployed in
-most servers and clients today [ref].  It adds a protocol version
-number to the request line from the client and adds MIME-like messages
-for both the request from the client and the response from the server.
-This makes it possible to add extra information about
-request/responses and to carry meta-information about the content of
-these messages.  Responses now also start with a status line with a
-status code that encodes the overall outcome of the request.  These
-enhancements make the protocol extensible.
+most servers and clients today [1].  It adds a protocol version number
+and MIME-like messages for both the request from the client and the
+response from the server [2].  This makes it possible to add extra
+information about request/responses and to carry meta-information
+about the content of these messages.  Responses now also start with a
+status line with a status code that encodes the overall outcome of the
+request.  These enhancements make the protocol extensible.
 
 The next step was/is HTTP/1.1 which tries to fix some of the
-shortcomings of the HTTP/1.0 protocol [ref]. One simple but important
+shortcomings of the HTTP/1.0 protocol [3,4]. One simple but important
 change is that the Host header is now mandatory. This makes it possible
 to serve multiple domains from a single server without allocating a
 new IP-address to each.  Another change is support for partial content
@@ -97,7 +96,7 @@ between a client and a server.  This improves performance and
 generally interacts much better with how TCP works underneath.  In
 order to be able to do this, the peers must have some way to tell the
 extent of the messages on the wire. In HTTP/1.0 the only way to do
-this was by using the Content-Length header and by closing the
+this was by either using the Content-Length header or by closing the
 connection (which was only an option for the server).  Use of the
 Content-Length header is not appropriate when the length of the
 message can not be determined in advance.  HTTP/1.1 introduce two new
@@ -113,7 +112,7 @@ the use of a technique called "pipelining".  This means that the
 client sends multiple requests down the connections without waiting
 for the response of the first request before sending the second and so
 on.  This can have a dramatic effect on the throughput for high latency
-links. [ref NOTE-pipelining-970624]
+links [5].
 
 Some of the HTTP/1.1 features are also deployed in HTTP/1.0 clients
 and servers.  Persistent connections can sometimes be used with
@@ -121,10 +120,10 @@ HTTP/1.0 if the clients sends a "Connection: Keep-Alive" header.  Most
 of todays HTTP/1.0 clients send the Host header.
 
 HTTP/NG is still a research project and is an attempt to take a more
-radical approach.  The main "features" is making the protocol binary
+radical approach [6].  The main "features" is making the protocol binary
 in order not to waste bytes on long human readable headers and direct
 support for multiplexing over a single network connection.  It is not
-clear whether this is such a big win. [ref]
+clear whether this is such a big win.
 
 =head1 History of libwww-perl
 
@@ -133,7 +132,7 @@ The libwww-perl project started on the first WWW conference in 1994
 Martijn suggested that it would be a good thing if the reusable
 components of this program were broken out into a library.  The result
 was the libwww-perl library for perl4 that Roy maintained (and still
-does).
+does) [7,8].
 
 At one point both Gisle and Martijn had made their own modifications
 of Roy's library to better suit the possibilities that perl5 provided.
@@ -163,19 +162,17 @@ seemed clear that decent support could not be achieved without a
 larger restructuring of how the basic protocol services was
 implemented.
 
-[What about HTML::? You might mention its unbundeling.]
-
 One important work that inspired the rewrite described here was Marc
 Langheinrich's ParallelUserAgent implementation.  It extended
 libwww-perl with the possibility to access multiple servers (or have
-multiple connections to the same server) at the same time. [ref]
+multiple connections to the same server) at the same time. [9]
 
 In November 1997 Gisle started on a rewrite of how the basic
 services provided by libwww-perl worked.  The goal was to provide full
 HTTP/1.1 client support and at the same time make the library both
 more flexible and (optionally) more lightweight.  Little
 happened until march 1998, but then I finally got opportunity and
-courrage enough to start working on this full time and it is by this time
+tuits enough to start working on this full time and it is by this time
 quite usable.  This work is currently distributed under the name
 LWPng, but is expected to become libwww-perl-6 when its beta phase is
 over.
@@ -187,7 +184,7 @@ The libwww-perl library is based on HTTP style communication.  The
 main model is that all requests through any protocol module are forced
 into an HTTP straight-jacket. This makes things very easy, consistent,
 and nice.  This model is also what libwww-perl has inherited from, and has
-in common with, w3c-libwww [ref].
+in common with, w3c-libwww [10].
 
 LWP provides an object oriented model of HTTP style messages that are
 passed between servers and clients.  The I<HTTP::Request> class models
@@ -229,10 +226,46 @@ application will get hold of a connection initiated by a client and
 will be able receive I<HTTP::Request> objects from this connection and
 send back I<HTTP::Response> objects.  Since the client and server
 interface use the same message objects it is trivial to write simple
-proxy[ref] type of applications [reference to Randals proxy for
-WebTechniques].
+proxy[11] type of applications [12].
 
-[Feature list?]
+Features of libwww-perl include:
+
+=over 3
+
+=item *
+
+Support for http, https, gopher, ftp, file,
+mailto and news within the HTTP framework.
+
+=item *
+
+Basic and Digest authorization
+
+=item *
+
+Automatic redirect handling
+
+=item *
+
+Communication thorugh proxies (http-only)
+
+=item *
+
+Handling of URLs (both absolute and relative)
+
+=item *
+
+RobotRules (robots.txt)
+
+=item *
+
+A few command line clients.
+
+=item *
+
+Coexistence with Tk
+
+=back
 
 
 =head1 LWPng design
@@ -246,7 +279,7 @@ able to transparently support multiple persistent connections and that
 these connections should be used efficiently (i.e. we should be able
 to support pipelining too).
 
-As for LWP6, the programming interface still ought to hide the details
+As for LWP5, the programming interface still ought to hide the details
 of connection creation and destruction, but in order to make the
 library able to efficiently utilize the multiple persistent
 connections it has to have more than a single request to work with at
@@ -794,21 +827,7 @@ library.  As network and timer events happen we get callbacks into the
 connection objects and these will make further (higher level and
 fewer) callbacks to the rest of the library.
 
-			+-----------+
-       	       	       	|           |
-          +--> lwp::ua -+           |
-          |             +-+---------+
-          |               |
-      application      lwp::conn
-          ^               ^
-          |               |
-      +------------------------+
-      |       eventloop        |
-      +------------------------+
-          ^               ^
-          |               |
-        (g)ui          network
-          (external stimuli)
+[[fig1.ps]]
 
 One other source of activity within the library is the application
 itself.  It can either spool further requests or it can kill running
@@ -928,33 +947,7 @@ that this connection instance looks after itself.
 The following picture illustrates the state transitions that take
 place:
 
-          START  ------> Connecting
-            |                 |
-            |                 |
-            V                 |
-                              V
-          Idle  <-------------+---------<-----\
-           /\(work?)                           \
-          /  \                                  \
-         /    |                                  \
-        /     V                                   \
-       /                                           \
-      /   Active (sending request)     <-----------+ (more work?)
-     |      |     \       \      -----             |
-     |      |      \       \          \            |
-     |      |       \       \          \           |
-     |      |        |       |          |          |
-     |      V        V       V          V          |
-     |                                             |
-     |    ConnLen  Chunked  Multipart  UntilEOF    |   (reading response)
-     |      |         |        |          |        |
-     |      |         |        |          |        |
-     |      +-------->+------->+--------- | ------>+
-     V                                    |
-                                          |
-   Closed  <------------------------------+
-  (THE END)
-
+[[state.ps]]
 
 =head1 LWP::Conn::FTP
 
@@ -973,8 +966,54 @@ request.
 How well does it perform pipelining.  Compare it with LWP5 and
 w3c-libwww perhaps.
 
+Our test is a simple script that fetch a single HTML page, parse it
+and then fetch all images referenced.  This is similar to what a
+graphical browser whould have to do to load a page.  We meassure
+downloading using the Unix 'time' command which report elapsed real
+time as well as how much CPU time is used.
+
+Since lwpng is still alpha software where we currently have only
+worked on getting the programming interfaces as we want.  No
+optimizations of the code has been tried so it does not make much
+sense to do more elaborate tests at this point.
+
+[Look at the number of TCP packets generated and the number of system
+calls invoked.]
+
 [...]
 
+lwpng-alpha-0.20
+libwww-perl-5.32
+
+a) LWP5
+b) LWPng - 1 conn,   1 req, 1 pend
+c) LWPng - 1 conn, 100 req, 1 pend
+d) LWPng - 1 conn, 100 req, 3 pend
+e) LWPng - 2 conn, 100 req, 3 pend
+f) IO::Socket, handcoded download over a single connection
+
+gran --> furu [get-page-lwp5 http://furu/ 5], 3 images
+
+a) 0.94user 0.31system 0:02.49elapsed 50%CPU
+b) 2.61user 0.23system 0:03.61elapsed 78%CPU
+c) 2.38user 0.31system 0:03.57elapsed 75%CPU
+d) 2.36user 0.26system 0:03.49elapsed 74%CPU
+e) 2.30user 0.25system 0:03.22elapsed 79%CPU
+f) 0.28user 0.05system 0:01.40elapsed 23%CPU
+
+furu --> www.microsoft.com, [17 images]
+
+a) 3.86user 0.30system 0:21.07elapsed 19%CPU
+b) 6.25user 0.39system 0:22.98elapsed 28%CPU
+b) 6.17user 0.38system 0:21.85elapsed 29%CPU
+c) 5.66user 0.40system 0:17.20elapsed 35%CPU
+c) 5.70user 0.37system 0:16.56elapsed 36%CPU
+d) 5.58user 0.38system 0:13.82elapsed 43%CPU
+d) 5.55user 0.39system 0:13.92elapsed 42%CPU
+e) 5.62user 0.45system 0:13.46elapsed 45%CPU
+e) 5.87user 0.33system 0:13.09elapsed 47%CPU
+f) 0.72user 0.08system 0:10.65elapsed 7%CPU
+f) 0.73user 0.10system 0:10.89elapsed 7%CPU
 
 =head1 Conclusions
 
@@ -987,15 +1026,78 @@ connections to its peer servers.
 
 =over 4
 
+=item [0]
+
+The LWP homepage - <http://www.linpro.no/lwp/>
+
 =item [1]
 
-http://www.linpro.no/lwp/
+RFC 1945 - "Hypertext Transfer Protocol -- HTTP/1.0.", Berners-Lee,
+T., Fielding, R. and H. Frystyk., MIT/LCS, UC Irvine, May 1996.
 
 =item [2]
 
-<draft-ietf-http-v11-spec-rev-03> which is an update of RFC2068
+RFC2047 - "MIME (Multipurpose Internet Mail Extensions) Part
+Three: Message Header Extensions for Non-ASCII Text", Moore, K.,
+University of Tennessee, November 1996.
 
 =item [3]
+
+RFC 2068 - "Hypertext Transfer Protocol -- HTTP/1.1", Fielding, R.,
+Gettys, J., Mogul, J., Frystyk, H., Berners-Lee, T., UC Irvine,
+Digital Equipment Corporation, M.I.T., January, 1997.
+
+=item [4]
+
+draft-ietf-http-v11-spec-rev-03.txt - "Hypertext Transfer Protocol --
+HTTP/1.1", Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter
+L., Leach P., Berners-Lee, T., HTTP Working Group, March, 1998.
+
+=item [5]
+
+NOTE-pipelining-970624 - H. Frystyk et.al
+
+"Network Performance Effects of HTTP/1.1, CSS1, and PNG", Frystyk
+Nielsen, Gettys, Baird-Smith, Prud'hommeaux, Lie, Lilley. W3C, 1997.
+
+<http://www.w3c.org/Protocols/HTTP/Performance/Pipeline.html>
+
+=item [6]
+
+HTTP/NG
+
+=item [7]
+
+MOMspider
+
+=item [8]
+
+libwww-perl-0.40 - Roy Fielding
+
+=item [9]
+
+ParallelUserAgent - Marc Langheinrich
+
+=item [10]
+
+w3c-libwww-perl - H. Frystyk
+
+=item [11]
+
+An article that explains proxies - W3C web perhaps...
+
+=item [12]
+
+Anon... Proxy - Randal
+
+
+=item [15]
+
+"Why Threads Are A Bad Idea (for most purposes)", John K. Ousterhout,
+1996 USENIX Technical Conference
+<http://www.scriptics.com/people/john.ousterhout/>
+
+=item [16]
 
 "Design Patterns - Elements of Reusable Object-Oriented Software",
 E. Gamma, R. Helm, R. Johnson, J. Vlissides.  1995 Addison Wesley.
