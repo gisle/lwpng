@@ -235,7 +235,7 @@ sub readable
 {
     my $self = shift;
     my $buf = \ $ {*$self}{'lwp_rbuf'};
-    my $n = sysread($self, $$buf, 512, length($$buf));
+    my $n = sysread($self, $$buf, 5, length($$buf));
     if (!defined($n)) {
 	$self->_error("Bad read: $!");
     } elsif ($n == 0) {
@@ -314,7 +314,7 @@ sub check_rbuf
 	    $self->_error("Unknown transfer encoding '$trans_enc'")
 	      if $trans_enc ne "chunked";
 	    $res->remove_header("Transfer-Encoding");
-	    $chunked = -1;
+	    $ {*$self}{'lwp_chunked'} = $chunked = -1;
 	} else {
 	    my $ct = $res->header("Content-Type") || "";
 	    if ($ct =~ /^multipart\//) {
@@ -349,8 +349,8 @@ sub check_rbuf
 	}
     } elsif ($chunked) {
 	# -1: must get chunk header (number of bytes) first
-	#  0: read footers
-	# >0: read this number of bytes before returning to -1
+	# >0: read this number of bytes before returning back to -1
+	# -2: read footers (after 0 header)
 	while (length ($$buf)) {
 	    print STDERR "CHUNKED $chunked\n";
 	    if ($chunked > 0) {
@@ -395,6 +395,7 @@ sub check_rbuf
 	    } else {
 		die "This should not happen";
 	    }
+	    $ {*$self}{'lwp_chunked'} = $chunked;   # remember to next time
 	}
     } elsif ($boundary) {
 	print STDERR "Until boundary\n";
