@@ -115,7 +115,7 @@ sub auto_redirect
 {
     my($self, $res) = @_;
     my $code = $res->code;
-    return unless $code =~ /^30[12357]$/;
+    return unless $code =~ /^30[012357]$/;
     my $new = $self->clone;
     my $method = $new->method;
     if ($code == 303 && $method ne "HEAD") {
