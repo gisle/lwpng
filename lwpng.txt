@@ -32,7 +32,7 @@ Contact information:
 The I<libwww-perl> library (often abbreviated LWP) is a collection of
 Perl modules which provides a programming interface to the World-Wide
 Web.  The library is currently in use for a wide range of Web
-applications [0].
+applications [1].
 
 This article describes a redesign of the libwww-perl library in order
 to provide support for HTTP/1.1 clients.  The new library
@@ -80,16 +80,16 @@ returned the resource identified by <name> and closed the connection.
 This version of the protocol afterwards was dubbed HTTP/0.9.
 
 The next revision gave us HTTP/1.0, which is still deployed in
-most servers and clients today [1].  It adds a protocol version number
+most servers and clients today [2].  It adds a protocol version number
 and MIME-like messages for both the request from the client and the
-response from the server [2].  This makes it possible to attach extra
+response from the server [3].  This makes it possible to attach extra
 information about requests/responses and to carry meta-information
 describing the content of these messages.  Responses now also start with a
 status line that encodes the overall outcome of the
 request.  These enhancements make the protocol extensible.
 
 The next step was/is HTTP/1.1 which tries to fix some of the
-shortcomings of the HTTP/1.0 protocol [3,4]. One simple but important
+shortcomings of the HTTP/1.0 protocol [4,5]. One simple but important
 change is that the Host header is now mandatory. This makes it
 possible to serve multiple domains from a single server without
 allocating a new IP-address to each domain.  Another change is support for
@@ -122,7 +122,7 @@ the use of a technique called "pipelining".  This means that the
 client sends multiple requests down the connections without waiting
 for the response of the first request before sending the second and so
 on.  This can have a dramatic effect on the throughput for high latency
-links [5].
+links [6].
 
 Some of the HTTP/1.1 features are also available in deployed
 HTTP/1.0 clients and servers.  Persistent connections can sometimes be
@@ -130,7 +130,7 @@ used with HTTP/1.0 if the clients send a "Connection: Keep-Alive"
 header.  Most of todays HTTP/1.0 clients send the Host header.
 
 Beyond HTTP/1.1 we have HTTP/NG which is a project still in the
-research phase [6]. HTTP/NG is an attempt to take a more radical
+research phase [7]. HTTP/NG is an attempt to take a more radical
 approach.  The main "features" are making the protocol binary in order
 not to waste bytes on long human readable headers and direct support
 for multiplexing over a single network connection.  It is not clear
@@ -144,7 +144,7 @@ The libwww-perl project started at the first WWW conference in 1994
 (Geneva) where Martijn Koster discussed MOMspider with Roy Fielding.
 Martijn suggested that it would be a good thing if the reusable
 components of this program were broken out into a library.  The result
-was the libwww-perl library for perl4 that Roy maintained [7,8].
+was the libwww-perl library for perl4 that Roy maintained [8,9].
 
 At one point both Martijn and Gisle Aas (this article's author) had
 made their own separate modulifications of Roy's library to better
@@ -178,7 +178,7 @@ implemented.
 One important work that inspired the rewrite described here was Marc
 Langheinrich's ParallelUserAgent implementation.  It extended
 libwww-perl with the possibility to access multiple servers (or have
-multiple connections to the same server) at the same time [9].
+multiple connections to the same server) at the same time [10].
 
 In November 1997 Gisle started on a rewrite of the basic services
 provided by libwww-perl.  The goal was to provide full HTTP/1.1
@@ -187,7 +187,8 @@ flexible and (optionally) more lightweight.  Little happened until
 march 1998, but then I finally got the opportunity and tuits enough to
 start working on this project almost full time.  The software is at
 the time of writing quite usable and is distributed under the name
-LWPng.  It is expected to be renamed as libwww-perl-6.00 when its beta
+LWPng.  It is available on CPAN [11].
+It is expected to be renamed as libwww-perl-6.00 when its beta
 phase is over.
 
 
@@ -197,7 +198,7 @@ The libwww-perl library is based on HTTP style communication.  The
 main model is that all requests through any protocol module are forced
 into an HTTP straight-jacket. This makes things very easy, consistent,
 and nice.  This model is also what libwww-perl has inherited from, and has
-in common with, w3c-libwww [10].
+in common with, w3c-libwww [12].
 
 LWP provides an object oriented model of HTTP style messages that are
 passed between servers and clients.  The I<HTTP::Request> class models
@@ -240,7 +241,7 @@ application will get hold of a connection initiated by a client and
 will be able receive I<HTTP::Request> objects from this connection and
 send back I<HTTP::Response> objects.  Since the client and server
 interface use the same message objects it is trivial to write a simple
-proxy server [11].
+proxy server [13].
 
 Features of libwww-perl include:
 
@@ -411,7 +412,7 @@ and will not work everywhere when available.  An event-driven
 framework will continue to work with threaded Perls.  A threaded
 framework would require a thread enabled Perl to run.  Ousterhout
 mentions several other reasons why an event oriented solution is to be
-preferred over a thread based one [12].
+preferred over a thread based one [14].
 
 Event oriented programming is not always easy.  One of the main
 difficulties is that the event handlers must be written to return
@@ -950,7 +951,7 @@ to an HTTP server.  Several request/response exchanges can take place
 over this single connection. Pipelining of requests is supported too.
 
 The design of this module was much inspired by the "State" pattern
-described in Design Patterns [13].  The main intent of this pattern is
+described in Design Patterns [15].  The main intent of this pattern is
 described like this:
 
   Allow an object to alter its behaviour when
@@ -1203,72 +1204,76 @@ beta phase of bug fixing and further optimizations.
 
 =over 4
 
-=item [0]
+=item [1]
 
 The LWP home page - <http://www.linpro.no/lwp/>
 
-=item [1]
+=item [2]
 
 RFC 1945 - "Hypertext Transfer Protocol -- HTTP/1.0.", Berners-Lee,
 T., Fielding, R. and H. Frystyk., MIT/LCS, UC Irvine, May 1996.
 
-=item [2]
+=item [3]
 
 RFC2047 - "MIME (Multipurpose Internet Mail Extensions) Part
 Three: Message Header Extensions for Non-ASCII Text", Moore, K.,
 University of Tennessee, November 1996.
 
-=item [3]
+=item [4]
 
 RFC 2068 - "Hypertext Transfer Protocol -- HTTP/1.1", Fielding, R.,
 Gettys, J., Mogul, J., Frystyk, H., Berners-Lee, T., UC Irvine,
 Digital Equipment Corporation, M.I.T., January, 1997.
 
-=item [4]
+=item [5]
 
 draft-ietf-http-v11-spec-rev-03.txt - "Hypertext Transfer Protocol --
 HTTP/1.1", Fielding, R., Gettys, J., Mogul, J., Frystyk, H., Masinter
 L., Leach P., Berners-Lee, T., HTTP Working Group, March, 1998.
 
-=item [5]
+=item [6]
 
 "Network Performance Effects of HTTP/1.1, CSS1, and PNG", Frystyk
 Nielsen, Gettys, Baird-Smith, Prud'hommeaux, Lie, Lilley. W3C, 1997.
 <http://www.w3c.org/Protocols/HTTP/Performance/Pipeline.html>
 
-=item [6]
+=item [7]
 
 <http://www.w3c.org/Protocols/HTTP-NG/>
 
-=item [7]
+=item [8]
 
 MOMspider - Roy Fielding <URL:http://www.ics.uci.edu/pub/websoft/MOMspider/>
 
-=item [8]
+=item [9]
 
 libwww-perl-0.40 - Roy Fielding <URL:http://www.ics.uci.edu/pub/websoft/libwww-perl/>
 
-=item [9]
+=item [10]
 
 Parallel LWP User Agent - Marc Langheinrich <URL:http://www.cs.washington.edu/homes/marclang/ParallelUA/>
 
-=item [10]
+=item [11]
+
+CPAN - Comprehensive Perl Archive Network - <URL:http://www.perl.com/CPAN/>
+
+=item [12]
 
 w3c-libwww - H. Frystyk <URL:http://www.w3.org/Library/>
 
-=item [11]
+=item [13]
 
 "Anynoumus Proxy Server", Randal L. Schwartz, Web Techniques, February 1997
 <http://www.stonehenge.com/merlyn/WebTechniques/col11.html>
 
 
-=item [12]
+=item [14]
 
 "Why Threads Are A Bad Idea (for most purposes)", John K. Ousterhout,
 1996 USENIX Technical Conference
 <http://www.scriptics.com/people/john.ousterhout/>
 
-=item [13]
+=item [15]
 
 "Design Patterns - Elements of Reusable Object-Oriented Software",
 E. Gamma, R. Helm, R. Johnson, J. Vlissides.  1995 Addison Wesley.
