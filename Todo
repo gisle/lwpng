@@ -4,25 +4,27 @@
 
  * Complete LWP5 compatibility
  * Finish the authentication hooks (digest)
- * Authentication which sets default_headers
  * LWP::Conn::HTTP improvements
      - chunked request content (when content is CODE ref)
-     - bundling of multiple request in a single syswrite() when
-       pipelining.
-     - minimize headers is second and following requests
-     - look for Connection: close in request.  If so,
-       make it the last one on this connection.
-     - retry request if used connection closes.
-     - know about idempotent methods
      - monitor connection for error status messages
        (only meaningful when we start supporting
         chunked request content.)
-     - handle 101 switching protocol.  should perhaps
-       return a handle to the socket with the response
-       message somehow.
+     - bundling of multiple request in a single syswrite() when
+       pipelining.
+     - minimize headers for second and following requests
+     - look for Connection: close in request.  If so,
+       make it the last one on this connection.
+     - look for Connection: close in responses.  If one is seen,
+       pushback all pipelined requests and make sure no new are
+       set up.  Need a method to stop new requests on _this_
+       connection.
+     - retry request if used connection closes (only for request# > 1)
+     - know about idempotent methods
      - always pass response data through sinks?
-     - support HTTP/1.0 Keep-Alive?
-     - Non-blocking gethostbyname
+     - support HTTP/1.0 Keep-Alive? (more meaningful for a server)
+     - non-blocking gethostbyname
+     - try to record HTTP version number supported by the server
+       in the LWP::Server object.
  * Make a single request able to override persistent connection
    behaviour (make a request always processed on its own connection)
  * LWP::Conn::FILE could support PUT and Content-Ranges
