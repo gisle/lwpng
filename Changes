@@ -1,5 +1,13 @@
 1998-04-23   Gisle Aas <aas@sn.no>
 
+   Release alpha-0.19
+
+   LWP::Conn::FTP implementation started.
+
+
+
+1998-04-23   Gisle Aas <aas@sn.no>
+
    Release alpha-0.18
 
    lib/LWP/Authen.pm had fallen out of MANIFEST
