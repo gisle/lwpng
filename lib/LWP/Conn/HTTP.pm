@@ -9,10 +9,34 @@ package LWP::Conn::HTTP; # An HTTP Connection class
 
 # A hack that should work at least on Linux
 # XXX: When we require IO-1.18, then this hack can be removed.
+require IO::Handle;
 unless (defined &IO::EINPROGRESS) {
     $! = 115;
     die "No EINPROGRESS found ($!)" unless $! eq "Operation now in progress";
     *IO::EINPROGRESS = sub () { 115; };
+
+    # we also emulate $handle->blocking call provided by newer versions of
+    # the IO modules
+    require Fcntl;
+    my $O_NONBLOCK = Fcntl::O_NONBLOCK();
+    my $F_GETFL    = Fcntl::F_GETFL();
+    my $F_SETFL    = Fcntl::F_SETFL();
+    *IO::Handle::blocking = sub {
+	my $fh = shift;
+	my $dummy;
+	my $old = fcntl($fh, $F_GETFL, $dummy);
+	return undef unless defined $old;
+	if (@_) {
+	    my $new = $old;
+	    if ($_[0]) {
+		$new &= ~$O_NONBLOCK;
+	    } else {
+		$new |= $O_NONBLOCK;
+	    }
+	    fcntl($fh, $F_SETFL, $new);
+	}
+	($old & $O_NONBLOCK) == 0;
+    }
 }
 
 use strict;
@@ -83,7 +107,7 @@ sub new
 	    next;
 	}
 
-	eval { $sock->blocking(0) };  # require IO-1.18 or better
+	$sock->blocking(0);
 	mainloop->timeout($sock, $timeout);
 
         *$sock->{'lwp_mgr'}             = $mgr;
