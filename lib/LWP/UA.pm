@@ -76,15 +76,29 @@ sub conn_param
 }
 
 
-sub server
+sub find_server
 {
     my($self, $url) = @_;
-    $url = URI::URL->new($url) unless ref($url);
-    my $proto = $url->scheme || die "Missing scheme";
-    $proto = "nntp" if $proto eq "news";  # hack
-    my $host = $url->host || die "Missing host";
-    my $port = $url->port || die "No port";
-    my $netloc = "$proto://$host:$port";
+    $url = URI::URL->new($url) unless ref $url;
+    return undef unless $url;
+
+    my $proto = $url->scheme || return undef;
+    my $host = $url->host;
+    my($port, $netloc);
+
+    # Handle some special cases where $host can't be trusted
+    if ($proto eq "file") {
+	$host = undef if $host eq "localhost";
+    } elsif ($proto eq "mailto") {
+	$host = undef;
+    }
+
+    if ($host) {
+	$port = $url->port;
+	$netloc = $port ? "$proto://$host:$port" : "$proto://host";
+    } else {
+	$netloc = "$proto:";
+    }
 
     my $server = $self->{servers}{$netloc};
     unless ($server) {
@@ -97,24 +111,35 @@ sub server
 sub spool
 {
     my $self = shift;
-    eval {
-	for my $req (@_) {
-	    $self->run_hooks("request", $req);
-	    my $proxy = $req->proxy;
-	    my $server = $self->server($proxy ? $proxy : $req->url);
-	    $req->managed_by($self);
-	    $server->add_request($req);
-	    if ($DEBUG) {
-		my $id = $server->id;
-		print "$req spooled to $id\n";
-	    }
+    my $spooled = 0;
+    for my $req (@_) {
+	unless ($req->method) {
+	    $req->gen_response(400, "Missing METHOD in request");
+	    next;
 	}
-	$self->reschedule;
-    };
-    if ($@) {
-	print $@;
-	return;
+	my $url = $req->url;
+	unless ($url) {
+	    $req->gen_response(400, "Missing URL in request");
+	    next;
+	}
+	unless ($url->scheme) {
+	    $req->gen_response(400, "Request URL must be absolute");
+	    next;
+	}
+
+	$self->run_hooks("request", $req);
+	my $proxy = $req->proxy;
+	my $server = $self->find_server($proxy ? $proxy : $req->url);
+	$req->managed_by($self);
+	$server->add_request($req);
+	$spooled++;
+	if ($DEBUG) {
+	    my $id = $server->id;
+	    print "$req spooled to $id\n";
+	}
     }
+
+    $self->reschedule if $spooled;
 }
 
 
@@ -169,6 +194,7 @@ sub default_headers
 sub need_proxy
 {
     my($self, $req) = @_;
+    return if $req->proxy;
     my $proxy = $self->{'uattr'}->p_attr($req->url, "proxy");
     $req->proxy($proxy);
 }
