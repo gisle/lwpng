@@ -1,6 +1,8 @@
 package LWP::Server;
 use strict;
 
+use vars qw($DEBUG);
+
 sub new
 {
     my($class, $ua, $proto, $host, $port) = @_;
@@ -170,7 +172,7 @@ sub create_connection
 	$conn = $conn_class->new($self->conn_param);
     };
     if ($@) {
-	print STDERR $@;
+	print STDERR $@ if $DEBUG;
 	chomp($@);
 	$self->kill_queued_requests(590, $@);
 	return;
@@ -242,7 +244,7 @@ sub remove_from_refarray
 sub connection_active
 {
     my($self, $conn) = @_;
-    print STDERR "ACTIVE $conn\n";
+    print STDERR "ACTIVE $conn\n" if $DEBUG;
     $self->remove_from_refarray($self->{idle_conns}, $conn);
 }
 
@@ -250,7 +252,7 @@ sub connection_active
 sub connection_idle
 {
     my($self, $conn) = @_;
-    print STDERR "IDLE $conn\n";
+    print STDERR "IDLE $conn\n" if $DEBUG;
     if ($self->remove_from_refarray($self->{idle_conns}, $conn)) {
 	warn "$conn was already in idle_conns";
     }
@@ -260,7 +262,7 @@ sub connection_idle
 sub connection_closed
 {
     my($self, $conn) = @_;
-    print STDERR "CLOSED $conn\n";
+    print STDERR "CLOSED $conn\n" if $DEBUG;
     $self->remove_from_refarray($self->{idle_conns}, $conn);
     $self->remove_from_refarray($self->{conns}, $conn) or
 	warn "$conn was not registered";
