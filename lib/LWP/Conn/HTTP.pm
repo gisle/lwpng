@@ -23,7 +23,7 @@ unless (defined &IO::EINPROGRESS) {
     my $F_SETFL    = Fcntl::F_SETFL();
     *IO::Handle::blocking = sub {
 	my $fh = shift;
-	my $dummy;
+	my $dummy = '';
 	my $old = fcntl($fh, $F_GETFL, $dummy);
 	return undef unless defined $old;
 	if (@_) {
@@ -129,6 +129,7 @@ sub new
 		# XXX Perhaps we need some way of checking the other
 		# addresses in @addrs if this one fail.
 		$sock->state("Connecting");
+		*$sock->{'lwp_rbuf'} = "";
 		mainloop->writable($sock);
 		return $sock;
 	    } else {
@@ -552,12 +553,24 @@ sub check_rbuf
     return unless $self->response_data($req, "", $res);
     #print $res->as_string if $LWP::Conn::HTTP::DEBUG;
 
-    if ($code >= 400 && $code <= 599 &&  # we got an error and
+    if ($code >= 400 && $code <= 599 &&  # we got an error response and
 	*$self->{'lwp_wdyn'} &&          # we are still sending dynamic content
-	@{ *$self->{'lwp_req'} } == 1    # for request with error response
+	@{ *$self->{'lwp_req'} } == 1    # for request with this error response
        ) {
 	# make sure it gets terminated on next opportunity.
 	*$self->{'lwp_wdyn'} = sub { "" };
+    }
+
+    if (my $conn = $res->header("Connection")) {
+	if (grep lc($_) eq "close", split(/\s*,\s*/, $conn)) {
+	    # The server intends to close this connection once this response
+	    # is done.  No requests in the pipeline will work.
+	    my $req = *$self->{'lwp_req'};
+	    if (@$req > 1) {
+		*$self->{'lwp_mgr'}->pushback_request($self, splice(@$req, 1));
+	    }
+	    *$self->{'lwp_req_limit'} = 1;  # no more requests on this conn
+	}
     }
 
     # Determine how to find the end of message
