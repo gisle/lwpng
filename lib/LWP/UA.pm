@@ -231,10 +231,30 @@ sub setup_cookie
 sub setup_proxy
 {
     my($self, $req) = @_;
-    return 0 if $req->proxy;
-    my $proxy = $self->{'uattr'}->p_attr($req->url, "proxy");
-    $req->proxy($proxy);
-    0;
+    my $proxy = $req->proxy;
+    unless ($proxy) {
+	$proxy = $self->{'uattr'}->p_attr($req->url, "proxy");
+	return unless $proxy;
+	$req->proxy($proxy);
+    }
+
+    # Set up Proxy-Authorization perhaps
+    my $realms = $self->{'uattr'}->p_attr($proxy, "proxy_realms");
+    return unless $realms && %$realms;
+
+    if (keys %$realms > 1) {
+	# there is multiple realms to choose from.  Select the
+	# right one, if there is such a thing.
+	my $realm = $self->{'uattr'}->p_attr($req->url, "proxy_realm");
+	if (my $auth = $realms->{$realm}) {
+	    $auth->set_proxy_authorization($req);
+	}
+    } else {
+	# there is only one realm defined for this proxy server,
+	# so we might as well use it.
+	my($auth) = values %$realms;
+	$auth->set_proxy_authorization($req);
+    }
 }
 
 
