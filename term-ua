@@ -17,6 +17,7 @@
 
 
 use LWP::UA;
+$LWP::UA::DEBUG++;
 $ua = LWP::UA->new;
 
 $ua->conn_param(ReqLimit    => 3,
