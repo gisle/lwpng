@@ -1,14 +1,8 @@
 package LWP::Redirect;
 
 use strict;
-use vars qw(@EXPORT_OK);
 
-require Exporter;
-*import = \&Exporter::import;
-@EXPORT_OK=qw(redirect_handler);
-
-
-sub redirect_handler
+sub response_handler
 {
     my($req, $res) = @_;
     my $code = $res->code;
@@ -59,3 +53,4 @@ sub redirect_handler
     1;  # consider this request handled
 }
 
+1;
