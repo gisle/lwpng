@@ -18,12 +18,13 @@ sub reschedule
     my @idle;
     my @start;
 
-    while (my($netloc, $server) = each %{$ua->{ua_servers}}) {
+    for my $server ($ua->servers) {
+	my $sid = $server->id;
 	my($req,$conn,$iconn, $max_conn) = $server->c_status;
 	if ($req && $conn) {
 	    # Let's see if any of the existing connections can
 	    # absorb the request queue.
-	    print STDERR "$netloc->activate_connections\n" if $DEBUG;
+	    print STDERR "$sid->activate_connections\n" if $DEBUG;
 	    $server->activate_connections;
 	    ($req,$conn,$iconn, $max_conn) = $server->c_status;
 	}
@@ -34,7 +35,7 @@ sub reschedule
 	my $max_start = $max_conn - $conn;
 	$sconn = $max_start if $max_conn && $sconn > $max_start;
 	$sconn = 0 if $sconn < 0;
-	print STDERR "SCHED $netloc R=$req C=$conn I=$iconn ($max_conn) S=$sconn\n"
+	print STDERR "SCHED $sid R=$req C=$conn I=$iconn ($max_conn) S=$sconn\n"
 	    if $DEBUG;
 
 	$gconn  += $conn;
