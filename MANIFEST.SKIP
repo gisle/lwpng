@@ -7,7 +7,8 @@
 ^Makefile$
 ^pm_to_blib$
 ^blib/
-^.cvsignore$
+.cvsignore$
+^mozilla-netlib
 ^ParallelUserAgent
 ^Pipeline.html$
 ^design.txt$
