@@ -10,6 +10,8 @@ package LWP::HConn; # HTTP Connection
 # A hack that should work on Linux until we require IO-1.18, then it
 # should work everywhere
 unless (defined &IO::EINPROGRESS) {
+    $! = 115;
+    die "No EINPROGRESS ($!)" unless $! eq "Operation now in progress";
     *IO::EINPROGRESS = sub () { 115; };
 }
 
@@ -17,6 +19,7 @@ use strict;
 use vars qw($DEBUG);
 
 my $TCP_PROTO = (getprotobyname('tcp'))[2];
+use Carp ();
 use IO::Socket qw(AF_INET SOCK_STREAM inet_aton pack_sockaddr_in);
 use LWP::EventLoop qw(mainloop);
 
@@ -26,7 +29,27 @@ use base qw(IO::Socket::INET);
 
 sub new
 {
-    my($class, $host, $port, $mgr) = @_;
+    my($class, %cnf) = @_;
+
+    my $mgr = delete $cnf{ManagedBy} ||
+      Carp::croak("'ManagedBy' is mandatory");
+    my $host = delete $cnf{PeerAddr} || delete $cnf{Host} ||
+      Carp::croak("'PeerAddr' is mandatory");
+    my $port;
+    $port = $1 if $host =~ s/:(\d+)//;
+    $port = delete $cnf{PeerPort} || delete $cnf{Port} || $port || 80;
+
+    my $timeout = delete $cnf{Timeout} || 3*60;
+    my $req_limit = delete $cnf{ReqLimit} || 1;
+    $req_limit = 1 if $req_limit < 1;
+    my $req_pending = delete $cnf{ReqPending} || 1;
+    $req_pending = 1 if $req_pending < 1;
+
+    if (%cnf && $^W) {
+	for (keys %cnf) {
+	    warn "Unknown LWP::HConn->new attribute '$_' ignored\n";
+	}
+    }
 
     # Resolve address, should really be non-blocking too
     my($addrtype, @addrs);
@@ -56,13 +79,13 @@ sub new
 	}
 
 	eval { $sock->blocking(0) };  # require IO-1.18 or better
+	mainloop->timeout($sock, $timeout) if $timeout;
 
         $ {*$sock}{'lwp_mgr'} = $mgr;
 	$ {*$sock}{'lwp_req_count'} = 0;
-	$ {*$sock}{'lwp_req_limit'} = 1;
-	$ {*$sock}{'lwp_req_max_outstanding'} = 1;
-	
-	mainloop->timeout($sock, 8);
+	$ {*$sock}{'lwp_req_limit'} = $req_limit;
+	$ {*$sock}{'lwp_req_max_pending'} = $req_pending;
+
 	if ($DEBUG) {
 	    use Socket qw(unpack_sockaddr_in inet_ntoa);
 	    my($port, $addr) = unpack_sockaddr_in($addr);
@@ -107,7 +130,7 @@ sub new_request
     my $self = shift;
     return if defined $ {*$self}{'lwp_wbuf'};
     return if $self->last_request_sent;
-    return if $self->pending_requests >= $ {*$self}{'lwp_req_max_outstanding'};
+    return if $self->pending_requests >= $ {*$self}{'lwp_req_max_pending'};
 
     my $mgr = $ {*$self}{'lwp_mgr'};
     my $req = $mgr->get_request($self);
@@ -379,6 +402,7 @@ sub end_of_response
     if ($self->current_request) {
 	$self->check_rbuf;
     } else {
+	$ {*$self}{'lwp_mgr'}->connection_idle($self);
 	$self->state("Idle");
     }
 }
