@@ -12,13 +12,14 @@ sub response_data
     my($self, $data, $res) = @_;
     # do something
     print "DATA CALLBACK: [$data]\n";
+    $res->add_content($data);
 }
 
 sub done
 {
-    print "DONE ";
-    #print $_[1]->as_string;
-    print "\n";
+    my($self, $res) = @_;
+    print "DONE\n";
+    print $res->as_string;
 }
 
 #sub progress
@@ -45,8 +46,10 @@ sub get_request
 
 sub pushback_request
 {
-    my($self, $conn, @req) = @_;
-    print STDERR "PUSHBACK\n";
+    my($self, $conn, @r) = @_;
+    my $no = int @r;
+    print STDERR "PUSHBACK $no requests\n";
+    unshift(@req, @r);
 }
 
 sub connection_idle
@@ -68,14 +71,14 @@ package main;
 
 $mgr = new MGR;
 
-#$LWP::HConn::DEBUG++;
+$LWP::HConn::DEBUG++;
 #$LWP::EventLoop::DEBUG++;
 
 LWP::HConn->new(ManagedBy => $mgr,
 		PeerAddr => "127.0.0.1",
-		ReqPending => 3,
+		ReqPending => 1,
 		ReqLimit   => 10,
-		Timeout    => 8,
+		Timeout    => 60,
 	       );
 
 #$c2 = LWP::HConn->new("furu", 80, $mgr);
