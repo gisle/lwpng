@@ -116,8 +116,10 @@ sub _set_authorization
     push(@h, ["cnonce"   => $cnonce]) if $cnonce;
     push(@h, ["opaque"   => $self->{opaque}]) if exists $self->{opaque};
     
-    push(@h, ["_qop"     => $qop]) if $self->{qop};
-    push(@h, ["_nc"      => $nc]);
+    if ($self->{qop}) {
+	push(@h, ["_qop" => $qop]);
+	push(@h, ["_nc"  => $nc]);
+    }
 
     my $h = "Digest " . join(", ",
 			     map {
@@ -167,6 +169,7 @@ sub nonce
     my $old = $self->{'nonce'};
     if (@_) {
 	$self->{'nonce'} = shift;
+	delete $self->{'nonce_count'};
     }
     $old;
 }
