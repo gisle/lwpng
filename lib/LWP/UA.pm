@@ -27,6 +27,7 @@ sub new
     $ua->add_hook("spool_request", \&setup_default_headers);
     $ua->add_hook("spool_request", \&setup_date);
     $ua->add_hook("spool_request", \&setup_auth);
+    $ua->add_hook("spool_request", \&setup_head_parser);
     $ua->add_hook("spool_request", \&setup_proxy);
 
     $ua->agent("libwww-perl/ng-alpha ($^O)");
@@ -227,7 +228,7 @@ sub cookie_jar
 sub setup_cookie
 {
     my($self, $req) = @_;
-    my $jar = $self->{'cookie_jar'} || return 1;
+    my $jar = $self->{'cookie_jar'} || return 0;
     $jar->add_cookie_header($req);
     $req->add_hook("response_done",
 		   sub {
@@ -235,6 +236,29 @@ sub setup_cookie
 		       $jar->extract_cookies($res);
 		       1;
 		   });
+    0;
+}
+
+
+sub _response_data_hp
+{
+    my($req,$data,$res) = @_;
+    my $hp = $req->{head_parser};
+    unless ($hp) {
+	$req->{head_parser} = $hp = HTML::HeadParser->new($res);
+    }
+    unless ($hp->parse($data)) {
+	# done
+	delete $req->{head_parser};
+	$req->remove_hook("response_data", \&_response_data_hp);
+    }
+}
+
+sub setup_head_parser
+{
+    my($self,$req) = @_;
+    require HTML::HeadParser;
+    $req->add_hook("response_data", \&_response_data_hp);
     0;
 }
 
