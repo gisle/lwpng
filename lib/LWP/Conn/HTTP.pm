@@ -480,8 +480,9 @@ sub check_rbuf
 		require LWP::Sink::identity;
 		require LWP::Sink::Monitor if $LWP::Conn::HTTP::DEBUG;
 		my $te;
-		$te = LWP::Sink::Monitor->new("chunked") if $LWP::Conn::HTTP::DEBUG;
-		for (@trans_enc) {
+		$te = LWP::Sink::Monitor->new("chunked")
+		    if $LWP::Conn::HTTP::DEBUG;
+		for (reverse @trans_enc) {
 		    my $enc = lc(shift @$_);
 		    $enc =~ /^([a-z][a-z0-9]*)$/ or die "Bad TE '$enc'";
 		    $enc = $1; # untaint
@@ -496,7 +497,8 @@ sub check_rbuf
 		    }
 		    $filter = "$filter\::decode"->new(@$_);
 		    $te = $te ? $te->append($filter) : $filter;
-		    $te->append(LWP::Sink::Monitor->new($enc)) if $LWP::Conn::HTTP::DEBUG;
+		    $te->append(LWP::Sink::Monitor->new($enc))
+			if $LWP::Conn::HTTP::DEBUG;
 		}
 		$te->append(LWP::Sink::identity->new);
 		$te->append( sub { $req->response_data($_[0], $res); } );
