@@ -13,10 +13,9 @@ sub new
 	    port => $port,
 
 #	    created => time(),
-#	    last_active => undef,
+#	    last_active => time(),
 
 	    req_queue   => [],
-	    pending_req => 0,
 
             conn_param => {},
 	    conns => [],
@@ -34,6 +33,16 @@ sub id
 {
     my $self = shift;
     "$self->{'proto'}://$self->{'host'}:$self->{'port'}";     # URL like
+}
+
+sub status
+{
+    my $self = shift;
+    (scalar(@{$self->{req_queue}}),
+     scalar(@{$self->{conns}}),
+     scalar(@{$self->{idle_conns}}),
+     $self->max_conn,
+    );
 }
 
 # Managing the request queue
@@ -66,8 +75,27 @@ sub stop
     }
 }
 
+sub stop_idle
+{
+    my $self = shift;
+    my @idle = @{$self->{idle_conns}};  # iterate over a copy
+    for (@idle) {
+	$_->stop;
+    }
+}
+
 # Connection management
 
+sub max_conn
+{
+    my $self = shift;
+    my $old = $self->{max_conn};
+    $old = $self->{'ua'}{'max_conn_per_server'} unless defined $old;
+    if (@_) {
+	$self->{max_conn} = shift;
+    }
+    $old;
+}
 
 sub conn_param
 {
