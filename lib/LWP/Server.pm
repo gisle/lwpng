@@ -148,7 +148,6 @@ sub conn_param
 sub create_connection
 {
     my $self = shift;
-    print "Create connection: ", $self->id, "....\n";
     my $conn_class = $self->{'conn_class'};
     no strict 'refs';
     unless (defined %{"$conn_class\::"}) {
