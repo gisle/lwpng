@@ -1,13 +1,32 @@
 package URI::Attr;
 
+# $Id$
+
+# Copyright 1998 Gisle Aas.
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the same terms as Perl itself.
+
 use URI::URL ();
 use strict;
+
+# The URI::Attr is a tree.  The nodes are arrays with 2 hash elements.
+# The first hash define the next level of the tree and the values in
+# this hash are new 2 element arrays.  The second hash is the
+# attributes at the given level (or undef).
+#
+# For instance the attribute "foo" at the SERVER level of
+# http://www.perl.com is found here:
+#
+# $self->[0]{"http"}[0]{".com"}[0]{".perl"}[0]{"www"}[0]{"80"}[1]{"foo"}
+#
 
 sub new
 {
     my $class = shift;
     bless [undef, undef], $class;
 }
+
 
 sub _attr
 {
@@ -49,6 +68,7 @@ sub _attr
     \@attr;
 }
 
+
 sub attr
 {
     my($self, $url, $name) = @_;
@@ -71,8 +91,17 @@ sub attr
 	    push(@val, [$_->[0], $_->[1]{$name}]);
 	}
     }
-    wantarray ? @val : $val[-1];
+    wantarray ? reverse(@val) : $val[-1];
 }
+
+
+sub p_attr
+{
+    my $self = shift;
+    my @attr = map {$_->[1]} $self->attr(@_);
+    wantarray ? @attr : $attr[0];
+}
+
 
 sub attr_update
 {
@@ -97,6 +126,7 @@ sub attr_update
     }
     _make_hash($cur->[1]);
 }
+
 
 sub _make_hash
 {
