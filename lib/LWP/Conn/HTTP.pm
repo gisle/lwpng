@@ -232,6 +232,21 @@ sub _error
     $mgr->connection_closed($self);
 }
 
+sub response_data
+{
+    my $self = shift;
+    my $req  = shift;
+    eval {
+	$req->response_data(@_);
+    };
+    if ($@) {
+	chomp($@);
+	$self->_error($@);
+	return;
+    }
+    return 1;
+}
+
 
 
 
@@ -413,7 +428,7 @@ sub check_rbuf
     *$self->{'lwp_res'} = $res;
     my $req = $self->current_request;
     $res->request($req);
-    $req->response_data("", $res);
+    return unless $self->response_data($req, "", $res);
     #print $res->as_string if $LWP::Conn::HTTP::DEBUG;
 
     # Determine how to find the end of message
@@ -514,7 +529,7 @@ sub check_rbuf
     my $data = substr($$buf, 0, $cont_len);
     substr($$buf, 0, $cont_len) = '';
     $cont_len -= length($data);
-    $res->request->response_data($data, $res);
+    return unless $self->response_data($res->request, $data, $res);
     if ($cont_len > 0) {
 	*$self->{'lwp_cont_len'} = $cont_len;
     } else {
@@ -548,7 +563,7 @@ sub check_rbuf
 		substr($data, -2+$chunked, 2-$chunked) = '';
 		$chunked = -1 if $chunked == 0;
 	    }
-	    $res->request->response_data($data, $res);
+	    return unless $self->response_data($res->request, $data, $res);
 
 	} elsif ($chunked == -1) {
 	    # read a new chunk header
@@ -645,9 +660,9 @@ sub check_rbuf
 	    }
 	    my $data = substr($$buf, 0, $buflen - length($boundary));
 	    substr($$buf, 0, length($data)) = '';
-	    $res->request->response_data($data, $res) if length($data);
+	    $self->response_data($res->request, $data, $res) if length($data);
 	} else {
-	    $res->request->response_data($$buf, $res);
+	    $self->response_data($res->request, $$buf, $res);
 	    $$buf = '';
 	}
 	return;
@@ -655,7 +670,7 @@ sub check_rbuf
     # boundary is found in data
     my $data = substr($$buf, 0, $i + length($boundary));
     substr($$buf, 0, length($data)) = '';
-    $res->request->response_data($data, $res);
+    return unless $self->response_data($res->request, $data, $res);
     $self->end_of_response;
 }
 
@@ -671,7 +686,7 @@ sub check_rbuf
     my $self = shift;
     my $buf      = \ *$self->{'lwp_rbuf'};
     my $res      =   *$self->{'lwp_res'};
-    $res->request->response_data($$buf, $res);
+    $self->response_data($res->request, $$buf, $res);
     $$buf = '';
 }
 
