@@ -3,6 +3,7 @@ Makefile.PL
 design.txt
 lib/LWP/EventLoop.pm
 lib/LWP/HConn.pm
+lib/LWP/MainLoop.pm
 lib/LWP/Server.pm
 lib/LWP/UA.pm
 hconn.pl
