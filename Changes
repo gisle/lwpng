@@ -71,7 +71,7 @@
 
 1998-03-13   Gisle Aas <aas@sn.no>
 
-   Release alpha-0.03
+   Release alpha-0.04
 
    After a long period of ignoring it I once again started to work
    on LWP-ng.  Made the LWP::UA and LWP::Server class working again.
