@@ -194,9 +194,6 @@ sub new_request
 	push(@rlines, "", $$cont_ref);
 	push(@{ *$self->{'lwp_req'} }, $req);
 	*$self->{'lwp_wbuf'} = join("\015\012", @rlines);
-
-print *$self->{'lwp_wbuf'};
-
 	mainloop->writable($self);
 	return $req;
     }
@@ -240,9 +237,61 @@ sub stop
 }
 
 # EventLoop callbacks
-sub writable { shift->_error("Writable connection"); }
 sub readable { shift->_error("Readable connection"); }
 sub inactive { shift->_error("Inactive connection"); }
+
+sub writable
+{
+    my $self = shift;
+    my $buf = \ *$self->{'lwp_wbuf'};
+    my $n = syswrite($self, $$buf, length($$buf));
+    if (!defined($n) || $n == 0) {
+	$self->_error("Bad write: $!");
+    } else {
+	print STDERR "WROTE $n bytes\n" if $LWP::Conn::HTTP::DEBUG;
+	if ($n < length($$buf)) {
+	    substr($$buf, 0, $n) = "";  # get rid of this
+	} else {
+	    # Check if we are generating dynamic content
+	    if (my $dyn = *$self->{'lwp_wdyn'}) {
+		my $chunk = &$dyn();
+		my $clen  = length($chunk);
+
+		if (my $len = *$self->{'lwp_wlen'}) {
+		    # we are generating content with the specified length
+		    if ($clen > $len) {
+			# chunk to large, truncate it
+			substr($chunk, $len) = '';
+			$clen = $len;
+		    } elsif ($clen == 0) {
+			$self->_error("Short dynamic request content ($len bytes missing)");
+			# Other possibilities is to fill request
+			# content with some random padding or to
+			# just continue to call the callback routine
+			# until we have enough.
+			return;
+		    }
+		    *$self->{'lwp_wbuf'} = $chunk;
+		    $len -= $clen;
+		    *$self->{'lwp_wlen'} = $len;
+		    delete *$self->{'lwp_wdyn'} unless $len;
+		} else {
+		    # we are using chunked transfer encoding for this request
+		    *$self->{'lwp_wbuf'} = join("\015\012",
+						sprintf("%x", $clen),
+						$chunk, "");
+		    delete *$self->{'lwp_wdyn'} if $clen == 0;
+		}
+		return;
+	    }
+	    # request sent
+	    delete *$self->{'lwp_wbuf'};
+	    # try to start a new one?
+	    $self->new_request or mainloop->writable($self, undef);
+	}
+    }
+}
+
 
 sub _error
 {
@@ -276,6 +325,7 @@ sub _error
     }
 }
 
+
 sub response_data
 {
     my $self = shift;
@@ -295,6 +345,7 @@ sub response_data
     }
     return 1;
 }
+
 
 
 
@@ -363,59 +414,6 @@ use base qw(LWP::Conn::HTTP);
 
 use LWP::MainLoop qw(mainloop);
 require HTTP::Response;
-
-
-sub writable
-{
-    my $self = shift;
-    my $buf = \ *$self->{'lwp_wbuf'};
-    my $n = syswrite($self, $$buf, length($$buf));
-    if (!defined($n) || $n == 0) {
-	$self->_error("Bad write: $!");
-    } else {
-	print STDERR "WROTE $n bytes\n" if $LWP::Conn::HTTP::DEBUG;
-	if ($n < length($$buf)) {
-	    substr($$buf, 0, $n) = "";  # get rid of this
-	} else {
-	    # Check if we are generating dynmic content
-	    if (my $dyn = *$self->{'lwp_wdyn'}) {
-		my $chunk = &$dyn();
-		my $clen  = length($chunk);
-
-		if (my $len = *$self->{'lwp_wlen'}) {
-		    # we are generating content with the specified length
-		    if ($clen > $len) {
-			# chunk to large, truncate it
-			substr($chunk, $len) = '';
-			$clen = $len;
-		    } elsif ($clen == 0) {
-			$self->_error("Short dynamic request content ($len bytes missing)");
-			# Other possibilities is to fill request
-			# content with some random padding or to
-			# just continue to call the callback routine
-			# until we have enough.
-			return;
-		    }
-		    *$self->{'lwp_wbuf'} = $chunk;
-		    $len -= $clen;
-		    *$self->{'lwp_wlen'} = $len;
-		    delete *$self->{'lwp_wdyn'} unless $len;
-		} else {
-		    # we are using chunked transfer encoding for this request
-		    *$self->{'lwp_wbuf'} = join("\015\012",
-						sprintf("%x", $clen),
-						$chunk, "");
-		    delete *$self->{'lwp_wdyn'} if $clen == 0;
-		}
-		return;
-	    }
-	    # request sent
-	    delete *$self->{'lwp_wbuf'};
-	    # try to start a new one?
-	    mainloop->writable($self, undef) unless $self->new_request;
-	}
-    }
-}
 
 
 sub readable
@@ -523,6 +521,14 @@ sub check_rbuf
     $res->request($req);
     return unless $self->response_data($req, "", $res);
     #print $res->as_string if $LWP::Conn::HTTP::DEBUG;
+
+    if ($code >= 400 && $code <= 599 &&  # we got an error and
+	*$self->{'lwp_wdyn'} &&          # we are still sending dynamic content
+	@{ *$self->{'lwp_req'} } == 1    # for request with error response
+       ) {
+	# make sure it gets terminated on next opportunity.
+	*$self->{'lwp_wdyn'} = sub { "" };
+    }
 
     # Determine how to find the end of message
     if ($req->method eq "HEAD" || $code =~ /^(?:1\d\d|[23]04)$/) {
