@@ -1,0 +1,10 @@
+HTTP/1.0  200
+Content-Type: text/plain
+Accept: text/plain,
+	text/html,
+ image/gif
+Accept: image/jpg
+Content-Language: en
+
+This is the content.  No message on the status line.
+

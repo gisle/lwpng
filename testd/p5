@@ -1,0 +1,22 @@
+HTTP/001.0010 200 OK
+Date: Sun, 06 Nov 1994 08:49:37 GMT
+Content-Type: text/plain
+Accept: text/plain,
+	text/html,
+ image/gif
+Accept: image/jpg
+Content-Language: en
+
+This message use a strange HTTP version number, which clients MUST be
+able to parse:
+
+  The version of an HTTP message is indicated by an HTTP-Version field in
+  the first line of the message.
+
+         HTTP-Version   = "HTTP" "/" 1*DIGIT "." 1*DIGIT
+
+  Note that the major and minor numbers MUST be treated as separate
+  integers and that each may be incremented higher than a single digit.
+  Thus, HTTP/2.4 is a lower version than HTTP/2.13, which in turn is lower
+  than HTTP/12.3. Leading zeros MUST be ignored by recipients and MUST NOT
+  be sent.

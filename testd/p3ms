@@ -1,0 +1,9 @@
+HTTP/1.0	 200 	 OK
+Content-Type  :     text/plain   
+Accept: text/plain,
+	text/html,
+ image/gif
+Accept: image/jpg
+Content-Language	:	en
+
+This is the content.  Space and tabs in strange places.

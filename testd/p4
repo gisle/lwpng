@@ -1,0 +1,11 @@
+HTTP/1.1 200 OK
+Connection: close
+Content-Type: text/plain
+Accept: text/plain,
+	text/html,
+ image/gif
+Accept: image/jpg
+Content-Language: en
+
+This response use HTTP/1.1 and a Connection: close header.
+

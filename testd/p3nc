@@ -1,0 +1,7 @@
+HTTP/1.0 200 OK, no content, no separator line
+Content-Type: text/plain
+Accept: text/plain,
+	text/html,
+ image/gif
+Accept: image/jpg
+Content-Language: en
