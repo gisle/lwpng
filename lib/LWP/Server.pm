@@ -246,6 +246,8 @@ sub connection_closed
     $self->remove_from_refarray($self->{idle_conns}, $conn);
     $self->remove_from_refarray($self->{conns}, $conn) or
 	warn "$conn was not registered";
+    $self->create_connection
+	if !@{$self->{conns}} && @{$self->{req_queue}};
 }
 
 sub as_string
