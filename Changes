@@ -1,3 +1,20 @@
+1998-04-29   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.20
+
+   LWP::Conn::FTP should work pretty well by now.  We support HEAD,
+   GET, PUT, DELETE and TRACE methods.
+
+   LWP::Authen had not been updated to newest URI::Attr interface
+   changes.
+
+   LWP::EventLoop->activity can be used to avoid having a socket
+   time out even when there isn't really any activity going on.
+   Needed because the FTP command socket can be non-active for
+   long periods of time.
+
+
+
 1998-04-28   Gisle Aas <aas@sn.no>
 
    Release alpha-0.19
