@@ -68,7 +68,7 @@ sub cmd
 	} elsif ($cmd =~ /^s\s+(\S+)/) {
 	    $ua->find_server($1)->stop;
 	} elsif ($cmd =~ /^(\w+)\s+(\S+)/i) {
-	    my $req = LWP::Request->new(uc($1) => $2);
+	    my $req = LWP::Request->new2(uc($1) => $2);
 	    #$req->{'auto_redirect'}++;
 	    #$req->{'auto_auth'}++;
 	    $ua->spool($req);
