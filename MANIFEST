@@ -3,6 +3,7 @@ Makefile.PL
 README
 News
 Todo
+lib/LWP/Conn/FILE.pm
 lib/LWP/Conn/HTTP.pm
 lib/LWP/EventLoop.pm
 lib/LWP/MainLoop.pm
@@ -14,6 +15,7 @@ lib/LWP/UA.pm
 lib/URI/Attr.pm
 old-ua
 t/after.t
+t/bad-req.t
 t/uri-attr.t
 term-serv
 term-ua
