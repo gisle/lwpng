@@ -9,8 +9,17 @@ package LWP::EventLoop;
 
 
 use strict;
-
 use vars qw($DEBUG);
+
+# If Time::HiRes is installed then we can get better timeout resolution
+BEGIN {
+    eval {
+	require Time::HiRes;
+	Time::HiRes->import('time');
+    };
+    print STDERR $@ if $@ && $DEBUG;
+}
+
 
 sub new
 {
