@@ -40,6 +40,7 @@ sub new
     $port = delete $cnf{Port} || delete $cnf{PeerPort} || $port || 80;
 
     my $timeout = delete $cnf{Timeout} || 3*60;
+    my $idle_timeout = delete $cnf{IdleTimeout} || $timeout;
     my $req_limit = delete $cnf{ReqLimit} || 1;
     $req_limit = 1 if $req_limit < 1;
     my $req_pending = delete $cnf{ReqPending} || 1;
@@ -79,12 +80,14 @@ sub new
 	}
 
 	eval { $sock->blocking(0) };  # require IO-1.18 or better
-	mainloop->timeout($sock, $timeout) if $timeout;
+	mainloop->timeout($sock, $timeout);
 
-        *$sock->{'lwp_mgr'} = $mgr;
-	*$sock->{'lwp_req_count'} = 0;
-	*$sock->{'lwp_req_limit'} = $req_limit;
+        *$sock->{'lwp_mgr'}             = $mgr;
+	*$sock->{'lwp_req_count'}       = 0;
+	*$sock->{'lwp_req_limit'}       = $req_limit;
 	*$sock->{'lwp_req_max_pending'} = $req_pending;
+	*$sock->{'lwp_timeout'}         = $timeout;
+	*$sock->{'lwp_idle_timeout'}    = $idle_timeout;
 
 	if ($DEBUG) {
 	    use Socket qw(unpack_sockaddr_in inet_ntoa);
@@ -251,11 +254,15 @@ sub inactive
 
 package LWP::Conn::HTTP::Idle;
 use base qw(LWP::Conn::HTTP);
+use LWP::MainLoop qw(mainloop);
 
 sub activate
 {
     my $self = shift;
-    $self->state("Active") if $self->new_request;
+    if ($self->new_request) {
+	$self->state("Active");
+	mainloop->timeout($self, *$self->{'lwp_timeout'});
+    }
 }
 
 
@@ -459,6 +466,7 @@ sub end_of_response
     } else {
 	*$self->{'lwp_mgr'}->connection_idle($self);
 	$self->state("Idle");
+	mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
     }
 }
 
