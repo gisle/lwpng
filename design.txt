@@ -1,3 +1,7 @@
+THIS DOCUMENT HAS NOT BEEN UPDATED TO REFLECT CURRENT DESIGN!!!!
+..................................................................
+
+
 This document contains various notes for a redesign of the protocol
 handling of LWP.  The goal is to be able to support HTTP/1.1 and
 multiple connections and at the same time be able to support the old
