@@ -3,6 +3,8 @@ package LWP::Request;
 use strict;
 use vars qw(@ISA);
 
+require LWP::UA;  # should always be loaded
+
 require LWP::Version;
 require HTTP::Request;
 require LWP::Hooks;
