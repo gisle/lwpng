@@ -7,15 +7,30 @@ package LWP::Request;
 require HTTP::Request;
 use base qw(HTTP::Request);
 
-sub receive_data
+sub response_data
 {
+    my($self, $data, $res) = @_;
     # do something
+    print "DATA CALLBACK: [$data]\n";
+}
+
+sub done
+{
+    print "DONE ";
+    #print $_[1]->as_string;
+    print "\n";
+}
+
+sub progress
+{
+    my($self, $msg, $req_bytes, $req_of, $res_bytes, $res_of) = @_;
+    # Something that might update the progress bar or display the message
 }
 
 
 package MGR;
 
-@req = qw(/ / / /not-found); #/slowdata.cgi /not-found /); # /nph-slowdata.cgi / /nph-slowdata.cgi  /not-found);
+@req = qw(/ / / /); # /nph-slowdata.cgi / /nph-slowdata.cgi  /not-found);
 
 sub new { bless {}, $_[0] }
 
@@ -37,11 +52,14 @@ sub pushback_request
 sub connection_idle
 {
     my($self, $conn) = @_;
+    print STDERR "CONN IDLE\n";
+    #$conn->stop;
 }
 
 sub connection_closed
 {
     my($self, $conn) = @_;
+    print STDERR "CONN CLOSED\n";
 }
 
 
@@ -52,14 +70,20 @@ use LWP::EventLoop qw(mainloop);
 
 $mgr = new MGR;
 
-$c1 = LWP::HConn->new("127.0.0.1", 80, $mgr);
+#$LWP::HConn::DEBUG++;
+#$LWP::EventLoop::DEBUG++;
+
+$c1 = LWP::HConn->new(ManagedBy => $mgr,
+                      PeerAddr => "127.0.0.1",
+		      ReqPending => 3,
+		      ReqLimit   => 10,
+		      Timeout    => 8,
+		     );
+
 #$c2 = LWP::HConn->new("furu", 80, $mgr);
 
-use Data::Dumper;
+#use Data::Dumper; print Dumper($c1, $c2);
 
-print Dumper($c1, $c2);
-
-#$LWP::EventLoop::DEBUG++;
 while (!mainloop->empty) {
     #mainloop->dump;
     mainloop->one_event;
