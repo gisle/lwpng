@@ -8,6 +8,7 @@ use HTTP::Daemon;
 use Time::HiRes qw(sleep time);
 
 my $d = new HTTP::Daemon;
+$SIG{PIPE} = 'IGNORE';  # if syswrite() on the socket fails
 
 open(URL, ">$URL_FILE") || die "Can't open $URL_FILE: $!";
 print URL $d->url, "\n";
