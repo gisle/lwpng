@@ -12,18 +12,16 @@ sub new
     $conn_class =~ s/\-/_MINUS_/g;
     $conn_class = "LWP::Conn::$conn_class";
 
-    bless { ua  => $ua,
+    my $self = bless
+          {
+            ua  => $ua,
 
 	    proto  => $proto,
 #	    proto_ver => undef,
-
-	    host => $host,
-	    port => $port,
-
 	    conn_class => $conn_class,
 
-#	    created => time(),
-#	    last_active => time(),
+	    created => time(),
+	    request_count => 0,
 
 	    req_queue   => [],
 
@@ -31,6 +29,13 @@ sub new
 	    conns => [],
 	    idle_conns => [],
 	  }, $class;
+
+    if ($host) {
+	$self->{'host'} = $host;
+	$self->{'port'} = $port;
+    }
+
+    $self;
 }
 
 # General parameters
@@ -72,6 +77,7 @@ sub add_request
     } else {
 	unshift(@{$self->{req_queue}}, $req);
     }
+    $self->{'request_count'}++;
     $self->activate_idles;
 }
 
@@ -171,15 +177,15 @@ sub create_connection
 sub get_request
 {
     my($self, $conn) = @_;
-    print "GET_REQUEST $conn\n";
-    shift(@{$self->{req_queue}});
+    my $req = shift(@{$self->{req_queue}});
+    $self->{'last_request_time'} = time if $req;
+    $req;
 }
 
 sub pushback_request
 {
     my $self = shift;
     my $conn = shift;
-    print "PUSHBACK $conn @_\n";
     unshift(@{$self->{req_queue}}, @_);
     $self->activate_idles;
 }
