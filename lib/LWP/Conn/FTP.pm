@@ -260,12 +260,12 @@ sub response
 	*$self->{'lwp_unix'}++ if $mess =~ /\bUNIX\b/i;
 	*$self->{'lwp_server_product'} .= " ($mess)";
     }
-    $self->state("Ready");
+    $self->state("Outlogged");
     $self->activate;
 }
 
 
-package LWP::Conn::FTP::Ready;
+package LWP::Conn::FTP::Outlogged;
 use base 'LWP::Conn::FTP';
 
 sub activate
@@ -302,7 +302,7 @@ sub response
 sub login_complete
 {
     my $self = shift;
-    $self->state("Inlogged");
+    $self->state("Ready");
     $self->activate;
 }
 
@@ -312,7 +312,7 @@ sub cant_login
     my $mess = $self->message;
     $mess =~ s/^\d+\s+//;
     chomp($mess);
-    $self->state("Ready");
+    $self->state("Outlogged");
     $self->gen_response(401, $mess,
 			{"WWW-Authenticate" => 'Basic realm="FTP"',
 			});
@@ -373,7 +373,7 @@ sub response
 {
     my($self, $r) = @_;
     if ($r eq "2") {
-	$self->state("Inlogged");
+	$self->state("Ready");
 	$self->activate;
     } else {
 	$self->error("Can't set TYPE");
@@ -381,7 +381,7 @@ sub response
 }
 
 
-package LWP::Conn::FTP::Inlogged;
+package LWP::Conn::FTP::Ready;
 use base 'LWP::Conn::FTP';
 use LWP::MainLoop qw(mainloop);
 
@@ -421,6 +421,7 @@ sub activate
     my $method = uc($req->method);
     my $file = $req->url->path;
     if ($method =~ /^(GET|HEAD|PUT)$/) {
+	# It would be nice to also support APPEND, PUT-UNIQUE
 	return unless $self->type("I");  # we always use binary transfer mode
 
 	$self->file_trans($method, $file);
@@ -541,7 +542,7 @@ sub data_done
 	$req->response_done($res);
 
 	# Start with next request
-	$self->state("Inlogged");
+	$self->state("Ready");
 	$self->activate;
     }
 }
@@ -581,7 +582,7 @@ sub response
     }
 
     if ($skip_mdtm) {
-	$self->state("Inlogged");
+	$self->state("Ready");
 	$self->port();
     } else {
 	my $file = *$self->{'lwp_file'};
@@ -606,7 +607,7 @@ sub response
     } elsif ($code ne "550") {
 	*$self->{'lwp_noMDTM'}++;
     }
-    $self->state("Inlogged");
+    $self->state("Ready");
     $self->port();
 }
 
@@ -617,7 +618,7 @@ use base 'LWP::Conn::FTP';
 sub response
 {
     my($self, $r, $code) = @_;
-    $self->state("Inlogged");
+    $self->state("Ready");
     my $mess = $self->message;
     $mess =~ s/^\d+\s+//;
     chomp($mess);
@@ -639,14 +640,14 @@ sub response
     if ($r eq "2") {
 	my $cmd = *$self->{'lwp_meth'} eq "PUT" ? "STOR" : "RETR";
 	my $file = *$self->{'lwp_file'};
-	$self->send_cmd("$cmd $file" => "Retr");
+	$self->send_cmd("$cmd $file" => "Trans");
     } else {
 	$self->_error("PORT failed");
     }
 }
 
-package LWP::Conn::FTP::Retr;
-use base 'LWP::Conn::FTP::Inlogged';
+package LWP::Conn::FTP::Trans;
+use base 'LWP::Conn::FTP::Ready';
 
 sub response
 {
@@ -666,15 +667,15 @@ sub response
 	$self->abort if *$self->{'lwp_meth'} eq "HEAD";
     } elsif ($r eq "2") {
 	# we are done.  Must sync with data_done callback
-	$self->state("Inlogged");
+	$self->state("Ready");
 	$self->data_done($code);
     } elsif ($code eq "426") {  # transfer aborted
 	*$self->{'lwp_res'}->header("Abort" => $self->message);
-	$self->state("Inlogged");
+	$self->state("Ready");
 	$self->data_done($code);
     } elsif ($code eq "550") {  # no such file
 	if (lc($self->message) =~ /or directory/) {
-	    $self->state("Inlogged");
+	    $self->state("Ready");
 	    delete(*$self->{'lwp_data'})->close;
 	    $self->gen_response(404);
 	} else {
@@ -686,12 +687,12 @@ sub response
 	    $res->remove_header("Content-Encoding");
 	}
     } else {
-	$self->error("RETR");
+	$self->error("Trans");
     }
 }
 
 package LWP::Conn::FTP::List;
-use base 'LWP::Conn::FTP::Inlogged';
+use base 'LWP::Conn::FTP::Ready';
 
 sub response
 {
@@ -702,7 +703,7 @@ sub response
 	# XXX catch except
     } elsif ($r eq "2") {
 	# we are done.  Must sync with data_done callback
-	$self->state("Inlogged");
+	$self->state("Ready");
 	$self->data_done($self->message);
     } elsif ($code eq "550") {
 	delete(*$self->{'lwp_data'})->close;
@@ -728,7 +729,7 @@ sub cwd
 	    $self->send_cmd("CWD $dir");
 	}
     } else {
-	$self->state("Inlogged");
+	$self->state("Ready");
 	$self->cwd_done;
     }
 }
