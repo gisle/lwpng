@@ -1,5 +1,5 @@
 %!PS-Adobe-2.0 EPSF-1.2
-%%BoundingBox: -10 50 160 185
+%%BoundingBox: -10 50 160 210
 %%Creator: Gisle Aas (Copyright 1998)
 
 /rrect {             % <dx> <dy> rrect -
@@ -79,32 +79,43 @@ end
 /Helvetica-Bold 12 SF
 
 
-75  60 M (network) cshow
+ 0 90 M 150 20 rrect stroke  % eventloop
 
-0 75 M 150 20 rrect stroke
-75 80 M (LWP) cshow
+86 133 M
+gsave 0.8 setlinewidth
+[1 1] {
+   gsave
+   70 20 rrect gsave 1 setgray fill grestore stroke
+   grestore
+   -3 -3 rmoveto
+} forall
+grestore
 
-0 100 M 150 20 rrect stroke
-75 105 M (LWP::UserAgent) cshow
+80 127 M  70 20 rrect gsave 1 setgray fill grestore stroke  % lwp::conn
+80 160 M  70 40 rrect stroke  % lwp
+50 140 M  20 60 rrect stroke  % lwp::ua
+ 0 130 M  40 70 rrect gsave 0.9 setgray fill grestore stroke  % appl
 
-0 130 M 150 45 rrect gsave 0.9 setgray fill grestore stroke  % appl
+75 95 M (EventLoop) cshow
+115 132 M (LWP::Conn) cshow
+115 175 M (LWP core) cshow
 
+gsave
+   0 200 translate -90 rotate
+   30 55 M (LWP::UA) cshow
+   35 15 M (Application) cshow
+grestore
 
-
-
-75 160 M (Application) cshow
-
-/Helvetica-Bold 7 SF
-10 135 M 60 15 rrect gsave 1 setgray fill grestore stroke
-
-80 135 M 60 15 rrect gsave 1 setgray fill grestore stroke
-
-
-40 140 M (HTTP::Request) cshow
-110 140 M (HTTP::Response) cshow
+40 60 M ((G)UI) cshow
+110 60 M (network) cshow
 
 0.5 setlinewidth
 
-40 137 40 118 10 20 8 farrow
+40 73 40 89 10 20 8 farrow
+110 73 110 89 10 20 8 farrow
+38 180 49 180 8 16 6 farrow
+68 180 79 180 8 16 6 farrow
+115 145 115 159 8 16 6 farrow
+20 108 20 129 10 20 8 farrow
+115 108 115 126 10 20 8 farrow
 
-110 118 110 137 10 20 8 farrow
