@@ -68,6 +68,7 @@ sub digest
 	  my $pass = $users{$user};
 	  if (!defined $pass) {
 	      print "unknown user '$user'.\n";
+	      $pass="x";
 	      $err++;
 	  }
 	  if ($auth{uri} ne $req->url->full_path) {
@@ -100,7 +101,7 @@ sub digest
  realm="$realm",
  nonce="$nonce",
  opaque="$opaque",
- algorithm=MD5,
+ x-algorithm=MD5,
  digest-required=true
 ));
     $conn->print(qq(WWW-Authenticate: Basic realm="Can't you digest?"\n));
