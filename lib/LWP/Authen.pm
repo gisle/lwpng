@@ -98,12 +98,19 @@ sub auth_handler
 			       $new->method,
 			       $new->url,
 			       $new->header("Authorization"));
+	    my $count = 0;
 	    for (my $r = $res; $r; $r = $r->previous) {
 		my $req = $r->request;
 		my $digest2 = join("|",
 				   $req->method,
 				   $req->url,
 				   $req->header("Authorization"));
+		if (++$count > 13) {
+		    $res->push_header("Client-Warning" =>
+				      "Probably redirect loop");
+		    return "ABORT";
+		    
+		}
 		if ($digest1 eq $digest2) {
 		    $res->push_header("Client-Warning" =>
 				      "Same credentials failed before");
