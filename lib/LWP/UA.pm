@@ -1,25 +1,67 @@
 package LWP::UA;
 
-require LWP::Server;
 use strict;
 use vars qw($DEBUG);
+
+require LWP::Server;
+require URI::Attr;
+
 
 sub new
 {
     my($class) = shift;
-    bless {
-#	   default_headers => { "User-Agent" => "lwp/ng",
-#				"From" => "aas\@sn.no",
-#			      },
+    my $ua =
+	bless {
+	       conn_param => {},
+	       max_conn => 5,
+	       max_conn_per_server => 2,
 
-	   conn_param => {},
-	   max_conn => 5,
-	   max_conn_per_server => 2,
+	       uattr   => URI::Attr->new,
+	       servers => {},
+	      }, $class;
 
-           servers => {},
-	   
-	  }, $class;
+    $ua->add_hook("request", \&default_headers);
+    $ua->add_hook("request", \&need_proxy);
+    #$ua->agent("libwww-perl/ng");
+
+    $ua;
 }
+
+
+sub agent
+{
+    my $self = shift;
+    my $old = $self->{'agent'};
+    if (@_) {
+	my $agent = $self->{'agent'} = shift;
+	$self->{'uattr'}->attr_update(SCHEME => "http:")
+	    ->{'default_headers'}{'User-Agent'} = $agent;
+	$self->{'uattr'}->attr_update(SCHEME => "mailto:")
+	    ->{'default_headers'}{'X-Mailer'} = $agent;
+	$self->{'uattr'}->attr_update(SCHEME => "news:")
+	    ->{'default_headers'}{'X-Newsreader'} = $agent;
+    }
+    $old;
+}
+
+
+sub add_hook
+{
+    my $self = shift;
+    my $type = shift;
+    push(@{$self->{"${type}_hooks"}}, @_);
+}
+
+
+sub run_hooks
+{
+    my $self = shift;
+    my $type = shift;
+    for my $hook (@{$self->{"${type}_hooks"}}) {
+	&$hook($self, @_);
+    }
+}
+
 
 sub conn_param
 {
@@ -32,6 +74,7 @@ sub conn_param
 	$self->{conn_param}{$k} = $v;
     }
 }
+
 
 sub server
 {
@@ -50,11 +93,13 @@ sub server
     }
 }
 
+
 sub spool
 {
     my $self = shift;
     eval {
 	for my $req (@_) {
+	    $self->run_hooks("request", $req);
 	    my $proxy = $req->proxy;
 	    my $server = $self->server($proxy ? $proxy : $req->url);
 	    $req->managed_by($self);
@@ -72,12 +117,14 @@ sub spool
     }
 }
 
+
 sub response_received
 {
     my($self, $res) = @_;
     print "RESPONSE\n";
     print $res->as_string;
 }
+
 
 sub stop
 {
@@ -99,11 +146,67 @@ sub reschedule
     $sched->reschedule($self);
 }
 
+
 sub delete
 {
     # must break circular references
     my $self = shift;
     delete $self->{'servers'};
+}
+
+
+sub default_headers
+{
+    my($self, $req) = @_;
+    for my $hash ($self->{'uattr'}->p_attr($req->url, "default_headers")) {
+	for my $k (keys %$hash) {
+	    next if defined($req->header($k));
+	    $req->header($k => $hash->{$k});
+	}
+    }
+}
+
+sub need_proxy
+{
+    my($self, $req) = @_;
+    my $proxy = $self->{'uattr'}->p_attr($req->url, "proxy");
+    $req->proxy($proxy);
+}
+
+
+sub no_proxy
+{
+    my($self, @no) = @_;
+    for (@no) {
+	$_ = ".$_" unless /^\./;
+	my $h = $self->{'uattr'}->attr_update("DOMAIN", "http://dummy.$_");
+	$h->{"proxy"} = "";
+    }
+}
+
+
+sub proxy
+{
+    my($self, $scheme, $url) = @_;
+    my $h = $self->{'uattr'}->attr_update("SCHEME", "$scheme:");
+    $h->{"proxy"} = $url;
+}
+
+
+sub env_proxy {
+    my ($self) = @_;
+    my($k,$v);
+    while(($k, $v) = each %ENV) {
+	$k = lc($k);
+	next unless $k =~ /^(.*)_proxy$/;
+	$k = $1;
+	if ($k eq 'no') {
+	    $self->no_proxy(split(/\s*,\s*/, $v));
+	}
+	else {
+	    $self->proxy($k, $v);
+	}
+    }
 }
 
 
@@ -124,13 +227,16 @@ sub as_string
 		push(@s, $s);
 	    }
 	    $str = join("", "\$servers = {\n", @s, "};\n");
+=com
+	} elsif ($_ eq "uattr") {
+	    $str = "\$uattr = ...\n";
+=cut
 	} else {
 	    $str = Data::Dumper->Dump([$self->{$_}], [$_]);
 	}
 	$str =~ s/^/  /mg;  # indent
 	push(@str, $str);
     }
-
 
     join("", @str, "");
 }
