@@ -1,0 +1,363 @@
+OCTET             = <any 8-bit sequence of data>
+CHAR		  = <any US-ASCII character (octets 0 - 127)>
+UPALPHA		  = <any US-ASCII uppercase letter "A".."Z">
+LOALPHA		  = <any US-ASCII lowercase letter "a".."z">
+ALPHA		  = UPALPHA | LOALPHA
+DIGIT		  = <any US-ASCII digit "0".."9">
+CTL		  = <any US-ASCII control character
+		    (octets 0 - 31) and DEL (127)>
+CR		  = <US-ASCII CR, carriage return (13)>
+LF		  = <US-ASCII LF, linefeed (10)>
+SP		  = <US-ASCII SP, space (32)>
+HT		  = <US-ASCII HT, horizontal-tab (9)>
+<">		  = <US-ASCII double-quote mark (34)>
+CRLF		  = CR LF
+LWS		  = [CRLF] 1*( SP | HT )
+TEXT		  = <any OCTET except CTLs, but including LWS>
+
+HEX               = "A" | "B" | "C" | "D" | "E" | "F"
+		  | "a" | "b" | "c" | "d" | "e" | "f" | DIGIT
+
+token             = 1*<any CHAR except CTLs or separators>
+separators        = "(" | ")" | "<" | ">" | "@"
+                     | "," | ";" | ":" | "\" | <">
+                     | "/" | "[" | "]" | "?" | "="
+                     | "{" | "}" | SP | HT
+
+comment		  = "(" *( ctext | quoted-pair | comment ) ")"
+text		  = <any TEXT excluding "(" and ")">
+
+quoted-string	  = ( <"> *(qdtext | quoted-pair ) <"> )
+qdtext		  = <any TEXT except <">>
+quoted-pair	  = "\" CHAR
+
+parameter	  = attribute "=" value
+attribute	  = token
+value		  = token | quoted-string
+
+HTTP-Version	  = "HTTP" "/" 1*DIGIT "." 1*DIGIT
+http_URL	  = "http:" "//" host [ ":" port ] [ abs_path ]
+
+HTTP-date	  = rfc1123-date | rfc850-date | asctime-date
+rfc1123-date	  = wkday "," SP date1 SP time SP "GMT"
+rfc850-date	  = weekday "," SP date2 SP time SP "GMT"
+asctime-date	  = wkday SP date3 SP time SP 4DIGIT
+date1		  = 2DIGIT SP month SP 4DIGIT
+date2		  = 2DIGIT "-" month "-" 2DIGIT
+date3		  = month SP ( 2DIGIT | ( SP 1DIGIT ))
+time		  = 2DIGIT ":" 2DIGIT ":" 2DIGIT
+wkday		  = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun"
+weekday		  = "Monday" | "Tuesday" | "Wednesday"
+		  | "Thursday" | "Friday" | "Saturday" | "Sunday"
+month		  = "Jan" | "Feb" | "Mar" | "Apr" | "May" | "Jun"
+		  | "Jul" | "Aug" | "Sep" | "Oct" | "Nov" | "Dec"
+
+delta-seconds	  = 1*DIGIT
+charset		  = token
+content-coding	  = token
+transfer-coding   = "chunked" | transfer-extension
+transfer-extension = token *( ";" parameter )
+
+Chunked-Body      = *chunk last-chunk trailer CRLF
+chunk             = chunk-size [ chunk-extension ] CRLF chunk-data CRLF
+chunk-size        = 1*HEX
+last-chunk        = 1*("0") [ chunk-extension ] CRLF
+chunk-extension   = *( ";" chunk-ext-name [ "=" chunk-ext-val ] )
+chunk-ext-name	  = token
+chunk-ext-val	  = token | quoted-string
+chunk-data	  = chunk-size(OCTET)
+trailer		  = *entity-header
+
+media-type	  = type "/" subtype *( ";" parameter )
+type		  = token
+subtype		  = token
+
+product		  = token ["/" product-version]
+product-version	  = token
+
+qvalue            = ( "0" [ "." 0*3DIGIT ] )
+		  | ( "1" [ "." 0*3("0") ] )
+
+language-tag      = primary-tag *( "-" subtag )
+primary-tag	  = 1*8ALPHA
+subtag		  = 1*8ALPHA
+
+entity-tag	  = [ weak ] opaque-tag
+weak		  = "W/"
+opaque-tag	  = quoted-string
+
+range-unit	  = bytes-unit | other-range-unit
+bytes-unit	  = "bytes"
+other-range-unit  = token
+
+HTTP-message	  = Request | Response
+
+generic-message	  = start-line *message-header CRLF [ message-body ]
+start-line        = Request-Line | Status-Line
+message-header    = field-name ":" [ field-value ] CRLF
+field-name	  = token
+field-value	  = *( field-content | LWS )
+field-content	  = <the OCTETs making up the field-value
+                     and consisting of either *TEXT or combinations
+                     of token, separators, and quoted-string>
+
+message-body	  = entity-body
+                  | <entity-body encoded as per Transfer-Encoding>
+
+general-header    = Cache-Control
+		  | Connection
+		  | Date
+		  | Pragma
+		  | Transfer-Encoding
+		  | Upgrade
+		  | Trailer
+		  | Via
+
+Request           = Request-Line
+                    *( general-header | request-header | entity-header )
+                    CRLF [ message-body ]
+Request-Line      = Method SP Request-URI SP HTTP-Version CRLF
+
+Method            = "OPTIONS"
+		  | "GET"
+		  | "HEAD"
+		  | "POST"
+		  | "PUT"
+		  | "DELETE"
+		  | "TRACE"
+		  | "CONNECT"
+		  | extension-method
+extension-method  = token
+Request-URI       = "*" | absoluteURI | abs_path
+
+request-header    = Accept
+		  | Accept-Charset
+		  | Accept-Encoding
+		  | Accept-Language
+		  | Authorization
+		  | Expect
+		  | From
+		  | Host
+		  | If-Modified-Since
+		  | If-Match
+		  | If-None-Match
+		  | If-Range
+		  | If-Unmodified-Since
+		  | Max-Forwards
+		  | Proxy-Authorization
+		  | Range
+		  | Referer
+		  | TE
+		  | User-Agent
+
+Response          = Status-Line
+		    *( general-header | response-header | entity-header )
+		    CRLF [ message-body ]
+Status-Line       = HTTP-Version SP Status-Code SP Reason-Phrase CRLF
+
+Status-Code       = "100"  ; Continue
+		  | "101"  ; Switching Protocols
+		  | "200"  ; OK
+		  | "201"  ; Created
+		  | "202"  ; Accepted
+		  | "203"  ; Non-Authoritative Information
+		  | "204"  ; No Content
+		  | "205"  ; Reset Content
+		  | "206"  ; Partial Content
+		  | "300"  ; Multiple Choices
+		  | "301"  ; Moved Permanently
+		  | "302"  ; Found
+		  | "303"  ; See Other
+		  | "304"  ; Not Modified
+		  | "305"  ; Use Proxy
+		  | "307"  ; Temporary Redirect
+		  | "400"  ; Bad Request
+		  | "401"  ; Unauthorized
+		  | "402"  ; Payment Required
+		  | "403"  ; Forbidden
+		  | "404"  ; Not Found
+		  | "405"  ; Method Not Allowed
+		  | "406"  ; Not Acceptable
+		  | "407"  ; Proxy Authentication Required
+		  | "408"  ; Request Time-out
+		  | "409"  ; Conflict
+		  | "410"  ; Gone
+		  | "411"  ; Length Required
+		  | "412"  ; Precondition Failed
+		  | "413"  ; Request Entity Too Large
+		  | "414"  ; Request-URI Too Large
+		  | "415"  ; Unsupported Media Type
+		  | "416"  ; Requested range not satisfiable
+		  | "417"  ; Expectation Failed
+		  | "500"  ; Internal Server Error
+		  | "501"  ; Not Implemented
+		  | "502"  ; Bad Gateway
+		  | "503"  ; Service Unavailable
+		  | "504"  ; Gateway Time-out
+		  | "505"  ; HTTP Version not supported
+		  | extension-code
+
+extension-code    = 3DIGIT
+Reason-Phrase     = *<TEXT, excluding CR, LF>
+
+response-header   = Accept-Ranges
+		  | Age
+		  | ETag
+		  | Location
+		  | Proxy-Authenticate
+		  | Retry-After
+		  | Server
+		  | Vary
+		  | Warning
+		  | WWW-Authenticate
+
+entity-header     = Allow
+	          | Content-Encoding
+	          | Content-Language
+	          | Content-Length
+		  | Content-Location
+		  | Content-MD5
+		  | Content-Range
+		  | Content-Type
+		  | Expires
+		  | Last-Modified
+	          | extension-header
+extension-header  = message-header
+
+entity-body       = *OCTET
+
+
+Accept            = "Accept" ":" #( media-range [ accept-params ] )
+media-range       = ( "*/*"
+	             | ( type "/" "*" )
+		     | ( type "/" subtype )
+		    ) *( ";" parameter )
+accept-params     = ";" "q" "=" qvalue *( accept-extension )
+accept-extension  = ";" token [ "=" ( token | quoted-string ) ]
+
+Accept-Charset    = "Accept-Charset" ":"
+                    1#( ( charset | "*" )[ ";" "q" "=" qvalue ] )
+
+Accept-Encoding   = "Accept-Encoding" ":" 1#( codings [ ";" "q" "=" qvalue ] )
+codings           = ( content-coding | "*" )
+
+Accept-Language   = "Accept-Language" ":"
+		    1#( language-range [ ";" "q" "=" qvalue ] )
+language-range    = ( ( 1*8ALPHA *( "-" 1*8ALPHA ) ) | "*" )
+
+Accept-Ranges     = "Accept-Ranges" ":" acceptable-ranges
+acceptable-ranges = 1#range-unit | "none"
+
+Age               = "Age" ":" age-value
+age-value         = delta-seconds
+
+Allow             = "Allow" ":" #Method
+Authorization     = "Authorization" ":" credentials
+
+Cache-Control     = "Cache-Control" ":" 1#cache-directive
+cache-directive   = cache-request-directive
+		  | cache-response-directive
+cache-request-directive =
+                    "no-cache"
+		  | "no-store"
+		  | "max-age" "=" delta-seconds
+		  | "max-stale" [ "=" delta-seconds ]
+		  | "min-fresh" "=" delta-seconds
+		  | "no-transform"
+		  | "only-if-cached"
+		  | cache-extension
+cache-response-directive =
+                    "public"
+		  | "private" [ "=" <"> 1#field-name <"> ]
+		  | "no-cache" [ "=" <"> 1#field-name <"> ]
+		  | "no-store"
+		  | "no-transform"
+		  | "must-revalidate"
+		  | "proxy-revalidate"
+		  | "max-age" "=" delta-seconds
+		  | "s-maxage" "=" delta-seconds
+		  | cache-extension
+cache-extension   = token [ "=" ( token | quoted-string ) ]
+
+Connection        = "Connection" ":" 1#(connection-token)
+connection-token  = token
+
+Content-Encoding  = "Content-Encoding" ":" 1#content-coding
+Content-Language  = "Content-Language" ":" 1#language-tag
+Content-Length    = "Content-Length" ":" 1*DIGIT
+Content-Location  = "Content-Location" ":" ( absoluteURI | relativeURI )
+Content-MD5       = "Content-MD5" ":" md5-digest
+md5-digest        = <base64 of 128 bit MD5 digest as per RFC 1864>
+
+Content-Range     = "Content-Range" ":" content-range-spec
+content-range-spec = byte-content-range-spec
+byte-content-range-spec = bytes-unit SP byte-range-resp-spec "/"
+                          ( instance-length | "*" )
+byte-range-resp-spec = (first-byte-pos "-" last-byte-pos) | "*"
+instance-length   = 1*DIGIT
+
+Content-Type      = "Content-Type" ":" media-type
+Date              = "Date" ":" HTTP-date
+ETag              = "ETag" ":" entity-tag
+
+Expect            =  "Expect" ":" 1#expectation
+expectation       =  "100-continue" | expectation-extension
+expectation-extension =  token [ "=" ( token | quoted-string ) *expect-params ]
+expect-params     =  ";" token [ "=" ( token | quoted-string ) ]
+
+Expires           = "Expires" ":" HTTP-date
+From              = "From" ":" mailbox
+Host              = "Host" ":" host [ ":" port ]
+
+If-Match          = "If-Match" ":" ( "*" | 1#entity-tag )
+If-None-Match     = "If-None-Match" ":" ( "*" | 1#entity-tag )
+If-Range          = "If-Range" ":" ( entity-tag | HTTP-date )
+If-Unmodified-Since = "If-Unmodified-Since" ":" HTTP-date
+Last-Modified     = "Last-Modified" ":" HTTP-date
+Location          = "Location" ":" absoluteURI
+Max-Forwards      = "Max-Forwards" ":" 1*DIGIT
+
+Pragma            = "Pragma" ":" 1#pragma-directive
+pragma-directive  = "no-cache" | extension-pragma
+extension-pragma  = token [ "=" ( token | quoted-string ) ]
+
+Proxy-Authenticate = "Proxy-Authenticate" ":" challenge
+Proxy-Authorization = "Proxy-Authorization" ":" credentials
+
+Range             = "Range" ":" ranges-specifier
+ranges-specifier  = byte-ranges-specifier
+byte-ranges-specifier = bytes-unit "=" byte-range-set
+byte-range-set    = 1#( byte-range-spec | suffix-byte-range-spec )
+byte-range-spec   = first-byte-pos "-" [last-byte-pos]
+first-byte-pos    = 1*DIGIT
+last-byte-pos     = 1*DIGIT
+suffix-byte-range-spec = "-" suffix-length
+suffix-length     = 1*DIGIT
+
+Referer           = "Referer" ":" ( absoluteURI | relativeURI )
+Retry-After       = "Retry-After" ":" ( HTTP-date | delta-seconds )
+Server            = "Server" ":" 1*( product | comment )
+TE                = "TE" ":" #( t-codings )
+t-codings         = "chunked" | ( transfer-extension [ accept-params ] )
+
+Trailer           = "Trailer" ":" 1#field-name
+Transfer-Encoding = "Transfer-Encoding" ":" 1#transfer-coding
+Upgrade           = "Upgrade" ":" 1#product
+User-Agent        = "User-Agent" ":" 1*( product | comment )
+Vary              = "Vary" ":" ( "*" | 1#field-name )
+
+Via               =  "Via" ":" 1#( received-protocol received-by [ comment ] )
+received-protocol = [ protocol-name "/" ] protocol-version
+protocol-name     = token
+protocol-version  = token
+received-by       = ( host [ ":" port ] ) | pseudonym
+pseudonym         = token
+
+Warning           = "Warning" ":" 1#warning-value
+warning-value     = warn-code SP warn-agent SP warn-text [SP warn-date]
+warn-code         = 3DIGIT
+warn-agent        = ( host [ ":" port ] ) | pseudonym
+warn-text         = quoted-string
+warn-date         = <"> HTTP-date <">
+
+WWW-Authenticate  = "WWW-Authenticate" ":" 1#challenge
