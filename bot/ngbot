@@ -26,7 +26,7 @@ use LWP::MainLoop qw(run one_event empty);
 
 use HTML::LinkExtor ();
 use URI;
-use MD5 ();
+use Digest::MD5 ();
 
 require 'db.pl';
 use vars qw($dbh);
@@ -107,7 +107,7 @@ sub parse_data
 	} else {
 	    # ignore
 	}
-	$req->{md5} = MD5->new;
+	$req->{md5} = Digest::MD5->new;
     }
     if (my $p = $req->{'linkextor'}) {
 	$p->parse($chunk);
