@@ -123,10 +123,30 @@ sub done
     }
 
     if ($self->{done_cb}) {
-	$self->{done_cb}->($self, $res);
+	$self->{done_cb}->($res, $self);
     } else {
 	$self->{'mgr'}->response_received($res);
     }
+}
+
+sub gen_response
+{
+    my($self, $code, $message, $more) = @_;
+    require HTTP::Response;
+    my $res = HTTP::Response->new($code, $message);
+    $res->date(time);
+    $res->server("libwww-perl");
+    if ($more) {
+	$res->content_type(($more =~ /^\s*</) ? "text/html" : "text/plain");
+	$res->content($more);
+    } elsif (0 && $message) {
+	$res->content_type("text/html");
+	$res->content("<title>$message</title>\n<h1>$code $message</h1>\n");
+	$res->add_content("Error generated internally by the client.\n")
+	    if $res->is_error;
+    }
+    
+    $self->done($res);
 }
 
 # Accessor functions for some simple attributes
