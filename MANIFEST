@@ -2,12 +2,13 @@ MANIFEST
 Makefile.PL
 README
 design.txt
+hconn.pl
 lib/LWP/EventLoop.pm
 lib/LWP/HConn.pm
 lib/LWP/MainLoop.pm
 lib/LWP/Server.pm
 lib/LWP/UA.pm
-hconn.pl
+t/after.t
 t2.pl
 t3.pl
-t/after.t
+tserv.pl

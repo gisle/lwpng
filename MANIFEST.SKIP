@@ -1,11 +1,10 @@
 ~$
+.old$
+.bak$
 \.tar\.gz$
 \bCVS\b
 ^MANIFEST.SKIP$
 ^Makefile$
-^Makefile.old$
 ^pm_to_blib$
 ^blib/
 ^.cvsignore$
-
-
