@@ -1,0 +1,15 @@
+
+ * More testing
+ * Write test scripts
+ * Chunked request content
+ * Prototect more connection callbacks with eval {}
+ * Complete LWP5 compatibility
+ * Response hooks
+ * Documentation
+
+ * Cookie hook
+ * Authentication which sets default_headers
+ * RobotUA
+ * Some applications
+
+ * Move to same eventloop as Tk uses

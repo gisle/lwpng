@@ -1,0 +1,47 @@
+
+This is a redesign of LWP perl modules in order to add full support
+for the HTTP/1.1 protocol.  The main change is the adoption of an
+event driven framework.  This allows us to support multiple
+connections within a single client program.  It was also a prerequisite
+for being able to support HTTP/1.1 features like persistent
+connections and pipelining.
+
+The basic model for sending requests and receving respones used to be:
+
+  $res = $ua->request($req);   # return when response is available
+  if ($res->is_success) {
+      #...
+  }
+
+With the new event driven framework it becomes:
+
+  $ua->spool($req1);   # returns immediately
+  $ua->spool($req2);   # can send multiple request in parallel
+  #...
+
+  mainloop->run;       # return when all connections are gone
+
+Request objects are created and then handed off to the $ua which will
+queue them up for processing.  As you can see, there is no longer any
+natural place to test the outcome of the requests.  What happen is
+that the requests live their own lives and they will be notified
+(though a method call) when the corresponding response is available.
+You will have to set up event handlers that react to these events.
+
+This show one way to emulate the old behaviour:
+
+  my $res;
+  my $req = LWP::Request->new(GET => $url);
+  $req->{'done_cb'} = sub { $res = shift; }
+
+  $ua->spool($req);
+  mainloop->one_event until $res;
+
+  if ($res->is_success) {
+      #...
+  }
+
+and this will in fact be used to emulate the old $ua->request() and
+$ua->simple_request() interfaces.  The goal is to be able to
+completely backwards compatible with the current LWP modules.
+
