@@ -20,6 +20,15 @@ BEGIN {
     print STDERR $@ if $@ && $DEBUG;
 }
 
+require Exporter;
+use vars qw(@EXPORT_OK);
+@EXPORT_OK = qw(mainloop);
+*import = \&Exporter::import;
+
+# We maintain one global instace of the loop object.
+my $mainloop = LWP::EventLoop->new;
+sub mainloop { $mainloop }
+
 
 sub new
 {
@@ -32,6 +41,33 @@ sub new
        _e => undef,
        fh => {},
       }, $class;
+
+    # The LWP::EventLoop structure is as follows:
+    #
+    # _r, _w, _e are just the cached select(2) bitstring arguments.
+    #
+    # fh is a hash indexed by (the stringified) filehandles monitored
+    # by this loop.  The hash value is a array with the following
+    # six values:
+    #
+    #   [$fh, $read_cb, $write_cb, $except_cb, $timeout_spec, $pending]
+    #
+    # $timeout_spec if specified is an array of three elements (or undef):
+    #
+    #   [$timeout_value, $callback, $last_active]
+    #
+    # $pending is an array of callbacks (not yet called, see one_event())
+    #
+    # Callbacks can either by an CODE reference (which is called with
+    # the filehandle as argument, or it can be a plain scalar string
+    # which is taken to be a method name that is called on the given
+    # filehandle object.  The callback can also be an array reference.
+    # The first element of the array must be a CODE reference or a method
+    # name.  The rest is taken to be additional arguments passed during
+    # callback invocation.
+
+    $self;
+
 }
 
 sub readable
@@ -187,7 +223,7 @@ sub one_event   # or none
 			      defined $v ? unpack("b*", $v) : "undef"
 			  } "_r", "_w", "_e");
 	if (defined($timeout)) {
-	    print STDERR ", $timeout";
+	    printf STDERR ", %.3gs", $timeout;
 	} else {
 	    print STDERR ", undef";
 	}
