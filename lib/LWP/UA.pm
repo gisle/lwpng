@@ -2,6 +2,7 @@ package LWP::UA;
 
 require LWP::Server;
 use strict;
+use vars qw($DEBUG);
 
 sub new
 {
@@ -10,7 +11,11 @@ sub new
 #	   default_headers => { "User-Agent" => "lwp/ng",
 #				"From" => "aas\@sn.no",
 #			      },
+
 	   conn_param => {},
+	   max_conn => 5,
+	   max_conn_per_server => 2,
+
            servers => {},
 	   
 	  }, $class;
@@ -50,12 +55,16 @@ sub spool
     my $self = shift;
     eval {
 	for my $req (@_) {
-	    my $server = $self->server($req->url);
+	    my $proxy = $req->proxy;
+	    my $server = $self->server($proxy ? $proxy : $req->url);
 	    $req->managed_by($self);
 	    $server->add_request($req);
-	    print "$req spooled\n";
+	    if ($DEBUG) {
+		my $id = $server->id;
+		print "$req spooled to $id\n";
+	    }
 	}
-	#$self->reschedule;
+	$self->reschedule;
     };
     if ($@) {
 	print $@;
@@ -79,51 +88,17 @@ sub stop
 }
 
 
-
-#----------------------------------------
-
 sub reschedule
 {
-    my($self) = @_;
-
-    # This is where all the logic goes
-    my($netloc,$server);
-    while (($netloc,$server) = each %{$self->{servers}}) {
-	my $num_preq = $server->num_pending_requests;
-	next unless $num_preq;
-	my $num_con = $server->num_connections;
-	print "There are $num_preq pending requests and $num_con connections for $netloc\n";
-
-	my $max_conn = $server->max_connections;
-	my $conn_to_start = min($num_preq, $max_conn) - $num_con;
-
-	print "  ...starting $conn_to_start new connections\n"
-	  if $conn_to_start > 0;
-	while ($conn_to_start--) {
-	    $server->new_connection;
-	}
+    my $self = shift;
+    my $sched = $self->{'scheduler'};
+    unless ($sched) {
+	require LWP::StdSched;
+	$sched = $self->{'scheduler'} = LWP::StdSched->new($self);
     }
+    $sched->reschedule($self);
 }
 
-# Just some utility functions
-
-sub min
-{
-    my $min = shift;
-    for (@_) {
-	$min = $_ if $_ < $min;
-    }
-    $min;
-}
-
-sub max
-{
-    my $max = shift;
-    for (@_) {
-	$max = $_ if $_ < $max;
-    }
-    $max;
-}
 
 sub as_string
 {
