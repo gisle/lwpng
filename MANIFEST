@@ -3,8 +3,8 @@ Makefile.PL
 README
 design.txt
 hconn.pl
+lib/LWP/Conn/HTTP.pm
 lib/LWP/EventLoop.pm
-lib/LWP/HConn.pm
 lib/LWP/MainLoop.pm
 lib/LWP/Server.pm
 lib/LWP/UA.pm
