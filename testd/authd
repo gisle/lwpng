@@ -71,7 +71,7 @@ sub digest
 	      $pass="x";
 	      $err++;
 	  }
-	  if ($auth{uri} ne $req->url->full_path) {
+	  if ($auth{uri} ne $req->url->path_query) {
 	      print "wrong URI attribute returned.\n";
 	      $err++;
 	  }
