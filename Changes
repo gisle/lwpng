@@ -1,3 +1,13 @@
+1998-06-27   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.21
+
+   Applied patches by Blair Zajac <blair@gps.caltech.edu>.
+   Use the POSIX module to obtain EINPROGRESS unless you have a IO
+   module that already support this.  Avoid some undef warnings.
+
+
+
 1998-04-29   Gisle Aas <aas@sn.no>
 
    Release alpha-0.20
