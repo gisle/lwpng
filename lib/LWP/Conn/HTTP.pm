@@ -108,6 +108,7 @@ sub new
     }
     if ($sock) {
         $sock->state("Idle");
+	mainloop->timeout($sock, $idle_timeout);
 	*$sock->{'lwp_rbuf'} = "";
 	mainloop->readable($sock);
 	$sock->activate;
@@ -205,9 +206,9 @@ sub _error
     
     my $mgr = delete *$self->{'lwp_mgr'};
     my $req = *$self->{'lwp_req'};
-    if ($req && @$req > 1) {
+    if ($req && @$req) {
 	my $cur_req = shift @$req;  # currect request never retried
-	$mgr->pushback_request($self, @$req);
+	$mgr->pushback_request($self, @$req) if @$req;
 	my $res = *$self->{'lwp_res'};
 	if ($res) {
 	    # partial result
@@ -219,6 +220,7 @@ sub _error
 	    $cur_req->done(HTTP::Response->new(601, "No response"));
 	}
     }
+    $self->state("Closed");
     $mgr->connection_closed($self);
 }
 
@@ -237,6 +239,7 @@ sub writable
     if (defined($self->peername)) {
 	mainloop->writable($self, undef);
         mainloop->readable($self);
+	mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
         $self->state("Idle");
 	$self->activate;
     } else {
@@ -263,6 +266,7 @@ sub activate
     if ($self->new_request) {
 	$self->state("Active");
 	mainloop->timeout($self, *$self->{'lwp_timeout'});
+	*$self->{'lwp_mgr'}->connection_active($self);
     }
 }
 
@@ -457,6 +461,7 @@ sub end_of_response
     if ($self->last_request_sent && !$self->current_request) {
 	mainloop->forget($self);
 	$self->close;
+	$self->state("Closed");
 	(delete *$self->{'lwp_mgr'})->connection_closed($self);
 	return;
     }
@@ -465,9 +470,9 @@ sub end_of_response
     if ($self->current_request) {
 	$self->check_rbuf;
     } else {
-	*$self->{'lwp_mgr'}->connection_idle($self);
 	$self->state("Idle");
 	mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
+	*$self->{'lwp_mgr'}->connection_idle($self);
     }
 }
 
@@ -654,5 +659,8 @@ sub server_closed_connection
 }
 
 sub last_request_sent { 1; }
+
+package LWP::Conn::HTTP::Closed; # no operations allowed
+#use base qw(LWP::Conn::HTTP);
 
 1;
