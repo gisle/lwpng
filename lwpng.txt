@@ -150,7 +150,7 @@ At one point both Gisle and Martijn had made their own modulifications
 of Roy's library to better suit the possibilities that perl5 provided.
 We joined forces and made several alpha releases together.
 Unfortunately Martijn had a little disagreement with his employer
-about the intelectual property rights to work done outside hours.
+about the intellectual property rights to work done outside hours.
 To safeguard LWP's continued availability to the Perl community he
 asked Gisle to take over maintenance of the package.
 
@@ -417,7 +417,7 @@ difficulties is that the event handlers must be written to return
 quickly and one must explicitly store away the state between
 invocations of the handlers instead of letting the state be implicit
 by the natural flow of the program.  Some times it might be useful to
-allow the event loop to be nested (for instace to allow prompting) and
+allow the event loop to be nested (for instance to allow prompting) and
 this impose the burden of creating event handler routines that are
 reentrant.
 
@@ -466,7 +466,7 @@ to the old behaviour:
   }
 
 The main clue here is that we run a nested event loop that emulates
-the blocking that $ua->request would otherwise do.  This techinque
+the blocking that $ua->request would otherwise do.  This technique
 will be used to emulate the old $ua->request() and
 $ua->simple_request() interfaces for compatibility purposes.
 
@@ -1120,7 +1120,7 @@ have to set up the same number of network connections.
 
 =item SOCK
 
-A simplifed version of page fetcher script that just hard-code
+A simplified version of page fetcher script that just hard-code
 downloading of the URLs over a single persistent IO::Socket::INET
 connection (bypassing any LWP code).  All requests are sent to the
 server using a single print and then we read the responses until the
@@ -1164,7 +1164,7 @@ multiple connections to the server (B,E) did not do much to decrease
 download time.  We also observe that LWPng-D download time if fairly
 close to the SOCK time.
 
-For the next test we downloaded the I<www.microsoft.com> frontpage
+For the next test we downloaded the I<www.microsoft.com> front page
 locally and then accessed it from a Apache server over the local
 Ethernet.  The result were:
 
@@ -1192,7 +1192,7 @@ client applications that manage multiple persistent connections to its
 peer servers.
 
 The new design look promising but the performance ought to improve in
-order to fullfil the design goals.  Still there are spots in the
+order to fulfill the design goals.  Still there are spots in the
 programming interface that need more thought.  It would be a good
 thing to have more testing and feedback from application writers
 before we can say that the interface has stabilized and we go to the
@@ -1204,7 +1204,7 @@ beta phase of bug fixing and further optimizations.
 
 =item [0]
 
-The LWP homepage - <http://www.linpro.no/lwp/>
+The LWP home page - <http://www.linpro.no/lwp/>
 
 =item [1]
 
