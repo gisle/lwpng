@@ -280,7 +280,7 @@ sub connection_closed
     }
 }
 
-sub done  # this really deallocate this LWP::Server entry
+sub done  # this really just deallocates this LWP::Server entry
 {
     my $self = shift;
     my $ua = delete $self->{'ua'};
