@@ -3,6 +3,10 @@ Connection: close
 Location: redir2
 Content-Type: text/plain
 
+This is a chain of redirects with these statuses:
+
+  301 --> 302 --> 303 --> 307 -> 305
+
 We make relative redirects, even if they are not really legal.  They
 seem to be used, and I think a client should handle it.  A proper
 absolute URL is hard to make as this static content does not know the
