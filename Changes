@@ -16,7 +16,7 @@
    LWP::Conn::HTTP did not stop after the first successful connect to
    a multihomed site.
 
-   LWP::Conn::HTTP will not honor the protocol version if specified in
+   LWP::Conn::HTTP would not honor the protocol version if specified in
    the LWP::Request.  We also add a 'Connection: close' header for the
    last request sent on a connection.
 
