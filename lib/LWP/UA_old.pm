@@ -26,6 +26,14 @@ sub DESTROY
 sub request
 {
     my($self, $req, $arg, $size) = @_;
+    $req->{'auto_redirect'}++;
+    $req->{'auto_auth'}++;
+    $self->simple_request($req, $arg, $size);
+}
+
+sub simple_request
+{
+    my($self, $req, $arg, $size) = @_;
 
     bless $req, "LWP::Request" if ref($req) eq "HTTP::Request";
     if ($arg) {
@@ -55,9 +63,4 @@ sub request
     return $res;
 }
 
-sub simple_request
-{
-    my($self, $req, $arg, $size) = @_;
-    $req->{'no_auto_redirect'}++;
-    $self->request($arg, $size);
-}
+1;
