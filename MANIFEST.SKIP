@@ -1,0 +1,7 @@
+~$
+\.tar\.gz$
+\bCVS\b
+^MANIFEST.SKIP$
+^Makefile$
+^Makefile.old$
+
