@@ -4,7 +4,8 @@ use strict;
 use vars qw(@ISA);
 
 require HTTP::Request;
-@ISA=qw(HTTP::Request);
+require LWP::Hooks;
+@ISA=qw(HTTP::Request LWP::Hooks);
 
 require URI::URL;
 
@@ -54,7 +55,9 @@ sub response_data
     } else {
 	$res->add_content($_[0]);
     }
+    $self->run_hooks("response_data", $_[0], $res);
 
+=com
     if ($self->{want_progress_report}) {
 	$self->{received_bytes} += length($_[0]);
 	my $percentage;
@@ -64,6 +67,7 @@ sub response_data
 	# XXX also calculate average throughput...
 	$self->progress($percentage, $self->{received_bytes});
     }
+=cut
 }
 
 sub progress
@@ -84,9 +88,17 @@ sub response_done
 	$res->previous($prev);
 	$self->previous(undef);  # not stricly necessary
     }
-    $res->request($self);
+    $res->request($self);#or should we depend on the connection to set this up?
 
-    if ($self->{auto_redirect} && $res->is_redirect) {
+=com
+    
+    my $code = $res->code;
+    if ($self->{auto_redirect} &&
+	($code == 301 ||  # MOVED_PERMANENTLY
+	 $code == 302 ||  # FOUND
+	 $code == 305 ||  # USE_PROXY
+	 $code == 307)    # TEMPORARY REDIRECT
+       ) {
         my $referral = $self->clone;
 
         # And then we update the URL based on the Location:-header.
@@ -122,6 +134,10 @@ sub response_done
 	#XXX NYI
 
     }
+
+=cut
+
+    $self->run_hooks_until_failure("response_done", $res) && return;
 
     if ($self->{done_cb}) {
 	$self->{done_cb}->($res, $self);
