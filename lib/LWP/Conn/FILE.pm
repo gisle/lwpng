@@ -41,6 +41,7 @@ sub new
 	    put($req, $path);
 
 	} elsif ($method eq "DELETE") {
+	    # XXX must really handle If-XXX headers
 	    if (unlink($path)) {
 		$req->gen_response(204, "OK");
 	    } else {
@@ -187,7 +188,14 @@ sub get
 	if ($send_content) {
 	    my $buf;
 	    while (my $n = sysread(FILE, $buf, 1024)) {
-		$req->response_data($buf, $res);
+		eval {
+		    $req->response_data($buf, $res);
+		};
+		if ($@) {
+		    chomp($@);
+		    $res->header('X-Died' => $@);
+		    last;
+		}
 	    }
 	}
 	close(FILE);
