@@ -1,5 +1,8 @@
 package LWP::Request;
 
+use strict;
+use vars qw(@ISA);
+
 require HTTP::Request;
 @ISA=qw(HTTP::Request);
 
@@ -14,8 +17,7 @@ sub response_data
 sub done
 {
     my($self, $res) = @_;
-    $no++;
-    print "DONE $no\n";
+    print "RESPONSE\n";
     print $res->as_string;
 }
 
