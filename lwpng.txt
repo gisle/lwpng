@@ -44,7 +44,7 @@ back from the servers.  The library tries to match the registered
 requests with the persistent connections it has available or creates
 new connections when necessary.
 
-All details of the programming interface have not yet been settled upon.
+Not all details of the programming interface have been settled.
 More experience with non-trivial applications built on top of the new
 library is still needed.
 
@@ -77,7 +77,7 @@ message.
 HTTP started out as an extremely simple protocol where the client
 connected to a server, sent a line saying "GET <name>" and the server
 returned the resource identified by <name> and closed the connection.
-This version of the protocol afterwards was dubbed HTTP/0.9.
+This version of the protocol has since been dubbed HTTP/0.9.
 
 The next revision gave us HTTP/1.0, which is still deployed in
 most servers and clients today [2].  It adds a protocol version number
@@ -156,7 +156,7 @@ To safeguard LWP's continued availability to the Perl community he
 asked Gisle to take over maintenance of the package.
 
 The C<LWP::> module name was introduced by Martijn in one of the alpha
-releases.  It was early pointed out that this name could be confused
+releases.  It was early on pointed out that this name could be confused
 with what some implementations of threads called themselves, but no
 better name alternatives emerged.  The last mailing list messages on
 this matter was <"6362 Tue Jul 18 09:59:46 1995"@mhs-relay.ac.uk>
@@ -168,7 +168,7 @@ was called release 5.00 because it was for perl5 and to make
 some room for Roy to maintain libwww-perl for perl4 which at that time
 was (and still is) called libwww-perl-0.40.
 
-In the two years that have passed since lots of bugs have been
+In the two years that have passed since, lots of bugs have been
 fixed and some features added, but nothing radical has happened.  We
 have not been eager to try to adopt HTTP/1.1 features because it
 seemed clear that decent support could not be achieved without a
@@ -185,8 +185,8 @@ provided by libwww-perl.  The goal was to provide full HTTP/1.1
 client support and at the same time make the library both more
 flexible and (optionally) more lightweight.  Little happened until
 march 1998, but then I finally got the opportunity and tuits enough to
-start working on this project almost full time.  The software is at
-the time of writing quite usable and is distributed under the name
+start working on this project almost full time.  The software is, at
+the time of writing, quite usable and is distributed under the name
 LWPng.  It is available on CPAN [11].
 It is expected to be renamed as libwww-perl-6.00 when its beta
 phase is over.
@@ -213,7 +213,7 @@ Instances of the I<LWP::UserAgent> class are created by client
 applications and serve as the interface between the
 application and a network of accessible servers.  The
 I<LWP::UserAgent> provides the request() method that accepts an
-I<HTTP::Request> object as an argument and will (eventually) return a
+I<HTTP::Request> object as an argument and will (eventually) return an
 I<HTTP::Response> object when the corresponding server returns an
 answer.
 
@@ -477,7 +477,7 @@ interface that basically gives us:
 
    open(FH, "http://www.perl.com") or die;
    while (<FH>) {
-	print;
+       print;
    }
 
 The current LWPng implementation and the examples above are based on
@@ -569,14 +569,14 @@ interface and the configuration of the library.
 
 =item LWP::Hooks
 
-LWP::Hooks is a mixin class that allows handlers to be dynamically
+LWP::Hooks is a mix-in class that allows handlers to be dynamically
 registered on the object and executed.  LWP::UA and LWP::Request
 inherit its methods.
 
 =item LWP::StdSched
 
 Policy decisions about how many and which connections to set up or
-tear down at given point are delegated to a special scheduler object
+tear down at given points are delegated to a special scheduler object
 by the LWP::UA.  This arrangement allow this behaviour to be easily
 replaced or updated at any time.  The LWP::StdSched is the default
 scheduler that the library will instantiate if the application does
@@ -1031,7 +1031,7 @@ closes the connection.  This is also the HTTP/1.0 behaviour.
 
 =item Closed
 
-This is the state that the connection enters when it is dies and the
+This is the state that the connection enters when it dies and the
 socket is closed.  No method calls are allowed any more.
 
 =back
@@ -1122,7 +1122,7 @@ have to set up the same number of network connections.
 
 =item SOCK
 
-A simplified version of page fetcher script that just hard-codes
+A simplified version of the page fetcher script that just hard-codes
 downloading of the URLs over a single persistent IO::Socket::INET
 connection (bypassing any LWP code).  All requests are sent to the
 server using a single print and then we read the responses until the
@@ -1189,7 +1189,7 @@ A faster perl (or faster hardware) would help LWP too.
 =head1 Conclusions
 
 This article discussed the design of HTTP/1.1 support for the next
-generation of the LWP modules.  The new modules allows you to write
+generation of the LWP modules.  The new modules allow you to write
 client applications that manage multiple persistent connections to its
 peer servers.
 
