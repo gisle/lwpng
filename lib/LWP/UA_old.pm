@@ -37,8 +37,26 @@ sub simple_request
 
     bless $req, "LWP::Request" if ref($req) eq "HTTP::Request";
     if ($arg) {
-	# XXX should generate file writing closure unless ref($arg)
-	$req->{'data_cb'} = $arg;
+	if (ref($arg)) {
+	    # assume a normal callback, and the signature is close enough
+	    # that we don't need an adaptor.
+	    $req->{'data_cb'} = $arg;
+	} else {
+	    # Save content in file, set up closure that will open/create
+	    # file and save the response data here
+	    my $file;
+	    $req->{'data_cb'} =
+		sub {
+		    unless ($file) {
+			require IO::File;
+			$file = IO::File->new($arg, "w") ||
+			    die "Can't open file: $!";
+			binmode($file);
+		    }
+		    $file->print($_[0]);
+		};
+	    $req->{'clear_data_cb'}++;  # will close the file when done
+	}
     }
     # We always ignore the $size hint.  I don't think that is a problem
 
@@ -48,8 +66,9 @@ sub simple_request
     $req->{'done_cb'} =
 	sub {
 	    my $req = shift;
+	    delete $req->{'data_cb'} if delete $req->{'clear_data_cb'};
 	    $res = shift;
-	    print "OUR DONE\n";
+	    #print "OUR DONE\n";
 	    1;
 	};
 
