@@ -1,6 +1,11 @@
 !!! This is work in progress.  Class names and interfaces will change. !!!
 
+This is my attempt to add HTTP/1.1 support to LWP.  At the same time
+we will add support for multiple parallel connections and other nice
+things.
 
+--
+Copyright 1997 Gisle Aas.
 
-
-
+This library is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
