@@ -20,15 +20,6 @@ BEGIN {
     print STDERR $@ if $@ && $DEBUG;
 }
 
-require Exporter;
-use vars qw(@EXPORT_OK);
-@EXPORT_OK = qw(mainloop);
-*import = \&Exporter::import;
-
-# We maintain one global instace of the loop object.
-my $mainloop = LWP::EventLoop->new;
-sub mainloop { $mainloop }
-
 my $atid = 0;  # incremented in order to generate unique after/at identifiers
 
 
