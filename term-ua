@@ -87,7 +87,7 @@ sub cmd
 	    $ua->stop;
 	} elsif ($cmd =~ /^s\s+(\S+)/) {
 	    $ua->find_server($1)->stop;
-	} elsif ($cmd =~ /^\s*(\d*)\s*(\w+)\s+(\S+)/i) {
+	} elsif ($cmd =~ /^\s*(\d*)\s*(\w+)\s+(\S+)\s*$/) {
 	    my $count = $1 || 1;
 	    my $method = uc($2);
 	    my $url = $3;
