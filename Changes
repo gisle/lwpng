@@ -1,3 +1,12 @@
+
+   lib/LWP/Authen.pm had fallen out of MANIFEST
+
+   Introduced LWP::Version (a single place to obtain the library version
+   number from)
+
+   Fixed some tests that failed.
+
+
 1998-04-23   Gisle Aas <aas@sn.no>
 
    Release alpha-0.17
