@@ -160,8 +160,9 @@ sub create_connection
     my $conn = $conn_class->new($self->conn_param);
     if ($conn) {
 	push(@{$self->{conns}}, $conn);
-    } else {
-	$self->kill_queued_requests(590, "Can't connect to $self->{'host'}: $!");
+    } elsif (@{$self->{req_queue}}) {
+	my $msg = "Can't connect to " . $self->id;
+	$self->kill_queued_requests(590, $msg, $!);
     }
 }
 
