@@ -240,7 +240,7 @@ application will get hold of a connection initiated by a client and
 will be able receive I<HTTP::Request> objects from this connection and
 send back I<HTTP::Response> objects.  Since the client and server
 interface use the same message objects it is trivial to write a simple
-proxy server [12].
+proxy server [11].
 
 Features of libwww-perl include:
 
@@ -411,7 +411,7 @@ and will not work everywhere when available.  An event-driven
 framework will continue to work with threaded Perls.  A threaded
 framework would require a thread enabled Perl to run.  Ousterhout
 mentions several other reasons why an event oriented solution is to be
-preferred over a thread based one [15].
+preferred over a thread based one [12].
 
 Event oriented programming is not always easy.  One of the main
 difficulties is that the event handlers must be written to return
@@ -950,7 +950,7 @@ to an HTTP server.  Several request/response exchanges can take place
 over this single connection. Pipelining of requests is supported too.
 
 The design of this module was much inspired by the "State" pattern
-described in Design Patterns [16].  The main intent of this pattern is
+described in Design Patterns [13].  The main intent of this pattern is
 described like this:
 
   Allow an object to alter its behaviour when
@@ -1256,19 +1256,19 @@ Parallel LWP User Agent - Marc Langheinrich <URL:http://www.cs.washington.edu/ho
 
 w3c-libwww - H. Frystyk <URL:http://www.w3.org/Library/>
 
-=item [12]
+=item [11]
 
 "Anynoumus Proxy Server", Randal L. Schwartz, Web Techniques, February 1997
 <http://www.stonehenge.com/merlyn/WebTechniques/col11.html>
 
 
-=item [15]
+=item [12]
 
 "Why Threads Are A Bad Idea (for most purposes)", John K. Ousterhout,
 1996 USENIX Technical Conference
 <http://www.scriptics.com/people/john.ousterhout/>
 
-=item [16]
+=item [13]
 
 "Design Patterns - Elements of Reusable Object-Oriented Software",
 E. Gamma, R. Helm, R. Johnson, J. Vlissides.  1995 Addison Wesley.
