@@ -394,30 +394,30 @@ sub check_rbuf
 	$self->state("Chunked");
 	*$self->{'lwp_chunked'} = -1; # expect chunk size next
     } else {
-	my $ct = $res->header("Content-Type") || "";
-	if ($ct =~ /^multipart\//) {
-	    if ($ct =~ /\bboundary\s*=\s*(.*)/) {
-		my $boundary = $1;
-		if ($boundary =~ /^\"([^\"]*)\"/) {  # quoted
-		    $boundary = $1;
-		} else {
-		    $boundary =~ s/[\s;].*//;
-		}
-		$self->state("Multipart");
-		print STDERR "Read until <CR><LF>--$boundary--<CR><LF>\n"
-		  if $LWP::Conn::HTTP::DEBUG;
-		*$self->{'lwp_boundary'} = "\015\012--$boundary--\015\012"
-	    } else {
-		return $self->_error("Multipart without boundary");
+	my $cont_len = $res->header("Content-Length");
+	if (defined $cont_len) {
+	    $self->state("ContLen");
+	    *$self->{'lwp_cont_len'} = $cont_len;
+	    unless ($cont_len) {
+		$self->end_of_response;
+		return;
 	    }
 	} else {
-	    my $cont_len = $res->header("Content-Length");
-	    if (defined $cont_len) {
-		$self->state("ContLen");
-		*$self->{'lwp_cont_len'} = $cont_len;
-		unless ($cont_len) {
-		    $self->end_of_response;
-		    return;
+	    my $ct = $res->header("Content-Type") || "";
+	    if ($ct =~ /^multipart\//) {
+		if ($ct =~ /\bboundary\s*=\s*(.*)/) {
+		    my $boundary = $1;
+		    if ($boundary =~ /^\"([^\"]*)\"/) {  # quoted
+			$boundary = $1;
+		    } else {
+			$boundary =~ s/[\s;].*//;
+		    }
+		    $self->state("Multipart");
+		    print STDERR "Read until <CR><LF>--$boundary--<CR><LF>\n"
+		      if $LWP::Conn::HTTP::DEBUG;
+		    *$self->{'lwp_boundary'} = "\015\012--$boundary--\015\012"
+		} else {
+		    return $self->_error("Multipart without boundary");
 		}
 	    } else {
 		$self->state("UntilEOF");
