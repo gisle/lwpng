@@ -1,8 +1,10 @@
-!!! This is work in progress.  Class names and interfaces will change. !!!
+!!! This is work in progress.  Class names and interfaces will change.
+!!! Documentation is lacking.
 
-This is my attempt to add HTTP/1.1 support to LWP.  At the same time
-we will add support for multiple parallel connections and other nice
-things.
+This is my attempt to add full HTTP/1.1 support to LWP.  At the same
+time we will add support for multiple parallel connections and other
+nice things.  Read the 'News' file to get some sense of what's going
+on.
 
 --
 Copyright 1997-1998 Gisle Aas.
