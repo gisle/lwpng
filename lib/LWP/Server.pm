@@ -56,7 +56,7 @@ sub id
     return "$self->{'proto'}:";
 }
 
-sub status
+sub c_status
 {
     my $self = shift;
     (scalar(@{$self->{req_queue}}),
@@ -72,6 +72,7 @@ sub add_request
 {
     my($self, $req) = @_;
     my $pri = $req->priority;
+    # should really keep sorted by 'pri' field
     if ($pri && $pri > 50) {
 	push(@{$self->{req_queue}}, $req);
     } else {
@@ -163,7 +164,16 @@ sub create_connection
 	    return;
 	}
     }
-    my $conn = $conn_class->new($self->conn_param);
+    
+    my $conn;
+    eval {
+	$conn = $conn_class->new($self->conn_param);
+    };
+    if ($@) {
+	chomp($@);
+	$self->kill_queued_requests(590, $@);
+	return;
+    }
     if ($conn) {
 	push(@{$self->{conns}}, $conn);
     } elsif (@{$self->{req_queue}}) {
