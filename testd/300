@@ -1,0 +1,9 @@
+HTTP/1.1 300 Multiple Choices
+Connection: close
+Location: http://localhost/foo.html
+Content-Type: text/x-type-url
+
+text/html	http://localhost/foo.html
+text/plain	http://localhost/foo.txt
+image/gif	http://localhost/foo.gif
+image/jpg	http://localhost/foo.jpg
