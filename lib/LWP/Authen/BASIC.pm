@@ -7,8 +7,8 @@ sub authenticate
 {
     my($class, $req, $res, $proxy, $auth_param) = @_;
 
-    my($user, $pass) = $req->get_upw($auth_param->{realm},
-				     $req->url, $proxy);
+    my($user, $pass) = $req->get_uname_passwd($auth_param->{realm},
+					      $req->url, $proxy);
     unless (defined $user and defined $pass) {
 	$res->push_header("Client-Warning", "No username or password given");
 	return;
