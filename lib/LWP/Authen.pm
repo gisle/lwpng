@@ -137,8 +137,8 @@ sub response_handler
 	    }
 
 	    my $realm = $param->{"realm"} || "";
-	    $req->{'mgr'}{'uattr'}->attr_update("DIR", $new->url)->{realm} = $realm;
-	    $req->{'mgr'}{'uattr'}->attr_update("SERVER", $new->url)->{realms}{$realm} = $auth;
+	    $req->{'mgr'}->uri_attr_update("DIR", $new->url)->{realm} = $realm;
+	    $req->{'mgr'}->uri_attr_update("SERVER", $new->url)->{realms}{$realm} = $auth;
 	}
 
 	$req->{'mgr'}->spool($new);
