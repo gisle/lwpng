@@ -1,11 +1,13 @@
 #!/usr/bin/perl -w
 
-$URL_FILE = "URL";
+use strict;
+my $URL_FILE = "URL";
+my $DEF_SIZE = 8*1024;
 
 use HTTP::Daemon;
-use URI::URL;
+use Time::HiRes qw(sleep time);
 
-$d = new HTTP::Daemon;
+my $d = new HTTP::Daemon;
 
 open(URL, ">$URL_FILE") || die "Can't open $URL_FILE: $!";
 print URL $d->url, "\n";
@@ -13,21 +15,62 @@ close(URL);
 
 print "<URL:", $d->url, ">\n";
 
-while ($c = $d->accept) {
-    $r = $c->get_request;
-    if ($r) {
+my $req_no = 1;
+while (my $c = $d->accept) {
+    if (my $r = $c->get_request) {
+	print $req_no++, ": ";
 	print $r->as_string;
 	$c->autoflush;
 	my $u = $r->url;
+
+        my %q;
+	eval { %q = $u->query_form; };
+	my $wait = ($q{w} || 0) / 1000;
+	my $bsize = $q{cs} || $DEF_SIZE;
+	my $line = $q{line};
+	my $cr = $q{cr};
+	$line++ if $cr;
+
 	my $file = ($u->path_components)[1];
 	if ($file && !($file =~ m,/,)) {
 	    if (open(FILE, $file)) {
-		my $n = $c->send_file(\*FILE);
-		if (!defined($n)) {
-		    print "send_file() error\n";
+                my $before = time;
+		print "[";
+		if ($line) {
+		    # we should output the file a line at time
+                    my $count = 0;
+		    while (<FILE>) {
+			if ($cr) {
+			    chomp;
+			    $cr = 0 unless length;  # headers done
+			    $_ .= "\015\012";
+			}
+                        print $c $_;
+                        $count++;
+			sleep($wait) if $wait;
+		    }
+		    print "$count lines response sent";
 		} else {
-		    print "$n bytes of response returned\n\n";
+                    my $bytes = 0;
+                    my $blocks = 0;
+                    my $buf;
+                    while (my $n = sysread(FILE, $buf, $bsize)) {
+                        $blocks++;
+			$n = syswrite($c, $buf, length($buf));
+			if (!defined($n)) {
+			    print "syswrite error for block $blocks: $!\n";
+			    last;
+                        }
+			$bytes += $n;
+			if ($n != length($buf)) {
+			    print "short write ($n)\n";
+			    last;
+                        }
+			sleep($wait) if $wait;
+                    }
+		    print "$blocks blocks, $bytes bytes response sent";
 		}
+		printf " in %.2fs]\n\n", time - $before;
 	    } else {
 		$c->send_error(404);
 	    }
