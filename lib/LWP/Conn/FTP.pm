@@ -52,6 +52,7 @@ sub new
 sub state
 {
     my($self, $state) = @_;
+    print "STATE: $state\n" if $DEBUG;
     my $class = "LWP::Conn::FTP::$state";
     bless $self, $class;
 }
@@ -138,7 +139,7 @@ sub parse_response
 	*$self->{'lwp_response_code'} = $code;
 	*$self->{'lwp_response_mess'} = \@res;
 	print STDERR "====>\t", join("\n\t", @res), "\n" if $DEBUG;
-	$self->response(substr($code, 0, 1), $code, \@res);
+	$self->response(substr($code, 0, 1), $code);
     }
 }
 
@@ -178,7 +179,8 @@ sub send_cmd
     $cmd .= "\015\012";
     # XXX should really wait for the socket to become writable, but
     # it is very unlikely that it should not be that.
-    $self->print($cmd);
+    my $n = $self->syswrite($cmd, length($cmd));
+    $self->_error("Can't syswrite ($n)") if !$n || $n != length($cmd);
     $self->state($next_state) if $next_state;
 }
 
@@ -201,7 +203,7 @@ sub gen_response
 {
     my($self, $code, $mess, $more) = @_;
     my $req = delete *$self->{'lwp_req'};
-    if (ref($more)) {
+    if (ref($more) || !defined($more)) {
 	$more->{Server} = *$self->{'lwp_server_product'};
     }
     $req->gen_response($code, $mess, $more);
@@ -367,16 +369,15 @@ use LWP::MainLoop qw(mainloop);
 sub type
 {
     my($self, $type) = @_;
-    unless (*$self->{'lwp_type'} eq $type) {
-	*$self->{'lwp_type'} = $type;
-	$self->send_cmd("TYPE $type" => "Type");
-    }
+    return 1 if *$self->{'lwp_type'} eq $type;
+    *$self->{'lwp_type'} = $type;
+    $self->send_cmd("TYPE $type" => "Type");
+    0;
 }
 
 sub activate
 {
     my $self = shift;
-    $self->type("I");  # we always use binary transfer mode
 
     my $req = *$self->{'lwp_req'};
     unless ($req) {
@@ -398,8 +399,11 @@ sub activate
     # We now have a request to perform and is logged in as the correct
     # user.
     my $method = uc($req->method);
+    my $file = $req->url->path;
     if ($method =~ /^(GET|HEAD|PUT)$/) {
-	*$self->{'lwp_file'} = $req->url->path;
+	return unless $self->type("I");  # we always use binary transfer mode
+
+	*$self->{'lwp_file'} = $file;
 	my @cwd = qw();
 	if (@cwd) {
 	    @{*$self->{'lwp_cwd'}} = @cwd;
@@ -409,8 +413,10 @@ sub activate
 	} else {
 	    $self->cwd_done;
 	}
+
     } elsif ($method eq "DELETE") {
-	$self->gen_response(501, "Delete not implemented yet");
+	$self->send_cmd("DELE $file" => "Dele");
+
     } elsif ($method eq "RENAME") {
 	$self->gen_response(501, "Delete not implemented yet");
     } elsif ($method eq "TRACE") {
@@ -459,6 +465,25 @@ sub data_done
 	my $req = delete *$self->{'lwp_req'};
 	$req->gen_response(200);
 	$self->activate;
+    }
+}
+
+package LWP::Conn::FTP::Dele;
+use base 'LWP::Conn::FTP';
+
+sub response
+{
+    my($self, $r, $code) = @_;
+    $self->state("Inlogged");
+    my $mess = $self->message;
+    $mess =~ s/^\d+\s+//;
+    chomp($mess);
+    if ($r eq "2") {
+	$self->gen_response(204, $mess);
+    } elsif ($code eq "550") {
+	$self->gen_response(404, $mess);
+    } else {
+	$self->gen_response(400, $mess);
     }
 }
 
