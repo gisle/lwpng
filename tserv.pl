@@ -26,6 +26,7 @@ while (1) {
 		     forget_all();
 		     return;
 		 }
+		 $buf =~ s,\n,\015\012,g;
 		 $conn->print($buf);
 	     });
 
