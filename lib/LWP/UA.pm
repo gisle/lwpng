@@ -24,8 +24,8 @@ sub new
 	       servers => {},
 	      }, $class;
 
-    $ua->add_hook("request", \&setup_default_headers);
-    $ua->add_hook("request", \&setup_proxy);
+    $ua->add_hook("spool_request", \&setup_default_headers);
+    $ua->add_hook("spool_request", \&setup_proxy);
     #$ua->agent("libwww-perl/ng");
 
     $ua;
@@ -97,6 +97,7 @@ sub spool
     my $self = shift;
     my $spooled = 0;
     for my $req (@_) {
+	$req->managed_by($self);
 	unless ($req->method) {
 	    $req->gen_response(400, "Missing METHOD in request");
 	    next;
@@ -110,13 +111,13 @@ sub spool
 	    $req->gen_response(400, "Request URL must be absolute");
 	    next;
 	}
+
 	bless $req, "LWP::Request" if ref($req) eq "HTTP::Request"; #upgrade
 
-	next unless $self->run_hooks_until_failure("request", $req);
+	next if $self->run_hooks_until_success("spool_request", $req);
 
 	my $proxy = $req->proxy;
 	my $server = $self->find_server($proxy ? $proxy : $req->url);
-	$req->managed_by($self);
 	$server->add_request($req);
 	$spooled++;
 	if ($DEBUG) {
@@ -175,7 +176,7 @@ sub setup_default_headers
 	    $req->header($k => $hash->{$k});
 	}
     }
-    1;
+    0; # continue
 }
 
 
@@ -185,9 +186,9 @@ sub cookie_jar
     my $old = $self->{'cookie_jar'};
     if (@_) {
 	if ($self->{'cookie_jar'} = shift) {
-	    $self->add_hook("request", \&setup_cookie) unless $old;
+	    $self->add_hook("spool_request", \&setup_cookie) unless $old;
 	} else {
-	    $self->remove_hook("request", \&setup_cookie);
+	    $self->remove_hook("spool_request", \&setup_cookie);
 	}
     }
     $old;
@@ -205,17 +206,17 @@ sub setup_cookie
 		       $jar->extract_cookies($res);
 		       1;
 		   });
-    1;
+    0;
 }
 
 
 sub setup_proxy
 {
     my($self, $req) = @_;
-    return 1 if $req->proxy;
+    return 0 if $req->proxy;
     my $proxy = $self->{'uattr'}->p_attr($req->url, "proxy");
     $req->proxy($proxy);
-    1;
+    0;
 }
 
 
