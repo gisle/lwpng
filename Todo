@@ -4,26 +4,27 @@
 
  * Complete LWP5 compatibility
  * Finish the authentication hooks (digest)
- * Looks like the scheduler creates too many connections.
  * LWP::Conn::HTTP improvements
      - bundling of multiple request in a single syswrite() when
        pipelining is likely to improve performance.
-     - minimize headers for second and following requests.
-     - know about idempotent methods
-     - always pass response data through sinks?
-     - support HTTP/1.0 Keep-Alive? (more meaningful for a server)
-     - non-blocking gethostbyname
+     - non-blocking gethostbyname (Net::DNS?)
+     - minimize headers sent for second and following requests.
+     - know something about idempotent methods
+     - always pass response data through sinks (?)
+     - support HTTP/1.0 Keep-Alive (?) (make more sense for a server)
      - try to record HTTP version number supported by the server
-       in the LWP::Server object.
+       in the LWP::Server object (or URI::Attr).
  * Make a single request able to override persistent connection
    behaviour (make a request always processed on its own connection)
  * LWP::Conn::FILE could support PUT and Content-Ranges
  * Other LWP::Conn implementations: FTP, NNTP, Gopher, MAILTO
- * Support HTTPS, TLS
+ * Support HTTPS, TLS.  This might need restructuring of the LWP::Conn:HTTP.
+   Perhaps the socket should be a member and not the connection object
+   itself.
  * gzip/compress sinks
  * deflate parameters
- * Tuning
- * Documentation
+ * tuning - make things go faster
+ * documentation - as always
 
  * Delayed spooling (for robots)
  * RobotUA
@@ -32,5 +33,7 @@
 
  * Move to same eventloop as Tk uses.  There appears to be a problem because
    the Tk fileevent does not allow a socket to be both readable and writable
-   at the same time.  Grahams Event.pm does not work with current IO modules.
+   at the same time.  Grahams Event.pm does not work with current IO modules
+   so I have not tried to use it yet.  Compatibility with Win32 is also a
+   concern.
    
