@@ -228,6 +228,7 @@ sub _error
     print STDERR "Conn::HTTP-Error: $msg\n" if $DEBUG;
     mainloop->forget($self);
     $self->close;
+    $self->state("Closed");
 
     delete *$self->{'lwp_te'};
     my $mgr = delete *$self->{'lwp_mgr'};
@@ -235,19 +236,22 @@ sub _error
     if ($req && @$req) {
 	my $cur_req = shift @$req;  # currect request never retried
 	$mgr->pushback_request($self, @$req) if @$req;
+	$mgr->connection_closed($self);
 	my $res = *$self->{'lwp_res'};
 	if ($res) {
 	    # partial result already available
 	    $res->header("Client-Orig-Status" => $res->status_line);
 	    $res->code(591); # XXX
 	    $res->message($msg);
+	    # This must be the last thing we do, because it might not
+	    # return immediately.
 	    $cur_req->response_done($res);
 	} else {
 	    $cur_req->gen_response(590, "No response");
 	}
+    } else {
+	$mgr->connection_closed($self);
     }
-    $self->state("Closed");
-    $mgr->connection_closed($self);
 }
 
 sub response_data
@@ -564,24 +568,27 @@ sub end_of_response
     if (my $te = delete *$self->{'lwp_te'}) {
 	$te->close;
     }
-    $req->response_done(*$self->{'lwp_res'});
-    *$self->{'lwp_res'} = undef;
+    my $res = delete *$self->{'lwp_res'};
+
     if ($self->last_request_sent && !$self->current_request) {
 	mainloop->forget($self);
 	$self->close;
 	$self->state("Closed");
 	(delete *$self->{'lwp_mgr'})->connection_closed($self);
-	return;
-    }
-    $self->state("Active");
-    $self->new_request;
-    if ($self->current_request) {
-	$self->check_rbuf;
     } else {
-	$self->state("Idle");
-	mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
-	*$self->{'lwp_mgr'}->connection_idle($self);
+	$self->state("Active");
+	$self->new_request;
+	if ($self->current_request) {
+	    $self->check_rbuf;
+	} else {
+	    $self->state("Idle");
+	    mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
+	    *$self->{'lwp_mgr'}->connection_idle($self);
+	}
     }
+    # This must be the last thing we do, because it might not
+    # return immediately.
+    $req->response_done($res);
 }
 
 
