@@ -98,6 +98,7 @@ sub new
 	    if ($! == &IO::EINPROGRESS) {
 		$sock->state("Connecting");
 		mainloop->writable($sock);
+                mainloop->readable($sock);
 		return $sock;
 	    } else {
 		mainloop->forget($sock);
