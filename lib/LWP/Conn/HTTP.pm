@@ -137,11 +137,12 @@ sub new_request
     if ($req) {
 	print STDERR "$self: New-Request $req\n" if $DEBUG;
 	my @rlines;
-	push(@rlines, $req->method . " " . $req->url->full_path . " HTTP/1.1");
+	my $uri = $req->proxy ? $req->url->as_string : $req->url->full_path;
+	push(@rlines, $req->method . " $uri HTTP/1.1");
 	$req->header("Host" => $req->url->netloc);
 	#$req->header("Connection" => "close");
 	$req->scan(sub { push(@rlines, "$_[0]: $_[1]") });
-	push(@rlines, "", "");
+	push(@rlines, "", $req->content);
 	push(@{ *$self->{'lwp_req'} }, $req);
 	*$self->{'lwp_wbuf'} = join("\015\012", @rlines);
 	*$self->{'lwp_req_count'}++;  # XXX: should mark last request somehow
@@ -370,6 +371,7 @@ sub check_rbuf
     if ($code == 100) {
 	print STDERR "100 Continue\n" if $LWP::Conn::HTTP::DEBUG;
 	# XXX: should we store $res anywhere or just forget about it?
+	$self->check_rbuf;
 	return;
     }
 
