@@ -27,17 +27,20 @@ my @tests = (
    [LWP::Request->new(undef, "http://www.perl.com") => 400],
    [LWP::Request->new(GET => undef) => 400],
    [LWP::Request->new(GET => ":::") => 400],
-   [LWP::Request->new(GET => "++:::") => 590],
+   [LWP::Request->new(GET => ":::") => 400],
+   [LWP::Request->new(GET => "ייי:abc") => 400],
+   [LWP::Request->new(GET => "a+.-:::") => 590],
    [LWP::Request->new(GET => "foo/bar") => 400],
    [LWP::Request->new(GET => 'mailto:gisle\@aas.no') => 590],
    [LWP::Request->new(GET => 'news:6e8c8g$3q7$1@nnrp1.dejanews.com') => 590],
    [LWP::Request->new(GET => "xyzzy:unknown.scheme") => 590],
    [LWP::Request->new(GET => "xyzzy:unknown.scheme") => 590],
-   [undef() => 499],
-   ["http://www.perl.com" => 499],
    [LWP::Request->new(GET => "http://this.host.does.not.exists/foo") => 590],
    [LWP::Request->new(GET => "ftp://this.host.does.not.exists/foo") => 590],
    [LWP::Request->new(GET => "gopher://this.host.does.not.exists/foo") => 590],
+   # spool will croak for the following because it gets wrong parameter
+   [undef() => 499],
+   ["http://www.perl.com" => 499],
    [HTTP::Request->new(GET => "http://www.perl.com") => 499],
 );
 
