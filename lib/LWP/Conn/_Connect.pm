@@ -11,15 +11,19 @@ package LWP::Conn::_Connect;
 use strict;
 use vars qw($DEBUG @ISA);
 
-# A hack that should work at least on Linux.  It implement the constant
-# EINPROGRESS and IO::Handle->blocking
-# When we require IO-1.18, then this hack can be removed as it already
-# implement this.
+# A hack that should work at least on systems with POSIX.pm.  It
+# implements the constant EINPROGRESS and IO::Handle->blocking;
+# XXX: When we require IO-1.18, then this hack can be removed.
 require IO::Handle;
 unless (defined &IO::EINPROGRESS) {
-    $! = 115;
-    die "No EINPROGRESS found ($!)" unless $! eq "Operation now in progress";
-    *IO::EINPROGRESS = sub () { 115; };
+    my $einprogress = -1;
+    eval {
+	require POSIX;
+	$einprogress = &POSIX::EINPROGRESS;
+    };
+    $! = $einprogress;
+    die "No EINPROGRESS found ($!)" if ($@ or $! ne "Operation now in progress!
+    *IO::EINPROGRESS = sub () { $einprogress; };
 
     # we also emulate $handle->blocking call provided by newer versions of
     # the IO modules

@@ -891,7 +891,7 @@ sub writable
     #print "Writeable\n";
     mainloop->activity(*$self->{'lwp_ftp'});
     my $buf = \*$self->{'lwp_wbuf'};
-    unless (length $$buf) {
+    unless (defined $$buf and length $$buf) {
 	my $w = *$self->{'lwp_write'};
 	unless ($w) {
 	    *$self->{'lwp_ftp'}->data_done();
@@ -901,7 +901,7 @@ sub writable
 	$w = $$w if ref($$w);
 	if (ref($w) eq "CODE") {
 	    $$buf = &$w();
-	    unless (defined $buf and length $$buf) {
+	    unless (defined $$buf and length $$buf) {
 		delete *$self->{'lwp_write'};
 		return;
 	    }
