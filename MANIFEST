@@ -32,6 +32,12 @@ lib/URI/Attr.pm
 old-ua
 t/after.t
 t/bad-req.t
+t/sink-base64.t
+t/sink-deflate.t
+t/sink-html.t
+t/sink-id.t
+t/sink-io.t
+t/sink-qp.t
 t/uri-attr.t
 term-serv
 term-ua
