@@ -76,11 +76,27 @@ sub response_done
 }
 
 
+sub new_response
+{
+    my $self = shift;
+    require HTTP::Response;
+    HTTP::Response->new(@_);
+}
+
+
 sub gen_response
 {
+    # Let's be nice for a while
+    my $self = shift;
+    warn "LWP::Request->gen_response() depreciated" if $^W;
+    $self->give_response(@_);
+}
+
+
+sub give_response
+{
     my($self, $code, $message, $more) = @_;
-    require HTTP::Response;
-    my $res = HTTP::Response->new($code, $message);
+    my $res = $self->new_response($code, $message);
     $res->date(time);
     $res->server($LWP::Version::PRODUCT_TOKEN);
     if ($more) {
