@@ -31,8 +31,10 @@ sub new2
 {
     my $class = shift;
     my $self = $class->SUPER::new(@_);
-    $self->add_hook("response_handler", \&auto_redirect);
-    $self->add_hook("response_handler", \&auto_auth);
+    require LWP::Redirect;
+    $self->add_hook("response_handler", \&LWP::Redirect::redirect_handler);
+    require LWP::Auth;
+    $self->add_hook("response_handler", \&LWP::Auth::auth_handler);
     $self;
 }
 
@@ -75,7 +77,8 @@ sub response_done
     $res->request($self);#or should we depend on the connection to set this up?
 
     $self->run_hooks("response_done", $res);
-    return if $self->run_hooks_until_success("response_handler", $res);
+    my $done = $self->run_hooks_until_success("response_handler", $res);
+    return if $done && $done ne "ABORT";
 
     if ($self->{done_cb}) {
 	$self->{done_cb}->($res, $self);
@@ -111,117 +114,12 @@ sub gen_response
     $self->response_done($res);
 }
 
-sub auto_redirect
-{
-    my($self, $res) = @_;
-    my $code = $res->code;
-    return unless $code =~ /^30[012357]$/;
-    my $new = $self->clone;
-    my $method = $new->method;
-    if ($code == 303 && $method ne "HEAD") {
-	$method = "GET";
-	$new->method($method);
-    }
-    return if $method ne "GET" &&
-	      $method ne "HEAD" &&
-	      !$self->redirect_ok($res);
-    my $loc = $res->header('Location') || return;
-    $loc = (URI::URL->new($loc, $res->base))->abs(undef,1);
-
-    if ($code == 305) {  # RC_USE_PROXY
-	$new->proxy($loc);
-	my $ustr = $new->url->as_string;
-	my $pstr = $loc->as_string;
-	# check for loops
-	for (my $r = $res; $r; $r = $r->previous) {
-	    my $req = $r->request;
-	    my $pxy = $req->proxy || "";
-	    if ($req->url->as_string eq $ustr && $pxy eq $pstr) {
-		$res->push_header("Client-Warning" =>
-				  "Proxy redirect loop detected");
-		return;
-	    }
-	}
-    } else {
-	$new->url($loc);
-	my $ustr = $loc->as_string;
-	# check for loops
-	for (my $r = $res; $r; $r = $r->previous) {
-	    if ($r->request->url->as_string eq $ustr) {
-		$res->push_header("Client-Warning" =>
-				  "Redirect loop detected");
-		return;
-	    }
-	}
-    }
-
-    # New request is OK, spool it
-    $new->{'previous'} = $res;
-    $new->priority(10) if $new->priority > 10;
-    $self->{'mgr'}->spool($new);
-    1;  # consider this request handled
-}
-
 sub redirect_ok
 {
     0;
 }
 
-sub auto_auth
-{
-    my($self, $res) = @_;
-    my $code = $res->code;
-    return unless $code =~ /^40[17]$/;
-    my $proxy = ($code == 407);
-
-    my $ch_header = $proxy ?  "Proxy-Authenticate" : "WWW-Authenticate";
-    my @challenge = $res->header($ch_header);
-    unless (@challenge) {
-	$res->header("Client-Warning" => 
-		     "Missing $ch_header header");
-	return;
-    }
-
-    require HTTP::Headers::Util;
-    for my $challenge (@challenge) {
-	$challenge =~ tr/,/;/;  # "," is used to separate auth-params!!
-	($challenge) = HTTP::Headers::Util::split_header_words($challenge);
-	my $orig_scheme = shift(@$challenge);
-	shift(@$challenge); # no value
-	my $scheme = uc($orig_scheme);
-	$challenge = { @$challenge };  # make rest into a hash
-
-	unless ($scheme =~ /^([A-Z]+(?:-[A-Z]+)*)$/) {
-	    $res->header("Client-Warning" => 
-			 "Bad authentication scheme name '$orig_scheme'");
-	    next;
-	}
-	$scheme = $1;  # untainted now
-	my $class = "LWP::Authen::$scheme";
-	$class =~ s/-/_/g;
-	
-	no strict 'refs';
-	unless (defined %{"$class\::"}) {
-	    # try to load it
-	    eval "require $class";
-	    if ($@) {
-		if ($@ =~ /^Can\'t locate/) {
-		    $res->push_header("Client-Warning" =>
-			   "Unsupport authentication scheme '$orig_scheme'");
-		} else {
-		    $res->push_header("Client-Warning" => $@);
-		}
-		next;
-	    }
-	}
-	my $done = $class->authenticate($self, $res, $proxy, $challenge);
-	return $done if $done;
-    }
-    $res->push_header("Client-Warning" => "Kilroy was here");
-    0;
-}
-
-sub get_upw
+sub get_uname_passwd
 {
     ("gisle", "hemmelig");
 }
