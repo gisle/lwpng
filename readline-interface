@@ -1,0 +1,156 @@
+# This example show how one could implement the
+# open F;while(<F>){...} interface.  Open is spelled start_request
+# and <> is readline.
+
+
+use LWP::UA;
+require LWP::Request;
+
+package LWP::UA;
+
+sub start_request
+{
+   my($self, $req) = @_;
+   print $req->as_string;
+   bless $req, "LWP::Request" if ref($req) eq "HTTP::Request";
+   my $res;
+   $req->{data_cb} = sub { $res = $_[1]; $res->add_content($_[0]) };
+   $req->{done_cb} = sub { $res = shift; $res->{done}++; };
+
+   $self->spool($req);
+   mainloop->one_event until mainloop->empty || $res;
+   bless $res, "LWP::Response";
+}
+
+package LWP::Response;
+use base 'HTTP::Response';
+
+use LWP::MainLoop qw(mainloop);
+
+sub readline
+{
+   # should split on $/, "" = paragraph mode, undef = until eof
+   # return all lines in list context or a single line in scalar context
+   my $self = shift;
+   if (wantarray || !defined($/)) {
+	# read the complete response first
+	mainloop->one_event until mainloop->empty || $self->{done};
+	my $c = $self->content("");
+	return $c unless defined $/;
+	my @c;
+	die "Paragraph mode not implemented yet" unless length $/; #XXX
+	while ((my $n = index($c, $/)) >= 0) {
+	   push(@c, substr($c, 0, $n + length($/)));
+	   substr($c, 0, $n + length($/)) = '';
+        }
+	push(@c, $c) if length $c;
+	return @c;
+   }
+
+   # in scalar context, return first line only
+   die "Paragraph mode not implemented yet" unless length $/; #XXX
+   my $conref = $self->content_ref;
+   my $n;
+   mainloop->one_event while ($n = index($$conref, $/)) < 0 &&
+	                     !$self->{done} && !mainloop->empty;
+   if ($n >= 0) {
+	my $c = substr($$conref, 0, $n + length($/));
+	substr($$conref, 0, $n + length($/)) = "";
+	return $c;
+   }
+   return unless length $$conref;
+   my $c = $$conref;
+   $$conref = "";
+   return $c;
+}
+
+sub read_content  # arbitrary chunks
+{
+    my $self = shift;
+    my $c = $self->content("");
+    return $c if length($c);
+    return if $self->{done};
+    # must wait for more data...
+    my $data;
+    $self->request->{data_cb} = sub { $data = $_[0] };
+    mainloop->one_event until mainloop->empty ||
+                              defined($data)  ||
+                              $self->{done};
+    $data;
+}
+
+###################### TEST IT ##########################
+package main;
+$| = 1;
+
+=comment
+
+use HTTP::Request::Common qw(GET);
+
+$ua = LWP::UA->new;
+
+
+$res = $ua->start_request(GET "http://localhost/slowdata.cgi");
+
+print $res->as_string, "----\n";
+
+if ($res->is_success) {
+    my $c;
+    my $i = 1;
+
+    while (defined($c = $res->readline)) {
+	print "Chunk$i: $c";
+        $i++;
+    }
+}
+
+=cut
+
+use subs 'open';
+$ua;
+
+package TTT;
+
+sub TIEHANDLE
+{
+   my($class, $res) = @_;
+   bless \$res, $class;
+}
+
+sub READLINE
+{
+   my $self = shift;
+   $$self->readline;
+}
+
+package main;
+
+sub open
+{
+   my($fh, $file) = @_;
+   return CORE::open($fh, $file) unless $file =~ /^(http|file):/;
+   unless ($ua) {
+      require LWP::UA;
+      $ua = LWP::UA->new;
+      require LWP::Request;
+   }
+
+   my $req = LWP::Request->new(GET => $file);
+   my $res = $ua->start_request($req);
+   if ($res->is_success) {
+        # tie it
+	tie *$fh, "TTT", $res;
+        return $res;
+   }
+   # $req->kill;  # XXX not there yet
+   $! = $res->code;  # not really the same kind of numbers
+   return;
+}
+
+#open(F, "/etc/passwd") or die "Can't open $!";
+open(F, "http://localhost/xxx") or die "Can't open $!";
+while (<F>) {
+   print;
+}
+close(F);
+
