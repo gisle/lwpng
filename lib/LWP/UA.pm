@@ -182,10 +182,10 @@ sub setup_default_headers
 sub setup_date
 {
     my($self, $req) = @_;
-    $req->date(time);
     # Clients SHOULD only send a Date header field in messages that
     # include an entity-body, as in the case of the PUT and POST
     # requests, and even then it is optional.
+    $req->date(time) if length ${ $req->content_ref };
     0;
 }
 
