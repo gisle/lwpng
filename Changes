@@ -1,3 +1,17 @@
+1998-03-23   Gisle Aas <aas@sn.no>
+
+   Release alpha-0.09
+
+   More experiments with hooks, also for LWP::Requests.  New module
+   LWP::Hooks which both LWP::UA and LWP::Request inherit from.
+   Both redirect and authentication handled by hooks.
+   
+   Renamed $server->status to $server->c_status.
+   
+   Implemented $ua->cookie_jar
+
+
+
 1998-03-19   Gisle Aas <aas@sn.no>
 
    Release alpha-0.08
