@@ -55,7 +55,9 @@ sub cmd
 	    print "Eventlopp debug is ",
 	          ($LWP::EventLoop::DEBUG ? "on" : "off"), "\n";
 	} elsif ($cmd =~ /^(get|GET)\s+(\S+)/) {
-	    $ua->spool(LWP::Request->new(GET => $2));
+	    my $req = LWP::Request->new(GET => $2);
+	    $req->{'auto_redirect'}++;
+	    $ua->spool($req);
 	} elsif ($cmd =~ /^c\s+(\S+)/) {
 	    $ua->server($1)->create_connection;
 	} elsif ($cmd =~ /^cp\s+(.*)/) {
