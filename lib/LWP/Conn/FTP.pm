@@ -60,26 +60,10 @@ sub new
     $port = $1 if $host =~ s/:(\d+)//;
     $port = delete $cnf{Port} || delete $cnf{PeerPort} || $port || 21;
 
-    # XXX Should really use non-blocking connect as done for HTTP
-    my $sock = IO::Socket::INET->new(PeerAddr => $host,
-				     PeerPort => $port);
-    return unless $sock;
-
-    {
-	# Interim solution to make it non-blocking...
-	require LWP::Conn::HTTP;
-	$sock->blocking(0);
-    }
-
-    bless $sock, $class;
-    
-    *$sock->{'lwp_mgr'}  = $mgr;
-    *$sock->{'lwp_type'} = "";
-    *$sock->{'lwp_rbuf'} = "";
-    *$sock->{'lwp_rlim'} = delete $cnf{ReqLimit} || 4;
     my $timeout = delete $cnf{Timeout} || 5*60;
-    *$sock->{'lwp_timeout'} = $timeout;
-    *$sock->{'lwp_idletimeout'} = delete $cnf{IdleTimeout} || $timeout;
+    my $idle_timeout = delete $cnf{IdleTimeout} || $timeout;
+    my $conn_timeout = delete $cnf{ConnTimeout} || $timeout;
+    my $req_limit = delete $cnf{ReqLimit} || 4;
 
     if (%cnf && $^W) {
 	for (keys %cnf) {
@@ -87,10 +71,10 @@ sub new
 	}
     }
 
-    $sock->state("Start");
-    mainloop->readable($sock);
-    mainloop->timeout($sock, $timeout);
-    $sock;
+    return LWP::Conn::_Connect->new($host, $port, $conn_timeout,
+				   "LWP::Conn::FTP::Start",
+				    [$mgr, $req_limit, $timeout, $idle_timeout]
+				   );
 }
 
 sub state
@@ -268,6 +252,29 @@ sub gen_response
 
 package LWP::Conn::FTP::Start;
 use base 'LWP::Conn::FTP';
+use LWP::MainLoop qw(mainloop);
+
+sub connected
+{
+    my($self, $param) = @_;
+    @{*$self}{'lwp_mgr', 'lwp_rlim',
+              'lwp_timeout', 'lwp_idle_timeout'} = @$param;
+    *$self->{'lwp_type'} = "";
+    *$self->{'lwp_rbuf'} = "";
+    mainloop->readable($self);
+    mainloop->timeout($self, *$self->{'lwp_idle_timeout'});
+    $self->activate;
+}
+
+sub connect_failed
+{
+    my($self, $msg, $param) = @_;
+    my $mgr = shift @$param;
+    while (my $req = $mgr->get_request($self)) {
+	$req->gen_response(590, $msg);
+    }
+    $mgr->connection_closed($self);
+}
 
 sub response
 {
