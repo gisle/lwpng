@@ -969,7 +969,7 @@ LWPng is still alpha software, so it might be a bit premature to do
 serious benchmarking of it.  There has really not yet been any work
 on trying to optimize the library for speed, since we are still
 focusing on getting the programming interface defined, but it might be
-interresting to see how we are doing so far.
+interesting to see how we are doing so far.
 
 The test below is based on a simple script that fetch a single HTML
 page, parse it and then fetch all images referenced.  This is similar
@@ -989,7 +989,7 @@ lwpng-alpha-0.20.  The tests are:
 
 The page fetcher script using the old libwww-perl-5 library.  The
 script will fetch the HTML page and the images in sequence and create
-a new connection for each resource.
+a new connection for each resource fetched.
 
 =item LWPng
 
@@ -997,13 +997,14 @@ The page fetcher script using the new LWPng interface.  The script
 will start fetching the images as soon as the corresponding part of
 the HTML document has been received.
 
-How the LWPng library behaves depend on various parameters.  C<MaxConn>
-is the number of parallel connections we can have to a single server.
-C<ReqLimit> sets a limit on the number of requests we will send on a
-single connection.  Setting this value to 1 effectively disables persistent
-connections.  C<ReqPend> sets a limit on the number of requests we can
-have outstanding on a connection before we must wait for a response.
-Setting this value to 1 effectively disables pipelining.
+How the LWPng library behaves depend on various parameters.
+C<MaxConn> is the number of parallel connections we allow it to have
+to a single server.  C<ReqLimit> sets a limit on the number of
+requests it will send over a single connection.  Setting this value to
+1 effectively disables persistent connections.  C<ReqPend> sets a
+limit on the number of requests we can have outstanding on a
+connection before we must wait for a response.  Setting this value to
+1 effectively disables pipelining.
 
 The script has been tested with the
 following combinations of the parameters:
@@ -1027,6 +1028,10 @@ on the downloading speed we can hope to achieve with Perl.
 
 =back
 
+First test is between a client and a server connected by a local
+Ethernet.  We downloaded the page with images 5 times to get
+measurable results.
+
 gran --> furu [get-page-lwp5 http://furu/ 5], 3 images
 
  LWP5)    0.94user 0.31system 0:02.49elapsed 50%CPU
@@ -1035,6 +1040,21 @@ gran --> furu [get-page-lwp5 http://furu/ 5], 3 images
  LWPng-D) 2.36user 0.26system 0:03.49elapsed 74%CPU
  LWPng-E) 2.30user 0.25system 0:03.22elapsed 79%CPU
  SOCK)    0.28user 0.05system 0:01.40elapsed 23%CPU
+
+The results seem to indicate that CPU power to run Perl was the
+bottleneck here and we observe that LWPng use about 2.5 times more
+computation for the same task.  It is not really a good result when
+one of the goals was to make something that should ultimately be more
+lightweight.  The LWPng parameter settings did not change the results
+significantly, but the SOCK result indicate that a persistent
+connection can in fact be very efficient on a local network.
+
+The next test was done by fetching the front page of a webserver far
+away.  The packets passed through X routers and the 64 kbit ISDN line
+to my ISP.  I happened to select www.microsoft.com as it was the first
+site I found that implemented HTTP/1.1 persistent connections and at
+the same time used a lot of image icons.  At the time of the tests
+there were 17 referenced images to fetch.
 
 furu --> www.microsoft.com, [17 images]
 
@@ -1049,6 +1069,13 @@ furu --> www.microsoft.com, [17 images]
  LWPng-E) 5.87user 0.33system 0:13.09elapsed 47%CPU
  SOCK)    0.72user 0.08system 0:10.65elapsed 7%CPU
  SOCK)    0.73user 0.10system 0:10.89elapsed 7%CPU
+
+Again we see that LWPng use much more CPU that LWP5 to achieve the
+same thing, but here persistent connection and pipelining makes a real
+difference and we are actually fairly close to the SOCK reference
+numbers with LWPng-D.
+
+LWPng obviously need more optimizations.
 
 =head1 Conclusions
 
@@ -1123,7 +1150,8 @@ An article that explains proxies - W3C web perhaps...
 
 =item [12]
 
-Anon... Proxy - Randal
+"Anynoumus Proxy Server", Randal L. Schwartz, Web Techniques, February 1997
+<http://www.stonehenge.com/merlyn/WebTechniques/col11.html>
 
 
 =item [15]
