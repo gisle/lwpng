@@ -97,6 +97,7 @@ sub spool
     my $self = shift;
     my $spooled = 0;
     for my $req (@_) {
+	bless $req, "LWP::Request" if ref($req) eq "HTTP::Request"; #upgrade
 	$req->managed_by($self);
 	unless ($req->method) {
 	    $req->gen_response(400, "Missing METHOD in request");
@@ -111,9 +112,6 @@ sub spool
 	    $req->gen_response(400, "Request URL must be absolute");
 	    next;
 	}
-
-	bless $req, "LWP::Request" if ref($req) eq "HTTP::Request"; #upgrade
-
 	next if $self->run_hooks_until_success("spool_request", $req);
 
 	my $proxy = $req->proxy;
