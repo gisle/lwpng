@@ -114,7 +114,7 @@ sub kill_queued_requests
     }
     while (@{$self->{req_queue}}) {
 	my $req = shift @{$self->{req_queue}};
-	$req->gen_response($code, $message, $more);
+	$req->give_response($code, $message, $more);
     }
 }
 

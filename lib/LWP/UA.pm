@@ -138,16 +138,16 @@ sub spool
 	# Some initial tests.  These could be made optional by putting
 	# them in a spool_request hook too.
 	unless ($req->method) {
-	    $req->gen_response(400, "Missing METHOD in request");
+	    $req->give_response(400, "Missing METHOD in request");
 	    next;
 	}
 	my $url = $req->url;
 	unless ($url) {
-	    $req->gen_response(400, "Missing URL in request");
+	    $req->give_response(400, "Missing URL in request");
 	    next;
 	}
 	unless ($url->scheme) {
-	    $req->gen_response(400, "Request URL must be absolute");
+	    $req->give_response(400, "Request URL must be absolute");
 	    next;
 	}
 	next if $self->run_hooks_until_success("spool_request", $req);
