@@ -1,0 +1,4 @@
+#!/usr/bin/perl -w
+
+require "db.pl";
+print new_link(@ARGV), "\n";

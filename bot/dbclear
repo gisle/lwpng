@@ -1,0 +1,9 @@
+#!/bin/sh
+
+mysql ngbot <<EOT
+delete from links;
+delete from uri;
+delete from entity;
+delete from disallow;
+delete from server;
+EOT

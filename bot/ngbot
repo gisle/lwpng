@@ -1,0 +1,152 @@
+#!/usr/bin/perl -w
+
+# This is just an experiment in writing a robot using the new LWPng
+# library.  Both as a test case and as a tool for performance tuning.
+
+use lib "../lib";
+use strict;
+
+use vars qw($VERSION);
+$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+
+use LWP::UA;
+my $ua = LWP::UA->new;
+$ua->agent("ngbot/$VERSION");
+# There ought to be an official interface for this
+$ua->uri_attr_update("GLOBAL")->{default_headers}{From} = 'Gisle Aas <aas@sn.no>';
+$ua->uri_attr_update(SCHEME => "http:")->{conn_param}{ReqLimit} = 20;
+#$ua->uri_attr_update(SCHEME => "http:")->{conn_param}{ReqPending}  = 3;
+$ua->uri_attr_update(SCHEME => "http:")->{conn_param}{Timeout}  = 30;
+$ua->uri_attr_update(SCHEME => "http:")->{conn_param}{IdleTimeout}  = 3;
+
+#$LWP::Server::DEBUG++;
+
+use LWP::Request ();
+use LWP::MainLoop qw(run one_event empty);
+
+use HTML::LinkExtor ();
+use URI::URL qw(url);
+use MD5 ();
+
+require 'db.pl';
+use vars qw($dbh);
+
+my $low  = 5;
+my $high = 10;
+my $pending = 0;
+
+my $arg = join(" ", @ARGV) || "new";
+$arg =~ s/\bnew\b/uri.last_visit = NULL/;
+$arg =~ s/\bok\b/(status_code >= 200 and status_code < 300)/;
+
+my $sql = "select uri.id, scheme, host, port, abs_path from server, uri where server.id = uri.server and $arg";
+print "$sql\n";
+my $sth;
+$sth = $dbh->query($sql) or die $dbh->errmess;
+
+while (my($id, $scheme,$host,$port,$abs_path) = $sth->fetchrow) {
+    my $url = URI::URL->new("$scheme:$abs_path");
+    $url->host($host) if $host;
+    $url->port($port) if $port;
+    my $method = visit_ok($url);
+    if ($method) {
+	print "$id $method $url\n";
+	if ($method eq "GET") {
+	    forget_links_from($id);
+	}
+	my $req = LWP::Request->new($method => $url);
+	$req->{'data_cb'} = \&parse_data;
+	$req->{'done_cb'} = \&parse_done;
+	$req->{'ngbot_id'} = $id;
+        $pending++;
+	$ua->spool($req);
+    } else {
+	print "SKIP $url\n";
+	visit($id, 599, "Skip");
+    }
+    if ($pending > $high) {
+	one_event() until $pending < $low || empty();
+    }
+}
+one_event() until !$pending || empty();
+exit;
+
+
+sub visit_ok
+{
+    my($url) = shift;
+    return unless $url->scheme eq "http";
+    return if $url->equery; # && $url->host !~ /\.aas\.no$/;
+    "GET";
+}
+
+
+
+sub parse_data
+{
+    my($chunk, $res, $req) = @_;
+    unless ($req->{'been_here_before'}++) {
+	#print "FIRST\n";
+	# this is the first time we get a callback
+	my $id = $req->{'ngbot_id'};
+	my $ct = $res->content_type;
+	if (!$res->is_success) {
+	    # error
+	} elsif ($ct eq "text/html") {
+	    $req->{'linkextor'} = HTML::LinkExtor->new(
+	       sub {
+		   my($tag, %links) = @_;
+		   #print "LINK $tag\n";
+		   return unless $tag eq "a";
+		   my $l = $links{'href'} || return;
+		   return if $l =~ /^(mailto|news):/;
+		   new_link(url($l,$res->base)->abs, $id, $tag);
+	       });
+	} elsif ($ct =~ m,^text/,,) {
+	    # might look for plain text URLs in the text
+	} else {
+	    # ignore
+	}
+	$req->{md5} = MD5->new;
+    }
+    if (my $p = $req->{'linkextor'}) {
+	$p->parse($chunk);
+    }
+
+    if (my $md5 = $req->{'md5'}) {
+	$md5->add($chunk);
+	$req->{'content_size'} += length($chunk);
+    }
+}
+
+sub parse_done
+{
+    my($res, $req) = @_;
+    if (my $p = delete $req->{'linkextor'}) {
+	$p->eof;
+    }
+    if (my $id = $req->{'ngbot_id'}) {
+	my $code = $res->code;
+	my $mess = $res->message || "";
+	my $md5 = delete $req->{'md5'};
+	if ($md5) {
+	    $md5 = $md5->hexdigest;
+	}
+	print "$id $code $mess\n";
+	visit($id, $code, $mess,
+	      $res->content_type,
+	      $res->last_modified,
+	      scalar($res->header("Etag")),
+	      $res->fresh_until,
+	      scalar($req->{'content_size'} || $res->content_length),
+	      $md5
+	     );
+	if ($res->is_redirect and my $loc = $res->header("Location")) {
+	    new_link($loc, $id, "r");
+	}
+    } else {
+	print "Missing ID for response\n";
+    }
+    $pending--;
+}
+

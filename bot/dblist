@@ -1,0 +1,72 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+use HTTP::Date qw(time2iso);
+require "db.pl";
+use vars qw($dbh);
+
+if (@ARGV == 1 && $ARGV[0] =~ /^\d+$/) {
+    my $id = shift;
+    my $sth = $dbh->query("select scheme, host, port, abs_path, uri.last_visit, status_code, message, last_mod, etag, entity, content_type from server, uri where server.id = uri.server and uri.id = $id") or die $dbh->errmsg;
+    unless ($sth->numrows) {
+	die "None found $id\n";
+    }
+    my($scheme,$host,$port,$abs_path,$last_visit,$code,$mess,
+       $last_mod,$etag,$eid,$ctid) = $sth->fetchrow;
+    print "URL: ", make_url($scheme, $host, $port, $abs_path), "\n";
+    print "Last-Visit: ", time2iso($last_visit), "\n" if $last_visit;
+    print "Status: $code $mess\n" if $code;
+    if ($ctid) {
+	$sth = $dbh->query("select name from media_types where id=$ctid") or die $dbh->errmsg;
+	my($name) = $sth->fetchrow;
+	my $ct = $name ? $name : "#$ctid";
+	print "Content-Type: $ct\n";
+    }
+    print "Last-Modified: ", time2iso($last_mod), "\n" if $last_mod;
+    print "ETag: $etag\n" if $etag;
+
+    my @r;
+    if ($eid) {
+	print "Entity-ID: $eid\n";
+	@r= $dbh->query("select id from uri where entity=$eid and id<>$id order by id")->fetchcol(0);
+	print "Same-Entity-As: @r\n" if @r;
+    }
+
+    @r= $dbh->query("select dest from links where src = $id order by dest")->fetchcol(0);
+    print "References: @r\n" if @r;
+
+    @r = $dbh->query("select src from links where dest = $id order by src")->fetchcol(0);
+    print "Referenced-By: @r\n" if @r;
+
+    exit;
+}
+
+my $extra = join(" ", @ARGV);
+substr($extra,0,0) = " AND " if $extra;
+
+my $sql = "SELECT uri.id, scheme, host, port, abs_path, status_code FROM server, uri WHERE server.id = uri.server$extra";
+print STDERR "$sql\n";
+
+my $sth = $dbh->query($sql) or die $dbh->errmsg;
+
+while (my($id, $scheme,$host,$port,$abs_path,$code) = $sth->fetchrow) {
+   $code = "---" unless $code;
+   my $url  = make_url($scheme,$host,$port,$abs_path);
+   print "$code $url #$id\n";
+}
+
+sub make_url
+{
+    my($scheme,$host,$port,$abs_path) = @_;
+   if ($port) {
+       if ($scheme eq "http" && $port == 80) {
+	   $port = "";
+       } else {
+	   $port = ":$port";
+       }
+   } else {
+       $port = "";
+   }
+   "$scheme://$host$port$abs_path";
+}

@@ -1,0 +1,3 @@
+This is a little spider application written to do library testing mostly.
+You need to have the MySQL database server installed and a database called
+'ngbot' created.
