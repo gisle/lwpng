@@ -87,11 +87,7 @@ sub find_server
     my($port, $netloc);
 
     # Handle some special cases where $host can't be trusted
-    if ($proto eq "file") {
-	$host = undef if $host && $host eq "localhost";
-    } elsif ($proto eq "mailto") {
-	$host = undef;
-    }
+    $host = undef if $proto eq "file" || $proto eq "mailto";
 
     if ($host) {
 	$port = $url->port;
