@@ -81,10 +81,10 @@ sub new
 	eval { $sock->blocking(0) };  # require IO-1.18 or better
 	mainloop->timeout($sock, $timeout) if $timeout;
 
-        $ {*$sock}{'lwp_mgr'} = $mgr;
-	$ {*$sock}{'lwp_req_count'} = 0;
-	$ {*$sock}{'lwp_req_limit'} = $req_limit;
-	$ {*$sock}{'lwp_req_max_pending'} = $req_pending;
+        *$sock->{'lwp_mgr'} = $mgr;
+	*$sock->{'lwp_req_count'} = 0;
+	*$sock->{'lwp_req_limit'} = $req_limit;
+	*$sock->{'lwp_req_max_pending'} = $req_pending;
 
 	if ($DEBUG) {
 	    use Socket qw(unpack_sockaddr_in inet_ntoa);
@@ -105,7 +105,7 @@ sub new
     }
     if ($sock) {
         $sock->state("Idle");
-	$ {*$sock}{'lwp_rbuf'} = "";
+	*$sock->{'lwp_rbuf'} = "";
 	mainloop->readable($sock);
 	$sock->activate;
     }
@@ -128,11 +128,11 @@ sub state
 sub new_request
 {
     my $self = shift;
-    return if defined $ {*$self}{'lwp_wbuf'};
+    return if defined *$self->{'lwp_wbuf'};
     return if $self->last_request_sent;
-    return if $self->pending_requests >= $ {*$self}{'lwp_req_max_pending'};
+    return if $self->pending_requests >= *$self->{'lwp_req_max_pending'};
 
-    my $mgr = $ {*$self}{'lwp_mgr'};
+    my $mgr = *$self->{'lwp_mgr'};
     my $req = $mgr->get_request($self);
     if ($req) {
 	print STDERR "$self: New-Request $req\n" if $DEBUG;
@@ -142,9 +142,9 @@ sub new_request
 	#$req->header("Connection" => "close");
 	$req->scan(sub { push(@rlines, "$_[0]: $_[1]") });
 	push(@rlines, "", "");
-	push(@{ $ {*$self}{'lwp_req'} }, $req);
-	$ {*$self}{'lwp_wbuf'} = join("\015\012", @rlines);
-	$ {*$self}{'lwp_req_count'}++;  # XXX: should mark last request somehow
+	push(@{ *$self->{'lwp_req'} }, $req);
+	*$self->{'lwp_wbuf'} = join("\015\012", @rlines);
+	*$self->{'lwp_req_count'}++;  # XXX: should mark last request somehow
 	mainloop->writable($self);
 	return $req;
     }
@@ -155,14 +155,14 @@ sub new_request
 sub last_request_sent
 {
     my $self = shift;
-    $ {*$self}{'lwp_req_count'} >= $ {*$self}{'lwp_req_limit'};
+    *$self->{'lwp_req_count'} >= *$self->{'lwp_req_limit'};
 }
 
 
 sub current_request
 {
     my $self = shift;
-    my $req = $ {*$self}{'lwp_req'};
+    my $req = *$self->{'lwp_req'};
     return if !$req || !@$req;
     $req->[0];
 }
@@ -171,7 +171,7 @@ sub current_request
 sub pending_requests
 {
    my $self = shift;
-   my $req = $ {*$self}{'lwp_req'};
+   my $req = *$self->{'lwp_req'};
    return 0 if !$req;
    @$req;
 }
@@ -199,11 +199,11 @@ sub _error
     mainloop->forget($self);
     $self->close;
     
-    my $res = $ {*$self}{'lwp_res'};
+    my $res = *$self->{'lwp_res'};
     $res->header("Client-Connection-Error" => $msg) if $res;
 
-    my $mgr = delete $ {*$self}{'lwp_mgr'};
-    my $req = $ {*$self}{'lwp_req'};
+    my $mgr = delete *$self->{'lwp_mgr'};
+    my $req = *$self->{'lwp_req'};
     if ($req && @$req > 1) {
 	shift @$req;  # currect request never retried
 	$mgr->pushback_request($self, @$req);
@@ -263,7 +263,7 @@ require HTTP::Response;
 sub writable
 {
     my $self = shift;
-    my $buf = \ $ {*$self}{'lwp_wbuf'};
+    my $buf = \ *$self->{'lwp_wbuf'};
     my $n = syswrite($self, $$buf, length($$buf));
     if (!defined($n) || $n == 0) {
 	$self->_error("Bad write: $!");
@@ -273,7 +273,7 @@ sub writable
 	    substr($$buf, 0, $n) = "";  # get rid of this
 	} else {
 	    # request sent
-	    delete $ {*$self}{'lwp_wbuf'};
+	    delete *$self->{'lwp_wbuf'};
 	    # try to start a new one?
 	    mainloop->writable($self, undef) unless $self->new_request;
 	}
@@ -284,7 +284,7 @@ sub writable
 sub readable
 {
     my $self = shift;
-    my $buf = \ $ {*$self}{'lwp_rbuf'};
+    my $buf = \ *$self->{'lwp_rbuf'};
     my $n = sysread($self, $$buf, 512, length($$buf));
     if (!defined($n)) {
 	$self->_error("Bad read: $!");
@@ -311,7 +311,7 @@ sub server_closed_connection
 sub check_rbuf
 {
     my $self = shift;
-    my $buf = \ $ {*$self}{'lwp_rbuf'};
+    my $buf = \ *$self->{'lwp_rbuf'};
 
     return unless length($$buf) >= 7;  # can't do anything before that
 
@@ -345,7 +345,7 @@ sub check_rbuf
 	return;
     }
 
-    $ {*$self}{'lwp_res'} = $res;
+    *$self->{'lwp_res'} = $res;
     my $req = $self->current_request;
     $res->request($req);
     #print $res->as_string if $LWP::HConn::DEBUG;
@@ -354,19 +354,19 @@ sub check_rbuf
     my $trans_enc;
     if ($req->method eq "HEAD" || $code =~ /^(?:1\d\d|[23]04)$/) {
 	$self->state("ContLen");
-	$ {*$self}{'lwp_cont_len'} = 0;
+	*$self->{'lwp_cont_len'} = 0;
     } elsif ( ($trans_enc = $res->header("Transfer-Encoding"))) {
 	$self->_error("Unknown transfer encoding '$trans_enc'")
 	  if $trans_enc ne "chunked";
 	$res->remove_header("Transfer-Encoding");
 	$self->state("Chunked");
-	$ {*$self}{'lwp_chunked'} = -1;
+	*$self->{'lwp_chunked'} = -1;
     } else {
 	my $ct = $res->header("Content-Type") || "";
 	if ($ct =~ /^multipart\//) {
 	    if ($ct =~ /\bboundary\s*=\s*(.*)/) {
 		$self->state("Multipart");
-		$ {*$self}{'lwp_boundary'} = "\015\012--$1--\015\012"
+		*$self->{'lwp_boundary'} = "\015\012--$1--\015\012"
 	    } else {
 		$self->_error("Multipart without boundary");
 	    }
@@ -374,14 +374,14 @@ sub check_rbuf
 	    my $cont_len = $res->header("Content-Length");
 	    if (defined $cont_len) {
 		$self->state("ContLen");
-		$ {*$self}{'lwp_cont_len'} = $cont_len;
+		*$self->{'lwp_cont_len'} = $cont_len;
 	    } else {
 		$self->state("UntilEOF");
 		# If we have pending requests, then we know we will never
 		# get a reply, so let's return them...
-		my $req = $ {*$self}{'lwp_req'};
+		my $req = *$self->{'lwp_req'};
 		if (@$req > 1) {
-		    my $mgr = $ {*$self}{'lwp_mgr'};
+		    my $mgr = *$self->{'lwp_mgr'};
 		    $mgr->pushback_request($self, splice(@$req, 1));
 		}
 	    }
@@ -395,13 +395,13 @@ sub end_of_response
 {
     my $self = shift;
     print STDERR "$self: End-Of-Response\n" if $LWP::HConn::DEBUG;
-    my $req = shift @{$ {*$self}{'lwp_req'}};  # get rid of current request
-    $req->done($ {*$self}{'lwp_res'});
-    $ {*$self}{'lwp_res'} = undef;
+    my $req = shift @{*$self->{'lwp_req'}};  # get rid of current request
+    $req->done(*$self->{'lwp_res'});
+    *$self->{'lwp_res'} = undef;
     if ($self->last_request_sent && !$self->current_request) {
 	mainloop->forget($self);
 	$self->close;
-	(delete $ {*$self}{'lwp_mgr'})->connection_closed($self);
+	(delete *$self->{'lwp_mgr'})->connection_closed($self);
 	return;
     }
     $self->state("Active");
@@ -409,7 +409,7 @@ sub end_of_response
     if ($self->current_request) {
 	$self->check_rbuf;
     } else {
-	$ {*$self}{'lwp_mgr'}->connection_idle($self);
+	*$self->{'lwp_mgr'}->connection_idle($self);
 	$self->state("Idle");
     }
 }
@@ -423,16 +423,16 @@ use base qw(LWP::HConn::Active);
 sub check_rbuf
 {
     my $self = shift;
-    my $buf      = \ $ {*$self}{'lwp_rbuf'};
-    my $res      =   $ {*$self}{'lwp_res'};
-    my $cont_len =   $ {*$self}{'lwp_cont_len'};
+    my $buf      = \ *$self->{'lwp_rbuf'};
+    my $res      =   *$self->{'lwp_res'};
+    my $cont_len =   *$self->{'lwp_cont_len'};
 
     my $data = substr($$buf, 0, $cont_len);
     substr($$buf, 0, $cont_len) = '';
     $cont_len -= length($data);
     $res->request->response_data($data, $res);
     if ($cont_len > 0) {
-	$ {*$self}{'lwp_cont_len'} = $cont_len;
+	*$self->{'lwp_cont_len'} = $cont_len;
     } else {
 	$self->end_of_response;
     }
@@ -447,9 +447,9 @@ use base qw(LWP::HConn::Active);
 sub check_rbuf
 {
     my $self = shift;
-    my $buf      = \ $ {*$self}{'lwp_rbuf'};
-    my $res      =   $ {*$self}{'lwp_res'};
-    my $chunked  =   $ {*$self}{'lwp_chunked'};
+    my $buf      = \ *$self->{'lwp_rbuf'};
+    my $res      =   *$self->{'lwp_res'};
+    my $chunked  =   *$self->{'lwp_chunked'};
 
     # -1: must get chunk header (number of bytes) first
     # >0: read this number of bytes before returning back to -1
@@ -500,7 +500,7 @@ sub check_rbuf
 	} else {
 	    die "This should not happen";
 	}
-	$ {*$self}{'lwp_chunked'} = $chunked;   # remember to next time
+	*$self->{'lwp_chunked'} = $chunked;   # remember to next time
     }
 }
 
@@ -513,9 +513,9 @@ use base qw(LWP::HConn::Active);
 sub check_rbuf
 {
     my $self = shift;
-    my $buf      = \ $ {*$self}{'lwp_rbuf'};
-    my $res      =   $ {*$self}{'lwp_res'};
-    my $boundary =   $ {*$self}{'lwp_boundary'};
+    my $buf      = \ *$self->{'lwp_rbuf'};
+    my $res      =   *$self->{'lwp_res'};
+    my $boundary =   *$self->{'lwp_boundary'};
 
     my $i = index($$buf, $boundary);
     if ($i < 0) {
@@ -539,8 +539,8 @@ use base qw(LWP::HConn::Active);
 sub check_rbuf
 {
     my $self = shift;
-    my $buf      = \ $ {*$self}{'lwp_rbuf'};
-    my $res      =   $ {*$self}{'lwp_res'};
+    my $buf      = \ *$self->{'lwp_rbuf'};
+    my $res      =   *$self->{'lwp_res'};
     $res->request->response_data($$buf, $res);
     $$buf = '';
 }
