@@ -19,7 +19,7 @@ sub reschedule
     my @start;
 
     while (my($netloc, $server) = each %{$ua->{servers}}) {
-	my($req,$conn,$iconn, $max_conn) = $server->status;
+	my($req,$conn,$iconn, $max_conn) = $server->c_status;
 
 	# Calculate how many connections we would like to start for
 	# this server
