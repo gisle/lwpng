@@ -1,5 +1,4 @@
 package LWP::HConn; # HTTP Connection
-use base qw(IO::Socket::INET);
 
 # $Id$
 
@@ -20,6 +19,8 @@ use vars qw($DEBUG);
 my $TCP_PROTO = (getprotobyname('tcp'))[2];
 use IO::Socket qw(AF_INET SOCK_STREAM inet_aton pack_sockaddr_in);
 use LWP::EventLoop qw(mainloop);
+
+use base qw(IO::Socket::INET);
 
 
 
