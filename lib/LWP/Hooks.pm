@@ -35,7 +35,9 @@ sub run_hooks
 {
     my $self = shift;
     my $type = shift;
-    for my $hook (@{$self->{"${type}_hooks"}}) {
+    return $self unless $self->{"${type}_hooks"};
+    my @hooks;
+    for my $hook (@hooks = @{$self->{"${type}_hooks"}}) {
 	&$hook($self, @_);
     }
     $self;
@@ -45,8 +47,10 @@ sub run_hooks_until_failure  # and
 {
     my $self = shift;
     my $type = shift;
+    return $self unless $self->{"${type}_hooks"};
     my $res = 1;
-    for my $hook (@{$self->{"${type}_hooks"}}) {
+    my @hooks;
+    for my $hook (@hooks = @{$self->{"${type}_hooks"}}) {
 	$res = &$hook($self, @_);
 	last unless $res;
     }
@@ -57,8 +61,10 @@ sub run_hooks_until_success  # or
 {
     my $self = shift;
     my $type = shift;
+    return $self unless $self->{"${type}_hooks"};
     my $res;
-    for my $hook (@{$self->{"${type}_hooks"}}) {
+    my @hooks;
+    for my $hook (@hooks = @{$self->{"${type}_hooks"}}) {
 	$res = &$hook($self, @_);
 	last if $res;
     }
